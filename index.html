@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f4eddb" />
+    <title>Farm Hands</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./game.js" defer></script>
+  </head>
+  <body>
+    <main class="game-shell">
+      <header class="masthead">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none">
+            <path d="M24 39V17M24 29c-7 0-11-4-11-10 7 0 11 4 11 10ZM24 23c0-7 4-11 11-11 0 7-4 11-11 11Z" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M11 39h26" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div>
+          <p class="eyebrow">A little farming game</p>
+          <h1>Farm Hands</h1>
+        </div>
+      </header>
+
+      <section class="intro" aria-labelledby="field-heading">
+        <div>
+          <p class="section-kicker">THE FIRST FIELD</p>
+          <h2 id="field-heading">Let’s plant wheat.</h2>
+          <p class="intro-copy">Choose an empty patch of soil to plant a wheat seed.</p>
+        </div>
+        <div class="field-counter" aria-live="polite" aria-atomic="true">
+          <span class="counter-number" id="planted-count">0 / 12</span>
+          <span class="counter-label">plots planted</span>
+        </div>
+      </section>
+
+      <section class="farm" aria-label="Wheat planting field">
+        <div class="sky" aria-hidden="true">
+          <span class="sun"></span>
+          <span class="cloud cloud-one"></span>
+          <span class="cloud cloud-two"></span>
+          <span class="hill hill-back"></span>
+          <span class="hill hill-front"></span>
+        </div>
+        <div class="field-wrap">
+          <div class="field-sign" aria-hidden="true">WHEAT FIELD</div>
+          <div class="field-grid" id="field"></div>
+        </div>
+      </section>
+
+      <p class="field-hint" id="field-status" role="status">Tap or click a soil patch to plant wheat.</p>
+    </main>
+  </body>
+</html>
