@@ -5,8 +5,12 @@ const COLUMNS = 4;
 const ROWS = 3;
 const PLOT_COUNT = COLUMNS * ROWS;
 const canvas = document.querySelector('#field');
+const rainCanvas = document.querySelector('#rain-overlay');
+const rainContext = rainCanvas.getContext('2d');
 const count = document.querySelector('#planted-count');
 const status = document.querySelector('#field-status');
+const weatherSelect = document.querySelector('#weather-select');
+const weatherDescription = document.querySelector('#weather-description');
 const plantedPlots = new Set();
 
 let renderer;
@@ -41,7 +45,8 @@ controls.rotateSpeed = 0.8;
 controls.update();
 controls.addEventListener('change', render);
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x739367, 2.4));
+const ambientLight = new THREE.HemisphereLight(0xffffff, 0x739367, 2.4);
+scene.add(ambientLight);
 const sunlight = new THREE.DirectionalLight(0xfff1cd, 3.2);
 sunlight.position.set(-5, 11, 7);
 sunlight.castShadow = true;
@@ -286,6 +291,85 @@ function render() {
   renderer.render(scene, camera);
 }
 
+const weatherSettings = {
+  sunny: {
+    description: 'Clear skies and warm sunlight.', sky: 0xb8e1df,
+    ambient: 2.4, sun: 3.2, rain: 0, speed: 0, opacity: 0, length: 0, fog: 120,
+  },
+  light: {
+    description: 'A light shower is falling.', sky: 0xabc5c8,
+    ambient: 2.0, sun: 1.9, rain: 55, speed: 170, opacity: 0.45, length: 12, fog: 100,
+  },
+  moderate: {
+    description: 'Steady rain is falling.', sky: 0x829fa9,
+    ambient: 1.6, sun: 1.15, rain: 120, speed: 300, opacity: 0.58, length: 18, fog: 80,
+  },
+  heavy: {
+    description: 'A heavy downpour is falling.', sky: 0x637c8b,
+    ambient: 1.25, sun: 0.65, rain: 220, speed: 470, opacity: 0.72, length: 24, fog: 65,
+  },
+};
+const MAX_RAIN_DROPS = weatherSettings.heavy.rain;
+let rainSeed = 9247;
+const randomRain = () => ((rainSeed = (rainSeed * 1664525 + 1013904223) >>> 0) / 4294967296);
+const rainDrops = Array.from({ length: MAX_RAIN_DROPS }, () => ({
+  x: randomRain(),
+  y: randomRain(),
+}));
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+let currentWeather = weatherSettings.sunny;
+let rainFrame = 0;
+let lastRainTime = 0;
+
+function drawRain(deltaSeconds = 0) {
+  const width = rainCanvas.clientWidth;
+  const height = rainCanvas.clientHeight;
+  rainContext.clearRect(0, 0, width, height);
+  rainContext.strokeStyle = `rgba(217, 239, 250, ${currentWeather.opacity})`;
+  rainContext.lineWidth = currentWeather.rain === weatherSettings.heavy.rain ? 1.7 : 1.3;
+  rainContext.beginPath();
+  for (let index = 0; index < currentWeather.rain; index += 1) {
+    const drop = rainDrops[index];
+    drop.y += currentWeather.speed * deltaSeconds / height;
+    if (drop.y > 1.05) drop.y -= 1.1;
+    const x = drop.x * width;
+    const y = drop.y * height;
+    rainContext.moveTo(x, y);
+    rainContext.lineTo(x - currentWeather.length * 0.22, y + currentWeather.length);
+  }
+  rainContext.stroke();
+}
+
+function animateRain(now) {
+  const deltaSeconds = lastRainTime ? Math.min((now - lastRainTime) / 1000, 0.05) : 0;
+  lastRainTime = now;
+  drawRain(deltaSeconds);
+  rainFrame = requestAnimationFrame(animateRain);
+}
+
+function setWeather(name) {
+  currentWeather = weatherSettings[name] || weatherSettings.sunny;
+  weatherDescription.textContent = currentWeather.description;
+  scene.background.setHex(currentWeather.sky);
+  scene.fog.color.setHex(currentWeather.sky);
+  scene.fog.far = currentWeather.fog;
+  ambientLight.intensity = currentWeather.ambient;
+  sunlight.intensity = currentWeather.sun;
+  rainCanvas.hidden = currentWeather.rain === 0;
+  if (rainFrame) cancelAnimationFrame(rainFrame);
+  rainFrame = 0;
+  lastRainTime = 0;
+  if (!rainCanvas.hidden) {
+    drawRain();
+    if (!reducedMotion.matches) rainFrame = requestAnimationFrame(animateRain);
+  }
+  render();
+}
+
+weatherSelect.addEventListener('change', () => setWeather(weatherSelect.value));
+reducedMotion.addEventListener('change', () => setWeather(weatherSelect.value));
+setWeather(weatherSelect.value);
+
 function addWheatSeedlings(index) {
   const { x, z } = plotPositions[index];
   const cluster = new THREE.Group();
@@ -315,7 +399,7 @@ function addWheatSeedlings(index) {
   }
   scene.add(cluster);
 
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (reducedMotion.matches) {
     render();
     return;
   }
@@ -347,6 +431,11 @@ function resize() {
   camera.updateProjectionMatrix();
   controls.update();
   renderer.setSize(width, height, false);
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+  rainCanvas.width = Math.round(width * pixelRatio);
+  rainCanvas.height = Math.round(height * pixelRatio);
+  rainContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  if (currentWeather.rain) drawRain();
   render();
 }
 new ResizeObserver(resize).observe(canvas);
