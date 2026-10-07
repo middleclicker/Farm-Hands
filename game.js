@@ -1,4 +1,5 @@
-import * as THREE from './vendor/three/three.module.js';
+import * as THREE from 'three';
+import { OrbitControls } from './vendor/three/OrbitControls.js';
 
 const COLUMNS = 4;
 const ROWS = 3;
@@ -26,6 +27,15 @@ const scene = new THREE.Scene();
 const camera = new THREE.OrthographicCamera(-7, 7, 5, -5, 0.1, 100);
 camera.position.set(9, 12, 14);
 camera.lookAt(0, 0.25, 0);
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 0.25, 0);
+controls.enablePan = false;
+controls.enableZoom = false;
+controls.minPolarAngle = THREE.MathUtils.degToRad(25);
+controls.maxPolarAngle = THREE.MathUtils.degToRad(80);
+controls.rotateSpeed = 0.8;
+controls.update();
+controls.addEventListener('change', render);
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x739367, 2.4));
 const sunlight = new THREE.DirectionalLight(0xfff1cd, 3.2);
@@ -157,7 +167,7 @@ function resize() {
   const height = canvas.clientHeight;
   if (!width || !height) return;
   const aspect = width / height;
-  const viewHeight = Math.max(8.8, 11.2 / aspect);
+  const viewHeight = Math.max(8.8, 10.4 / aspect);
   camera.left = -viewHeight * aspect / 2;
   camera.right = viewHeight * aspect / 2;
   camera.top = viewHeight / 2;
@@ -173,6 +183,9 @@ const pointer = new THREE.Vector2();
 let hoveredIndex = -1;
 let selectedIndex = 0;
 let keyboardFocus = false;
+let activePointer = null;
+let dragged = false;
+let suppressClick = false;
 
 function pickPlot(event) {
   const bounds = canvas.getBoundingClientRect();
@@ -209,9 +222,27 @@ function plantWheat(index) {
   updateCanvasLabel();
 }
 
+canvas.addEventListener('pointerdown', (event) => {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  activePointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  dragged = false;
+  suppressClick = false;
+});
 canvas.addEventListener('pointermove', (event) => {
+  if (activePointer?.id === event.pointerId &&
+      Math.hypot(event.clientX - activePointer.x, event.clientY - activePointer.y) > 6) {
+    dragged = true;
+  }
+  if (dragged) {
+    canvas.style.cursor = 'grabbing';
+    if (hoveredIndex !== -1) {
+      hoveredIndex = -1;
+      updateHighlights();
+    }
+    return;
+  }
   const index = pickPlot(event);
-  canvas.style.cursor = index >= 0 && !plantedPlots.has(index) ? 'pointer' : 'default';
+  canvas.style.cursor = index >= 0 && !plantedPlots.has(index) ? 'pointer' : 'grab';
   if (index !== hoveredIndex) {
     hoveredIndex = index;
     updateHighlights();
@@ -219,10 +250,28 @@ canvas.addEventListener('pointermove', (event) => {
 });
 canvas.addEventListener('pointerleave', () => {
   hoveredIndex = -1;
-  canvas.style.cursor = 'default';
+  canvas.style.cursor = 'grab';
   updateHighlights();
 });
+canvas.addEventListener('pointerup', (event) => {
+  if (activePointer?.id === event.pointerId) {
+    activePointer = null;
+    suppressClick = dragged;
+    dragged = false;
+  }
+  canvas.style.cursor = 'grab';
+});
+canvas.addEventListener('pointercancel', () => {
+  activePointer = null;
+  dragged = false;
+  suppressClick = false;
+  canvas.style.cursor = 'grab';
+});
 canvas.addEventListener('click', (event) => {
+  if (suppressClick) {
+    suppressClick = false;
+    return;
+  }
   const index = pickPlot(event);
   if (index < 0) return;
   selectedIndex = index;

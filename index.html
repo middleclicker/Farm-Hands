@@ -6,44 +6,42 @@
     <meta name="theme-color" content="#f4eddb" />
     <title>Farm Hands</title>
     <link rel="stylesheet" href="./styles.css" />
+    <script type="importmap">
+      { "imports": { "three": "./vendor/three/three.module.js" } }
+    </script>
     <script type="module" src="./game.js"></script>
   </head>
   <body>
     <main class="game-shell">
-      <header class="masthead">
-        <div class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 48 48" fill="none">
-            <path d="M24 39V17M24 29c-7 0-11-4-11-10 7 0 11 4 11 10ZM24 23c0-7 4-11 11-11 0 7-4 11-11 11Z" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M11 39h26" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
-          </svg>
-        </div>
-        <div>
-          <p class="eyebrow">A little farming game</p>
-          <h1>Farm Hands</h1>
-        </div>
-      </header>
-
-      <section class="intro" aria-labelledby="field-heading">
-        <div>
-          <p class="section-kicker">THE FIRST FIELD</p>
-          <h2 id="field-heading">Let’s plant wheat.</h2>
-          <p class="intro-copy">Choose an empty patch of soil to plant a wheat seed.</p>
-        </div>
-        <div class="field-counter" aria-live="polite" aria-atomic="true">
-          <span class="counter-number" id="planted-count">0 / 12</span>
-          <span class="counter-label">plots planted</span>
-        </div>
-      </section>
-
       <section class="farm" aria-label="3D wheat planting field">
         <span class="sun" aria-hidden="true"></span>
         <span class="cloud cloud-one" aria-hidden="true"></span>
         <span class="cloud cloud-two" aria-hidden="true"></span>
-        <span class="scene-badge" aria-hidden="true">WHEAT FIELD · 3D</span>
-        <canvas id="field" tabindex="0" aria-label="3D wheat field. Use arrow keys to select a plot and Enter to plant wheat." aria-describedby="field-status"></canvas>
-      </section>
+        <canvas id="field" tabindex="0" aria-label="3D wheat field. Use arrow keys to select a plot and Enter to plant wheat." aria-describedby="field-help field-status"></canvas>
 
-      <p class="field-hint" id="field-status" role="status">Tap or click a soil plot to plant wheat. Keyboard: arrow keys, then Enter.</p>
+        <header class="masthead">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none">
+              <path d="M24 39V17M24 29c-7 0-11-4-11-10 7 0 11 4 11 10ZM24 23c0-7 4-11 11-11 0 7-4 11-11 11Z" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M11 39h26" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+            </svg>
+          </div>
+          <div>
+            <p class="eyebrow">Wheat field</p>
+            <h1>Farm Hands</h1>
+          </div>
+        </header>
+
+        <div class="field-counter" aria-live="polite" aria-atomic="true">
+          <span class="counter-number" id="planted-count">0 / 12</span>
+          <span class="counter-label">plots planted</span>
+        </div>
+
+        <div class="field-help">
+          <p class="controls-hint" id="field-help">Click or tap to plant · Drag to rotate · Arrow keys and Enter to plant</p>
+          <p class="field-status" id="field-status" role="status">Choose a soil plot to plant wheat.</p>
+        </div>
+      </section>
     </main>
   </body>
 </html>
