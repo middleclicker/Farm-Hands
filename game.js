@@ -471,7 +471,7 @@ function updateHighlights() {
 
 function updateCanvasLabel() {
   const state = plantedPlots.has(selectedIndex) ? 'already planted' : 'empty';
-  canvas.setAttribute('aria-label', `3D wheat field. Plot ${selectedIndex + 1} of ${PLOT_COUNT} is ${state}. Use arrow keys to select a plot and Enter to plant wheat.`);
+  canvas.setAttribute('aria-label', `3D wheat field. Plot ${selectedIndex + 1} of ${PLOT_COUNT} is ${state}. Use WASD to move the camera, arrow keys to select a plot, and Enter to plant wheat.`);
 }
 
 function plantWheat(index) {
@@ -561,6 +561,26 @@ canvas.addEventListener('keydown', (event) => {
   selectedIndex = next;
   updateCanvasLabel();
   updateHighlights();
+});
+
+window.addEventListener('keydown', (event) => {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
+  if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable]')) return;
+  const key = event.key.toLowerCase();
+  if (!['w', 'a', 's', 'd'].includes(key)) return;
+  event.preventDefault();
+
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+  forward.y = 0;
+  forward.normalize();
+  const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+  const movement = key === 'w' ? forward : key === 's' ? forward.negate()
+    : key === 'd' ? right : right.negate();
+  const distance = event.repeat ? 0.3 : 0.65;
+  camera.position.addScaledVector(movement, distance);
+  controls.target.addScaledVector(movement, distance);
+  controls.update();
 });
 
 updateCanvasLabel();
