@@ -14,7 +14,7 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: linear-gradient(#b8e1df 0%, #dcf0e0 58%, #9acb8f 100%);
+  background: linear-gradient(#b8e1df 0%, #b8e1df 45%, #dcf0e0 75%, #9acb8f 100%);
 }
 #field {
   position: absolute;
@@ -27,23 +27,6 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
   cursor: grab;
 }
 #field:focus-visible { outline: 4px solid #fff2b7; outline-offset: -8px; }
-.sun {
-  position: absolute;
-  top: 14%;
-  right: 16%;
-  width: clamp(68px, 8vw, 112px);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: #ffe3a3;
-  box-shadow: 0 0 0 18px #ffe5aa44;
-}
-.cloud { position: absolute; height: 18px; border-radius: 30px; background: #ffffffa8; }
-.cloud::before, .cloud::after { position: absolute; content: ''; border-radius: 50%; background: inherit; }
-.cloud::before { left: 18%; bottom: 4px; width: 27px; height: 27px; }
-.cloud::after { right: 12%; bottom: 3px; width: 22px; height: 22px; }
-.cloud-one { top: 23%; left: 16%; width: 89px; }
-.cloud-two { top: 34%; right: 29%; width: 68px; transform: scale(.75); }
-
 .masthead, .field-counter, .field-help { position: absolute; z-index: 2; pointer-events: none; }
 .masthead {
   top: calc(env(safe-area-inset-top, 0px) + 22px);

@@ -24,8 +24,10 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-const camera = new THREE.OrthographicCamera(-7, 7, 5, -5, 0.1, 100);
-camera.position.set(9, 12, 14);
+scene.background = new THREE.Color(0xb8e1df);
+scene.fog = new THREE.Fog(0xb8e1df, 27, 120);
+const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 700);
+camera.position.set(8, 8, 13);
 camera.lookAt(0, 0.25, 0);
 const controls = new OrbitControls(camera, canvas);
 controls.target.set(0, 0.25, 0);
@@ -50,8 +52,6 @@ sunlight.shadow.normalBias = 0.025;
 scene.add(sunlight);
 
 const material = (color) => new THREE.MeshStandardMaterial({ color, roughness: 1, flatShading: true });
-const grassMaterial = material(0x83b97b);
-const grassDarkMaterial = material(0x5c9a63);
 const woodMaterial = material(0xb98150);
 const woodLightMaterial = material(0xd5a36c);
 const soilBaseMaterial = material(0x795039);
@@ -69,7 +69,93 @@ function box(parent, width, height, depth, meshMaterial, x, y, z) {
   return mesh;
 }
 
-box(scene, 10.4, 0.32, 8.4, grassMaterial, 0, -0.31, 0);
+function groundHeight(x, z) {
+  const distance = Math.hypot(x, z);
+  const hills = THREE.MathUtils.smoothstep(distance, 7, 28);
+  return -0.18 + hills * (
+    0.32 * Math.sin(x * 0.09) * Math.cos(z * 0.075) +
+    0.19 * Math.sin(x * 0.19 + z * 0.14) +
+    0.12 * Math.cos(z * 0.16)
+  );
+}
+
+function grassTexture() {
+  const tile = document.createElement('canvas');
+  tile.width = 128;
+  tile.height = 128;
+  const context = tile.getContext('2d');
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, 128, 128);
+  let seed = 19;
+  const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  for (let index = 0; index < 420; index += 1) {
+    const x = random() * 128;
+    const y = random() * 128;
+    context.strokeStyle = random() > 0.45 ? '#b6d1a9' : '#d7e7ca';
+    context.lineWidth = random() > 0.7 ? 1.5 : 1;
+    context.beginPath();
+    context.moveTo(x, y + 2);
+    context.lineTo(x + (random() - 0.5) * 4, y - 2 - random() * 4);
+    context.stroke();
+  }
+  const texture = new THREE.CanvasTexture(tile);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(135, 135);
+  texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+  return texture;
+}
+
+const terrainGeometry = new THREE.PlaneGeometry(600, 600, 180, 180);
+terrainGeometry.rotateX(-Math.PI / 2);
+const terrainPositions = terrainGeometry.attributes.position;
+const terrainColors = [];
+const grassLight = new THREE.Color(0x91c17c);
+const grassShade = new THREE.Color(0x77ac70);
+for (let index = 0; index < terrainPositions.count; index += 1) {
+  const x = terrainPositions.getX(index);
+  const z = terrainPositions.getZ(index);
+  terrainPositions.setY(index, groundHeight(x, z));
+  const variation = (Math.sin(x * 0.12 + z * 0.035) * Math.cos(z * 0.11) + 1) / 2;
+  const color = grassShade.clone().lerp(grassLight, variation);
+  terrainColors.push(color.r, color.g, color.b);
+}
+terrainGeometry.setAttribute('color', new THREE.Float32BufferAttribute(terrainColors, 3));
+terrainGeometry.computeVertexNormals();
+const terrain = new THREE.Mesh(
+  terrainGeometry,
+  new THREE.MeshStandardMaterial({ map: grassTexture(), vertexColors: true, roughness: 1 }),
+);
+terrain.receiveShadow = true;
+scene.add(terrain);
+
+let grassSeed = 317;
+const randomGrass = () => ((grassSeed = (grassSeed * 1664525 + 1013904223) >>> 0) / 4294967296);
+const tuftCount = 750;
+const tufts = new THREE.InstancedMesh(
+  new THREE.ConeGeometry(0.055, 0.32, 3),
+  material(0x70a865),
+  tuftCount,
+);
+const tuftTransform = new THREE.Object3D();
+for (let index = 0; index < tuftCount; index += 1) {
+  const angle = randomGrass() * Math.PI * 2;
+  const radius = index < 330 ? 5.5 + randomGrass() * 24 : 25 + Math.sqrt(randomGrass()) * 105;
+  const x = Math.cos(angle) * radius;
+  const z = Math.sin(angle) * radius;
+  const height = 0.5 + randomGrass() * 1.15;
+  tuftTransform.position.set(x, groundHeight(x, z) + height * 0.16, z);
+  tuftTransform.rotation.set((randomGrass() - 0.5) * 0.3, angle, (randomGrass() - 0.5) * 0.35);
+  tuftTransform.scale.set(0.7 + randomGrass(), height, 0.7 + randomGrass());
+  tuftTransform.updateMatrix();
+  tufts.setMatrixAt(index, tuftTransform.matrix);
+  tufts.setColorAt(index, new THREE.Color().setHSL(0.28 + randomGrass() * 0.04, 0.28, 0.46 + randomGrass() * 0.1));
+}
+tufts.instanceMatrix.needsUpdate = true;
+tufts.instanceColor.needsUpdate = true;
+scene.add(tufts);
+
 box(scene, 7.75, 0.38, 6.15, woodMaterial, 0, 0.02, 0);
 box(scene, 7.15, 0.08, 5.55, soilBaseMaterial, 0, 0.25, 0);
 box(scene, 7.65, 0.16, 0.18, woodLightMaterial, 0, 0.33, -2.97);
@@ -82,17 +168,6 @@ for (let x = -4.8; x <= 4.8; x += 1.6) {
 }
 box(scene, 9.7, 0.1, 0.1, woodLightMaterial, 0, 0.15, -3.78);
 box(scene, 9.7, 0.1, 0.1, woodLightMaterial, 0, 0.48, -3.78);
-
-for (let index = 0; index < 28; index += 1) {
-  const angle = index * 2.39996;
-  const x = Math.sin(angle) * (4.18 + (index % 3) * 0.21);
-  const z = Math.cos(angle) * (3.37 + (index % 4) * 0.18);
-  if (Math.abs(x) > 4.9 || Math.abs(z) > 3.9) continue;
-  const blade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.24, 3), grassDarkMaterial);
-  blade.position.set(x, -0.02, z);
-  blade.rotation.z = Math.sin(index) * 0.25;
-  scene.add(blade);
-}
 
 const plotMeshes = [];
 const plotMaterials = [];
@@ -167,12 +242,12 @@ function resize() {
   const height = canvas.clientHeight;
   if (!width || !height) return;
   const aspect = width / height;
-  const viewHeight = Math.max(8.8, 10.4 / aspect);
-  camera.left = -viewHeight * aspect / 2;
-  camera.right = viewHeight * aspect / 2;
-  camera.top = viewHeight / 2;
-  camera.bottom = -viewHeight / 2;
+  const distance = Math.max(12.5, 10.8 / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect));
+  const direction = camera.position.clone().sub(controls.target).normalize();
+  camera.position.copy(controls.target).addScaledVector(direction, distance);
+  camera.aspect = aspect;
   camera.updateProjectionMatrix();
+  controls.update();
   renderer.setSize(width, height, false);
   render();
 }
