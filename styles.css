@@ -322,39 +322,6 @@ html, body {
 }
 
 /* ==========================================================================
-   FARMHOUSE TOOLTIP (3D HOVER)
-   ========================================================================== */
-
-.farmhouse-tooltip {
-  position: absolute;
-  z-index: 15;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 12px;
-  background: linear-gradient(180deg, #fffcf5 0%, #f7ecd3 100%);
-  border: 2px solid var(--wood-main);
-  border-radius: 12px;
-  box-shadow: 0 6px 18px rgba(30, 15, 5, 0.35);
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--wood-dark);
-  pointer-events: none;
-  transform: translate(-50%, -100%);
-  white-space: nowrap;
-  animation: float-tip 1.8s ease-in-out infinite alternate;
-}
-
-.farmhouse-tooltip .tooltip-icon {
-  font-size: 16px;
-}
-
-@keyframes float-tip {
-  from { transform: translate(-50%, calc(-100% - 10px)); }
-  to { transform: translate(-50%, calc(-100% - 16px)); }
-}
-
-/* ==========================================================================
    FARMHOUSE CALENDAR MODAL
    ========================================================================== */
 

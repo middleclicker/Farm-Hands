@@ -10,7 +10,6 @@ const canvas = document.querySelector('#field');
 const status = document.querySelector('#field-status');
 const weatherSelect = document.querySelector('#weather-select');
 const weatherDescription = document.querySelector('#weather-description');
-const farmhouseTooltip = document.querySelector('#farmhouse-tooltip');
 const plantedPlots = new Set();
 
 let renderer;
@@ -964,7 +963,6 @@ new ResizeObserver(resize).observe(canvas);
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let hoveredPlotIndex = -1;
-let isFarmhouseHovered = false;
 let selectedIndex = 0;
 let keyboardFocus = false;
 let activePointer = null;
@@ -1029,20 +1027,6 @@ function plantWheat(index) {
   updatePlantedCountLedger();
 }
 
-function setFarmhouseHover(hovered, clientX = 0, clientY = 0) {
-  if (isFarmhouseHovered === hovered && (!hovered || !farmhouseTooltip)) return;
-  isFarmhouseHovered = hovered;
-  if (farmhouseTooltip) {
-    if (hovered) {
-      farmhouseTooltip.removeAttribute('hidden');
-      farmhouseTooltip.style.left = `${clientX}px`;
-      farmhouseTooltip.style.top = `${clientY}px`;
-    } else {
-      farmhouseTooltip.setAttribute('hidden', '');
-    }
-  }
-}
-
 canvas.addEventListener('pointerdown', (event) => {
   if (event.pointerType === 'mouse' && event.button !== 0) return;
   activePointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
@@ -1063,7 +1047,6 @@ canvas.addEventListener('pointermove', (event) => {
       hoveredPlotIndex = -1;
       updateHighlights();
     }
-    setFarmhouseHover(false);
     return;
   }
 
@@ -1074,16 +1057,13 @@ canvas.addEventListener('pointermove', (event) => {
       hoveredPlotIndex = -1;
       updateHighlights();
     }
-    setFarmhouseHover(true, event.clientX, event.clientY);
   } else if (target?.type === 'plot') {
-    setFarmhouseHover(false);
     canvas.style.cursor = !plantedPlots.has(target.index) ? 'pointer' : 'grab';
     if (target.index !== hoveredPlotIndex) {
       hoveredPlotIndex = target.index;
       updateHighlights();
     }
   } else {
-    setFarmhouseHover(false);
     canvas.style.cursor = 'grab';
     if (hoveredPlotIndex !== -1) {
       hoveredPlotIndex = -1;
@@ -1094,7 +1074,6 @@ canvas.addEventListener('pointermove', (event) => {
 
 canvas.addEventListener('pointerleave', () => {
   hoveredPlotIndex = -1;
-  setFarmhouseHover(false);
   canvas.style.cursor = 'grab';
   updateHighlights();
 });
@@ -1112,7 +1091,6 @@ canvas.addEventListener('pointercancel', () => {
   activePointer = null;
   dragged = false;
   suppressClick = false;
-  setFarmhouseHover(false);
   canvas.style.cursor = 'grab';
 });
 
@@ -1125,7 +1103,6 @@ canvas.addEventListener('click', (event) => {
   if (!target) return;
 
   if (target.type === 'farmhouse') {
-    setFarmhouseHover(false);
     updatePlantedCountLedger();
     window.FarmCalendar?.openFarmhouseMenu?.();
     return;
