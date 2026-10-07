@@ -58,8 +58,6 @@ sunlight.shadow.normalBias = 0.025;
 scene.add(sunlight);
 
 const material = (color) => new THREE.MeshStandardMaterial({ color, roughness: 1, flatShading: true });
-const woodMaterial = material(0xb98150);
-const woodLightMaterial = material(0xd5a36c);
 const soilBaseMaterial = material(0x795039);
 const ridgeMaterial = material(0xb77a4c);
 const stemMaterial = material(0x488f54);
@@ -253,18 +251,22 @@ function addFarmhouse() {
 }
 addFarmhouse();
 
-box(scene, 7.75, 0.38, 6.15, woodMaterial, 0, 0.02, 0);
-box(scene, 7.15, 0.08, 5.55, soilBaseMaterial, 0, 0.25, 0);
-box(scene, 7.65, 0.16, 0.18, woodLightMaterial, 0, 0.33, -2.97);
-box(scene, 7.65, 0.16, 0.18, woodLightMaterial, 0, 0.33, 2.97);
-box(scene, 0.18, 0.16, 5.8, woodLightMaterial, -3.77, 0.33, 0);
-box(scene, 0.18, 0.16, 5.8, woodLightMaterial, 3.77, 0.33, 0);
-
-for (let x = -4.8; x <= 4.8; x += 1.6) {
-  box(scene, 0.13, 0.87, 0.13, woodLightMaterial, x, 0.27, -3.78);
-}
-box(scene, 9.7, 0.1, 0.1, woodLightMaterial, 0, 0.15, -3.78);
-box(scene, 9.7, 0.1, 0.1, woodLightMaterial, 0, 0.48, -3.78);
+// The field is a thin patch of worked earth level with the surrounding grass.
+const fieldOutline = new THREE.Shape();
+fieldOutline.moveTo(-3.55, -2.85);
+fieldOutline.lineTo(3.55, -2.85);
+fieldOutline.quadraticCurveTo(3.8, -2.85, 3.8, -2.6);
+fieldOutline.lineTo(3.8, 2.6);
+fieldOutline.quadraticCurveTo(3.8, 2.85, 3.55, 2.85);
+fieldOutline.lineTo(-3.55, 2.85);
+fieldOutline.quadraticCurveTo(-3.8, 2.85, -3.8, 2.6);
+fieldOutline.lineTo(-3.8, -2.6);
+fieldOutline.quadraticCurveTo(-3.8, -2.85, -3.55, -2.85);
+const fieldSoil = new THREE.Mesh(new THREE.ShapeGeometry(fieldOutline), soilBaseMaterial);
+fieldSoil.rotation.x = -Math.PI / 2;
+fieldSoil.position.y = -0.17;
+fieldSoil.receiveShadow = true;
+scene.add(fieldSoil);
 
 const plotMeshes = [];
 const plotMaterials = [];
@@ -275,13 +277,13 @@ for (let row = 0; row < ROWS; row += 1) {
     const x = (column - 1.5) * 1.68;
     const z = (row - 1) * 1.7;
     const soilMaterial = material(0x98613f);
-    const soil = box(scene, 1.48, 0.22, 1.43, soilMaterial, x, 0.42, z);
+    const soil = box(scene, 1.48, 0.1, 1.43, soilMaterial, x, -0.11, z);
     soil.userData.plotIndex = index;
     plotMeshes.push(soil);
     plotMaterials.push(soilMaterial);
     plotPositions.push({ x, z });
     for (let furrow = -1; furrow <= 1; furrow += 1) {
-      box(scene, 1.25, 0.045, 0.12, ridgeMaterial, x, 0.555, z + furrow * 0.38);
+      box(scene, 1.25, 0.035, 0.12, ridgeMaterial, x, -0.04, z + furrow * 0.38);
     }
   }
 }
@@ -372,7 +374,7 @@ setWeather(weatherSelect.value);
 function addWheatSeedlings(index) {
   const { x, z } = plotPositions[index];
   const cluster = new THREE.Group();
-  cluster.position.set(x, 0.55, z);
+  cluster.position.set(x, -0.02, z);
   const offsets = [
     [-0.34, -0.2, 0.58], [0.27, -0.23, 0.68], [0, 0.08, 0.78],
     [-0.29, 0.32, 0.62], [0.34, 0.31, 0.57],
