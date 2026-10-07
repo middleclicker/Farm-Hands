@@ -7,7 +7,6 @@ const PLOT_COUNT = COLUMNS * ROWS;
 const canvas = document.querySelector('#field');
 const rainCanvas = document.querySelector('#rain-overlay');
 const rainContext = rainCanvas.getContext('2d');
-const count = document.querySelector('#planted-count');
 const status = document.querySelector('#field-status');
 const weatherSelect = document.querySelector('#weather-select');
 const weatherDescription = document.querySelector('#weather-description');
@@ -477,7 +476,6 @@ function plantWheat(index) {
   if (index < 0 || plantedPlots.has(index)) return;
   plantedPlots.add(index);
   addWheatSeedlings(index);
-  count.textContent = `${plantedPlots.size} / ${PLOT_COUNT}`;
   status.textContent = plantedPlots.size === PLOT_COUNT
     ? 'Every plot has wheat planted.'
     : `Wheat planted in plot ${index + 1}.`;

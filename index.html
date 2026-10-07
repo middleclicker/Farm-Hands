@@ -5,30 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#f4eddb" />
     <title>Farm Hands</title>
-    <link rel="stylesheet" href="./styles.css?v=farm-weather-1" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="stylesheet" href="./styles.css?v=weather-clear-field-1" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=farm-weather-1"></script>
+    <script type="module" src="./game.js?v=weather-clear-field-1"></script>
   </head>
   <body>
     <main class="game-shell">
       <section class="farm" aria-label="3D wheat planting field">
-    <canvas id="field" tabindex="0" aria-label="3D wheat field. Drag to rotate, scroll or pinch to zoom. Use arrow keys to select a plot and Enter to plant wheat." aria-describedby="field-help field-status"></canvas>
+        <canvas id="field" tabindex="0" aria-label="3D wheat field. Drag to rotate, scroll or pinch to zoom. Use arrow keys to select a plot and Enter to plant wheat." aria-describedby="field-help field-status"></canvas>
         <canvas id="rain-overlay" aria-hidden="true" hidden></canvas>
-
-        <header class="masthead">
-          <div class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 48 48" fill="none">
-              <path d="M24 39V17M24 29c-7 0-11-4-11-10 7 0 11 4 11 10ZM24 23c0-7 4-11 11-11 0 7-4 11-11 11Z" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-              <path d="M11 39h26" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
-            </svg>
-          </div>
-          <div>
-            <p class="eyebrow">Wheat field</p>
-            <h1>Farm Hands</h1>
-          </div>
-        </header>
 
         <div class="weather-controls">
           <label for="weather-select">Weather</label>
@@ -41,13 +29,9 @@
           <span id="weather-description" class="weather-description" aria-live="polite">Clear skies and warm sunlight.</span>
         </div>
 
-        <div class="field-counter" aria-live="polite" aria-atomic="true">
-          <span class="counter-number" id="planted-count">0 / 12</span>
-          <span class="counter-label">plots planted</span>
-        </div>
-
-        <div class="field-help">
-          <p class="controls-hint" id="field-help">Click or tap to plant · Drag to rotate · Scroll or pinch to zoom · Arrow keys and Enter to plant</p>
+        <div class="sr-only">
+          <h1>Farm Hands</h1>
+          <p id="field-help">Click or tap to plant. Drag to rotate. Scroll or pinch to zoom. Use arrow keys to select a plot and Enter to plant.</p>
           <p class="field-status" id="field-status" role="status">Choose a soil plot to plant wheat.</p>
         </div>
       </section>
