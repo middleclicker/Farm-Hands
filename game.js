@@ -27,12 +27,14 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xb8e1df);
 scene.fog = new THREE.Fog(0xb8e1df, 27, 120);
 const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 700);
-camera.position.set(8, 8, 13);
-camera.lookAt(0, 0.25, 0);
+camera.position.set(6.5, 8, 12.2);
+camera.lookAt(-1.5, 0.25, -0.8);
 const controls = new OrbitControls(camera, canvas);
-controls.target.set(0, 0.25, 0);
+controls.target.set(-1.5, 0.25, -0.8);
 controls.enablePan = false;
-controls.enableZoom = false;
+controls.enableZoom = true;
+controls.minDistance = 6.5;
+controls.maxDistance = 55;
 controls.minPolarAngle = THREE.MathUtils.degToRad(25);
 controls.maxPolarAngle = THREE.MathUtils.degToRad(80);
 controls.rotateSpeed = 0.8;
@@ -130,31 +132,122 @@ const terrain = new THREE.Mesh(
 terrain.receiveShadow = true;
 scene.add(terrain);
 
+function grassClumpGeometry() {
+  const vertices = [];
+  for (let blade = 0; blade < 5; blade += 1) {
+    const angle = blade * Math.PI * 2 / 5;
+    const spread = 0.11 + (blade % 2) * 0.04;
+    const sideX = -Math.sin(angle) * 0.026;
+    const sideZ = Math.cos(angle) * 0.026;
+    const tipX = Math.cos(angle) * spread;
+    const tipZ = Math.sin(angle) * spread;
+    vertices.push(
+      sideX, 0, sideZ,
+      -sideX, 0, -sideZ,
+      tipX, 0.36 + (blade % 3) * 0.045, tipZ,
+    );
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 let grassSeed = 317;
 const randomGrass = () => ((grassSeed = (grassSeed * 1664525 + 1013904223) >>> 0) / 4294967296);
-const tuftCount = 750;
+const tuftCount = 2600;
 const tufts = new THREE.InstancedMesh(
-  new THREE.ConeGeometry(0.055, 0.32, 3),
-  material(0x70a865),
+  grassClumpGeometry(),
+  new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide }),
   tuftCount,
 );
 const tuftTransform = new THREE.Object3D();
 for (let index = 0; index < tuftCount; index += 1) {
-  const angle = randomGrass() * Math.PI * 2;
-  const radius = index < 330 ? 5.5 + randomGrass() * 24 : 25 + Math.sqrt(randomGrass()) * 105;
-  const x = Math.cos(angle) * radius;
-  const z = Math.sin(angle) * radius;
-  const height = 0.5 + randomGrass() * 1.15;
-  tuftTransform.position.set(x, groundHeight(x, z) + height * 0.16, z);
-  tuftTransform.rotation.set((randomGrass() - 0.5) * 0.3, angle, (randomGrass() - 0.5) * 0.35);
-  tuftTransform.scale.set(0.7 + randomGrass(), height, 0.7 + randomGrass());
+  let x;
+  let z;
+  do {
+    const angle = randomGrass() * Math.PI * 2;
+    const radius = index < 1900 ? 5.5 + randomGrass() * 26 : 26 + Math.sqrt(randomGrass()) * 105;
+    x = Math.cos(angle) * radius;
+    z = Math.sin(angle) * radius;
+  } while (x > -7.5 && x < -4.1 && z > -6.7 && z < -3.5);
+  const height = 0.65 + randomGrass() * 1.05;
+  const width = 0.8 + randomGrass() * 0.7;
+  tuftTransform.position.set(x, groundHeight(x, z) + 0.012, z);
+  tuftTransform.rotation.set(0, randomGrass() * Math.PI * 2, 0);
+  tuftTransform.scale.set(width, height, width);
   tuftTransform.updateMatrix();
   tufts.setMatrixAt(index, tuftTransform.matrix);
-  tufts.setColorAt(index, new THREE.Color().setHSL(0.28 + randomGrass() * 0.04, 0.28, 0.46 + randomGrass() * 0.1));
+  tufts.setColorAt(index, new THREE.Color().setHSL(0.27 + randomGrass() * 0.055, 0.34 + randomGrass() * 0.13, 0.43 + randomGrass() * 0.13));
 }
 tufts.instanceMatrix.needsUpdate = true;
 tufts.instanceColor.needsUpdate = true;
 scene.add(tufts);
+
+function addFarmhouse() {
+  const house = new THREE.Group();
+  house.position.set(-5.8, groundHeight(-5.8, -5.1), -5.1);
+  scene.add(house);
+
+  const foundation = material(0xa99a81);
+  const siding = material(0xf0e3c6);
+  const trim = material(0xfff4dc);
+  const roof = material(0x9b5849);
+  const roofEdge = material(0x74483e);
+  const door = material(0x805740);
+  const glass = new THREE.MeshStandardMaterial({ color: 0x91bac0, roughness: 0.2, metalness: 0.05 });
+
+  box(house, 2.85, 0.19, 2.65, foundation, 0, 0.08, 0);
+  box(house, 2.55, 1.8, 2.35, siding, 0, 1.06, 0);
+  box(house, 2.68, 0.12, 2.49, trim, 0, 0.23, 0);
+  box(house, 2.68, 0.11, 2.49, trim, 0, 1.97, 0);
+
+  const gableShape = new THREE.Shape();
+  gableShape.moveTo(-1.28, 2.01);
+  gableShape.lineTo(1.28, 2.01);
+  gableShape.lineTo(0, 2.83);
+  gableShape.closePath();
+  const gableGeometry = new THREE.ShapeGeometry(gableShape);
+  const gableMaterial = new THREE.MeshStandardMaterial({ color: 0xf0e3c6, roughness: 1, side: THREE.DoubleSide });
+  for (const z of [-1.18, 1.18]) {
+    const gable = new THREE.Mesh(gableGeometry, gableMaterial);
+    gable.position.z = z;
+    gable.castShadow = true;
+    gable.receiveShadow = true;
+    house.add(gable);
+  }
+
+  for (const side of [-1, 1]) {
+    const panel = box(house, 1.58, 0.13, 2.82, roof, side * 0.72, 2.43, 0);
+    panel.rotation.z = side * -0.59;
+    const fascia = box(house, 1.58, 0.1, 0.08, roofEdge, side * 0.72, 2.44, 1.42);
+    fascia.rotation.z = side * -0.59;
+  }
+
+  box(house, 0.39, 0.82, 0.39, roofEdge, -0.65, 2.76, -0.55);
+  box(house, 0.53, 0.12, 0.53, foundation, -0.65, 3.2, -0.55);
+
+  box(house, 0.72, 1.32, 0.06, trim, 0, 0.89, 1.21);
+  box(house, 0.6, 1.22, 0.075, door, 0, 0.83, 1.26);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), material(0xe5bd66));
+  knob.position.set(0.21, 0.84, 1.32);
+  house.add(knob);
+  box(house, 1.01, 0.13, 0.55, foundation, 0, 0.13, 1.47);
+
+  for (const x of [-0.87, 0.87]) {
+    box(house, 0.52, 0.66, 0.065, trim, x, 1.25, 1.22);
+    box(house, 0.43, 0.55, 0.075, glass, x, 1.25, 1.27);
+    box(house, 0.055, 0.58, 0.09, trim, x, 1.25, 1.32);
+    box(house, 0.48, 0.055, 0.09, trim, x, 1.25, 1.32);
+  }
+  for (const side of [-1, 1]) {
+    const x = side * 1.31;
+    box(house, 0.07, 0.77, 0.75, trim, x, 1.23, -0.12);
+    box(house, 0.08, 0.66, 0.65, glass, x + side * 0.05, 1.23, -0.12);
+    box(house, 0.1, 0.7, 0.055, trim, x + side * 0.11, 1.23, -0.12);
+  }
+}
+addFarmhouse();
 
 box(scene, 7.75, 0.38, 6.15, woodMaterial, 0, 0.02, 0);
 box(scene, 7.15, 0.08, 5.55, soilBaseMaterial, 0, 0.25, 0);
@@ -237,12 +330,17 @@ function addWheatSeedlings(index) {
   requestAnimationFrame(animate);
 }
 
+let fittedDistance = null;
 function resize() {
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
   if (!width || !height) return;
   const aspect = width / height;
-  const distance = Math.max(12.5, 10.8 / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect));
+  const fit = Math.max(13, 12.2 / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect));
+  const distance = fittedDistance === null
+    ? fit
+    : THREE.MathUtils.clamp(controls.getDistance() * fit / fittedDistance, controls.minDistance, controls.maxDistance);
+  fittedDistance = fit;
   const direction = camera.position.clone().sub(controls.target).normalize();
   camera.position.copy(controls.target).addScaledVector(direction, distance);
   camera.aspect = aspect;
