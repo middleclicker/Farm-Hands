@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f4eddb" />
     <title>Farm Hands</title>
     <link rel="stylesheet" href="./styles.css" />
-    <script src="./game.js" defer></script>
+    <script type="module" src="./game.js"></script>
   </head>
   <body>
     <main class="game-shell">
@@ -35,21 +35,15 @@
         </div>
       </section>
 
-      <section class="farm" aria-label="Wheat planting field">
-        <div class="sky" aria-hidden="true">
-          <span class="sun"></span>
-          <span class="cloud cloud-one"></span>
-          <span class="cloud cloud-two"></span>
-          <span class="hill hill-back"></span>
-          <span class="hill hill-front"></span>
-        </div>
-        <div class="field-wrap">
-          <div class="field-sign" aria-hidden="true">WHEAT FIELD</div>
-          <div class="field-grid" id="field"></div>
-        </div>
+      <section class="farm" aria-label="3D wheat planting field">
+        <span class="sun" aria-hidden="true"></span>
+        <span class="cloud cloud-one" aria-hidden="true"></span>
+        <span class="cloud cloud-two" aria-hidden="true"></span>
+        <span class="scene-badge" aria-hidden="true">WHEAT FIELD · 3D</span>
+        <canvas id="field" tabindex="0" aria-label="3D wheat field. Use arrow keys to select a plot and Enter to plant wheat." aria-describedby="field-status"></canvas>
       </section>
 
-      <p class="field-hint" id="field-status" role="status">Tap or click a soil patch to plant wheat.</p>
+      <p class="field-hint" id="field-status" role="status">Tap or click a soil plot to plant wheat. Keyboard: arrow keys, then Enter.</p>
     </main>
   </body>
 </html>
