@@ -824,7 +824,55 @@ function updateDaylight() {
   sunlight.position.set(sunX, sunY, sunZ);
 }
 
-// Unified animation loop updates daylight, smoke, and rain together.
+// ==========================================================================
+// SMOOTH WASD CAMERA MOVEMENT
+// ==========================================================================
+
+// Continuous, frame-based camera panning. Instead of teleporting the camera by a
+// fixed amount on each keydown event, we track which movement keys are held and
+// move a little every animation frame, scaling by elapsed time so the speed stays
+// constant regardless of frame rate. Velocity eases toward the requested direction
+// and eases back to zero on release, which removes the old "steppy" key-repeat feel.
+const MOVE_SPEED = 9; // world units per second at full speed
+const MOVE_DAMPING = 12; // higher = snappier acceleration / deceleration
+const heldKeys = new Set();
+const moveVelocity = new THREE.Vector3();
+const moveDirection = new THREE.Vector3();
+const moveForward = new THREE.Vector3();
+const moveRight = new THREE.Vector3();
+
+function desiredMoveDirection() {
+  camera.getWorldDirection(moveForward);
+  moveForward.y = 0;
+  moveForward.normalize();
+  moveRight.crossVectors(moveForward, camera.up).normalize();
+
+  moveDirection.set(0, 0, 0);
+  if (heldKeys.has('w')) moveDirection.add(moveForward);
+  if (heldKeys.has('s')) moveDirection.sub(moveForward);
+  if (heldKeys.has('d')) moveDirection.add(moveRight);
+  if (heldKeys.has('a')) moveDirection.sub(moveRight);
+  if (moveDirection.lengthSq() > 0) moveDirection.normalize();
+  return moveDirection;
+}
+
+function updateCameraMovement(deltaSeconds) {
+  const targetVelocity = desiredMoveDirection().multiplyScalar(MOVE_SPEED);
+  const blend = 1 - Math.exp(-MOVE_DAMPING * deltaSeconds);
+  moveVelocity.lerp(targetVelocity, blend);
+
+  if (moveVelocity.lengthSq() < 0.0004) {
+    moveVelocity.set(0, 0, 0);
+    return false;
+  }
+
+  camera.position.addScaledVector(moveVelocity, deltaSeconds);
+  controls.target.addScaledVector(moveVelocity, deltaSeconds);
+  controls.update();
+  return true;
+}
+
+// Unified Animation Loop
 function animateScene(now) {
   const deltaSeconds = Math.min((now - lastTickTime) / 1000, 0.06);
   lastTickTime = now;
@@ -832,6 +880,9 @@ function animateScene(now) {
   updateDaylight();
   if (!reducedMotion.matches) updateChimneySmoke(deltaSeconds);
   if (rain.visible && !reducedMotion.matches) updateRain(deltaSeconds);
+  if (updateCameraMovement(deltaSeconds)) {
+    if (rain.visible) updateRain(0);
+  }
   render();
   requestAnimationFrame(animateScene);
 }
@@ -1118,21 +1169,16 @@ window.addEventListener('keydown', (event) => {
   const key = event.key.toLowerCase();
   if (!['w', 'a', 's', 'd'].includes(key)) return;
   event.preventDefault();
-
-  const forward = new THREE.Vector3();
-  camera.getWorldDirection(forward);
-  forward.y = 0;
-  forward.normalize();
-  const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
-  const movement = key === 'w' ? forward : key === 's' ? forward.negate()
-    : key === 'd' ? right : right.negate();
-  const distance = event.repeat ? 0.3 : 0.65;
-  camera.position.addScaledVector(movement, distance);
-  controls.target.addScaledVector(movement, distance);
-  if (rain.visible) updateRain();
-  controls.update();
-  render();
+  heldKeys.add(key);
 });
+
+window.addEventListener('keyup', (event) => {
+  const key = event.key.toLowerCase();
+  if (['w', 'a', 's', 'd'].includes(key)) heldKeys.delete(key);
+});
+
+// Clear held keys if the window loses focus so the camera never keeps drifting.
+window.addEventListener('blur', () => heldKeys.clear());
 
 updateCanvasLabel();
 resize();
