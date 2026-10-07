@@ -1,12 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
 
-const COLUMNS = 4;
+const COLUMNS = 3;
 const ROWS = 3;
 const PLOT_COUNT = COLUMNS * ROWS;
 const canvas = document.querySelector('#field');
-const rainCanvas = document.querySelector('#rain-overlay');
-const rainContext = rainCanvas.getContext('2d');
 const status = document.querySelector('#field-status');
 const weatherSelect = document.querySelector('#weather-select');
 const weatherDescription = document.querySelector('#weather-description');
@@ -253,15 +251,15 @@ addFarmhouse();
 
 // The field is a thin patch of worked earth level with the surrounding grass.
 const fieldOutline = new THREE.Shape();
-fieldOutline.moveTo(-3.55, -2.85);
-fieldOutline.lineTo(3.55, -2.85);
-fieldOutline.quadraticCurveTo(3.8, -2.85, 3.8, -2.6);
-fieldOutline.lineTo(3.8, 2.6);
-fieldOutline.quadraticCurveTo(3.8, 2.85, 3.55, 2.85);
-fieldOutline.lineTo(-3.55, 2.85);
-fieldOutline.quadraticCurveTo(-3.8, 2.85, -3.8, 2.6);
-fieldOutline.lineTo(-3.8, -2.6);
-fieldOutline.quadraticCurveTo(-3.8, -2.85, -3.55, -2.85);
+fieldOutline.moveTo(-1.7, -1.9);
+fieldOutline.lineTo(1.7, -1.9);
+fieldOutline.quadraticCurveTo(1.9, -1.9, 1.9, -1.7);
+fieldOutline.lineTo(1.9, 1.7);
+fieldOutline.quadraticCurveTo(1.9, 1.9, 1.7, 1.9);
+fieldOutline.lineTo(-1.7, 1.9);
+fieldOutline.quadraticCurveTo(-1.9, 1.9, -1.9, 1.7);
+fieldOutline.lineTo(-1.9, -1.7);
+fieldOutline.quadraticCurveTo(-1.9, -1.9, -1.7, -1.9);
 const fieldSoil = new THREE.Mesh(new THREE.ShapeGeometry(fieldOutline), soilBaseMaterial);
 fieldSoil.rotation.x = -Math.PI / 2;
 fieldSoil.position.y = -0.17;
@@ -274,16 +272,16 @@ const plotPositions = [];
 for (let row = 0; row < ROWS; row += 1) {
   for (let column = 0; column < COLUMNS; column += 1) {
     const index = row * COLUMNS + column;
-    const x = (column - 1.5) * 1.68;
-    const z = (row - 1) * 1.7;
+    const x = (column - 1) * 1.22;
+    const z = (row - 1) * 1.22;
     const soilMaterial = material(0x98613f);
-    const soil = box(scene, 1.48, 0.1, 1.43, soilMaterial, x, -0.11, z);
+    const soil = box(scene, 1.06, 0.1, 1.06, soilMaterial, x, -0.11, z);
     soil.userData.plotIndex = index;
     plotMeshes.push(soil);
     plotMaterials.push(soilMaterial);
     plotPositions.push({ x, z });
     for (let furrow = -1; furrow <= 1; furrow += 1) {
-      box(scene, 1.25, 0.035, 0.12, ridgeMaterial, x, -0.04, z + furrow * 0.38);
+      box(scene, 0.88, 0.035, 0.09, ridgeMaterial, x, -0.04, z + furrow * 0.28);
     }
   }
 }
@@ -299,52 +297,75 @@ const weatherSettings = {
   },
   light: {
     description: 'A light shower is falling.', sky: 0xabc5c8,
-    ambient: 2.0, sun: 1.9, rain: 55, speed: 170, opacity: 0.45, length: 12, fog: 100,
+    ambient: 2.0, sun: 1.9, rain: 1600, speed: 9, opacity: 0.45, length: 0.32, fog: 100,
   },
   moderate: {
     description: 'Steady rain is falling.', sky: 0x829fa9,
-    ambient: 1.6, sun: 1.15, rain: 120, speed: 300, opacity: 0.58, length: 18, fog: 80,
+    ambient: 1.6, sun: 1.15, rain: 3000, speed: 13, opacity: 0.56, length: 0.44, fog: 80,
   },
   heavy: {
     description: 'A heavy downpour is falling.', sky: 0x637c8b,
-    ambient: 1.25, sun: 0.65, rain: 220, speed: 470, opacity: 0.72, length: 24, fog: 65,
+    ambient: 1.25, sun: 0.65, rain: 5000, speed: 18, opacity: 0.68, length: 0.58, fog: 65,
   },
 };
 const MAX_RAIN_DROPS = weatherSettings.heavy.rain;
+const RAIN_SPAN = 28;
 let rainSeed = 9247;
 const randomRain = () => ((rainSeed = (rainSeed * 1664525 + 1013904223) >>> 0) / 4294967296);
 const rainDrops = Array.from({ length: MAX_RAIN_DROPS }, () => ({
-  x: randomRain(),
-  y: randomRain(),
+  x: controls.target.x + (randomRain() - 0.5) * RAIN_SPAN,
+  y: randomRain() * 20,
+  z: controls.target.z + (randomRain() - 0.5) * RAIN_SPAN,
 }));
+const rainPositions = new Float32Array(MAX_RAIN_DROPS * 6);
+const rainGeometry = new THREE.BufferGeometry();
+const rainPositionAttribute = new THREE.BufferAttribute(rainPositions, 3);
+rainPositionAttribute.setUsage(THREE.DynamicDrawUsage);
+rainGeometry.setAttribute('position', rainPositionAttribute);
+rainGeometry.setDrawRange(0, 0);
+const rainMaterial = new THREE.LineBasicMaterial({
+  color: 0xd9effa,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+  fog: true,
+});
+const rain = new THREE.LineSegments(rainGeometry, rainMaterial);
+rain.frustumCulled = false;
+rain.visible = false;
+scene.add(rain);
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 let currentWeather = weatherSettings.sunny;
 let rainFrame = 0;
 let lastRainTime = 0;
 
-function drawRain(deltaSeconds = 0) {
-  const width = rainCanvas.clientWidth;
-  const height = rainCanvas.clientHeight;
-  rainContext.clearRect(0, 0, width, height);
-  rainContext.strokeStyle = `rgba(217, 239, 250, ${currentWeather.opacity})`;
-  rainContext.lineWidth = currentWeather.rain === weatherSettings.heavy.rain ? 1.7 : 1.3;
-  rainContext.beginPath();
+function updateRain(deltaSeconds = 0) {
   for (let index = 0; index < currentWeather.rain; index += 1) {
     const drop = rainDrops[index];
-    drop.y += currentWeather.speed * deltaSeconds / height;
-    if (drop.y > 1.05) drop.y -= 1.1;
-    const x = drop.x * width;
-    const y = drop.y * height;
-    rainContext.moveTo(x, y);
-    rainContext.lineTo(x - currentWeather.length * 0.22, y + currentWeather.length);
+    if (drop.x - controls.target.x > RAIN_SPAN / 2) drop.x -= RAIN_SPAN;
+    else if (controls.target.x - drop.x > RAIN_SPAN / 2) drop.x += RAIN_SPAN;
+    if (drop.z - controls.target.z > RAIN_SPAN / 2) drop.z -= RAIN_SPAN;
+    else if (controls.target.z - drop.z > RAIN_SPAN / 2) drop.z += RAIN_SPAN;
+    drop.y -= currentWeather.speed * deltaSeconds;
+    if (drop.y < groundHeight(drop.x, drop.z) + currentWeather.length) {
+      drop.y = 18 + randomRain() * 2;
+    }
+    const offset = index * 6;
+    rainPositions[offset] = drop.x;
+    rainPositions[offset + 1] = drop.y;
+    rainPositions[offset + 2] = drop.z;
+    rainPositions[offset + 3] = drop.x - currentWeather.length * 0.22;
+    rainPositions[offset + 4] = drop.y - currentWeather.length;
+    rainPositions[offset + 5] = drop.z;
   }
-  rainContext.stroke();
+  rainPositionAttribute.needsUpdate = true;
 }
 
 function animateRain(now) {
   const deltaSeconds = lastRainTime ? Math.min((now - lastRainTime) / 1000, 0.05) : 0;
   lastRainTime = now;
-  drawRain(deltaSeconds);
+  updateRain(deltaSeconds);
+  render();
   rainFrame = requestAnimationFrame(animateRain);
 }
 
@@ -356,12 +377,14 @@ function setWeather(name) {
   scene.fog.far = currentWeather.fog;
   ambientLight.intensity = currentWeather.ambient;
   sunlight.intensity = currentWeather.sun;
-  rainCanvas.hidden = currentWeather.rain === 0;
+  rain.visible = currentWeather.rain > 0;
+  rainGeometry.setDrawRange(0, currentWeather.rain * 2);
+  rainMaterial.opacity = currentWeather.opacity;
   if (rainFrame) cancelAnimationFrame(rainFrame);
   rainFrame = 0;
   lastRainTime = 0;
-  if (!rainCanvas.hidden) {
-    drawRain();
+  if (rain.visible) {
+    updateRain();
     if (!reducedMotion.matches) rainFrame = requestAnimationFrame(animateRain);
   }
   render();
@@ -376,8 +399,8 @@ function addWheatSeedlings(index) {
   const cluster = new THREE.Group();
   cluster.position.set(x, -0.02, z);
   const offsets = [
-    [-0.34, -0.2, 0.58], [0.27, -0.23, 0.68], [0, 0.08, 0.78],
-    [-0.29, 0.32, 0.62], [0.34, 0.31, 0.57],
+    [-0.24, -0.19, 0.48], [0.22, -0.18, 0.56], [0, 0.04, 0.63],
+    [-0.22, 0.25, 0.52], [0.24, 0.24, 0.49],
   ];
   for (const [stemX, stemZ, height] of offsets) {
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.032, height, 5), stemMaterial);
@@ -432,11 +455,6 @@ function resize() {
   camera.updateProjectionMatrix();
   controls.update();
   renderer.setSize(width, height, false);
-  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-  rainCanvas.width = Math.round(width * pixelRatio);
-  rainCanvas.height = Math.round(height * pixelRatio);
-  rainContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-  if (currentWeather.rain) drawRain();
   render();
 }
 new ResizeObserver(resize).observe(canvas);
@@ -580,6 +598,7 @@ window.addEventListener('keydown', (event) => {
   const distance = event.repeat ? 0.3 : 0.65;
   camera.position.addScaledVector(movement, distance);
   controls.target.addScaledVector(movement, distance);
+  if (rain.visible) updateRain();
   controls.update();
 });
 

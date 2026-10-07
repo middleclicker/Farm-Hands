@@ -19,23 +19,13 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
   cursor: grab;
 }
 #field:focus-visible { outline: 4px solid #fff2b7; outline-offset: -8px; }
-#rain-overlay {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-#rain-overlay[hidden] { display: none; }
-.weather-controls {
+.calendar, .weather-controls {
   position: absolute;
   z-index: 2;
   top: calc(env(safe-area-inset-top, 0px) + 16px);
-  right: calc(env(safe-area-inset-right, 0px) + 16px);
   display: grid;
   gap: 4px;
-  width: 176px;
+  max-width: calc((100% - 48px) / 2);
   padding: 10px 12px;
   border: 1px solid #ffffffc9;
   border-radius: 14px;
@@ -43,6 +33,27 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
   box-shadow: 0 7px 22px #53654e23;
   font: 12px Arial, sans-serif;
   color: #283c2c;
+}
+.calendar {
+  left: calc(env(safe-area-inset-left, 0px) + 16px);
+  width: 205px;
+}
+.calendar-heading, .calendar-details {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+}
+.calendar-heading { color: #526c52; font-size: 11px; font-weight: 700; }
+.calendar-heading span:last-child { font-weight: 400; }
+.calendar-date { font-size: 23px; font-weight: 700; line-height: 1.15; }
+.calendar-details { color: #526c52; font-size: 11px; }
+.calendar-day { color: #526c52; font-size: 10px; }
+.calendar-year-track { height: 5px; overflow: hidden; border-radius: 5px; background: #dbe5d1; }
+.calendar-year-track span { display: block; height: 100%; border-radius: inherit; background: #608b53; }
+.weather-controls {
+  right: calc(env(safe-area-inset-right, 0px) + 16px);
+  width: 176px;
 }
 .weather-controls label {
   color: #526c52;
@@ -61,6 +72,12 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 }
 .weather-controls select:focus-visible { outline: 3px solid #4a7645; outline-offset: 2px; }
 .weather-description { color: #526c52; line-height: 1.3; }
+@media (max-width: 480px) {
+  .calendar, .weather-controls { top: calc(env(safe-area-inset-top, 0px) + 12px); padding: 8px; }
+  .calendar { left: 12px; }
+  .weather-controls { right: 12px; }
+  .calendar-date { font-size: 20px; }
+}
 .sr-only {
   position: absolute;
   width: 1px;
