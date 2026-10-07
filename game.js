@@ -8,6 +8,7 @@ const canvas = document.querySelector('#field');
 const status = document.querySelector('#field-status');
 const weatherSelect = document.querySelector('#weather-select');
 const weatherDescription = document.querySelector('#weather-description');
+const farmhouseTooltip = document.querySelector('#farmhouse-tooltip');
 const plantedPlots = new Set();
 
 let renderer;
@@ -25,11 +26,13 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xb8e1df);
-scene.fog = new THREE.Fog(0xb8e1df, 27, 120);
+scene.background = new THREE.Color(0xa2d3e9);
+scene.fog = new THREE.Fog(0xa2d3e9, 28, 130);
+
 const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 700);
 camera.position.set(6.5, 8, 12.2);
 camera.lookAt(-1.5, 0.25, -0.8);
+
 const controls = new OrbitControls(camera, canvas);
 controls.target.set(-1.5, 0.25, -0.8);
 controls.enablePan = false;
@@ -40,27 +43,30 @@ controls.minPolarAngle = THREE.MathUtils.degToRad(25);
 controls.maxPolarAngle = THREE.MathUtils.degToRad(80);
 controls.rotateSpeed = 0.8;
 controls.update();
-controls.addEventListener('change', render);
 
-const ambientLight = new THREE.HemisphereLight(0xffffff, 0x739367, 2.4);
+// Warm pastoral lighting
+const ambientLight = new THREE.HemisphereLight(0xe8f4ff, 0x6e945c, 2.5);
 scene.add(ambientLight);
-const sunlight = new THREE.DirectionalLight(0xfff1cd, 3.2);
-sunlight.position.set(-5, 11, 7);
+
+const sunlight = new THREE.DirectionalLight(0xfff3d6, 3.4);
+sunlight.position.set(-5, 12, 7);
 sunlight.castShadow = true;
 sunlight.shadow.mapSize.set(1024, 1024);
-sunlight.shadow.camera.left = -10;
-sunlight.shadow.camera.right = 10;
-sunlight.shadow.camera.top = 10;
-sunlight.shadow.camera.bottom = -10;
+sunlight.shadow.camera.left = -11;
+sunlight.shadow.camera.right = 11;
+sunlight.shadow.camera.top = 11;
+sunlight.shadow.camera.bottom = -11;
 sunlight.shadow.normalBias = 0.025;
 scene.add(sunlight);
 
-const material = (color) => new THREE.MeshStandardMaterial({ color, roughness: 1, flatShading: true });
-const soilBaseMaterial = material(0x795039);
-const ridgeMaterial = material(0xb77a4c);
-const stemMaterial = material(0x488f54);
-const leafMaterial = material(0x6eae65);
-const headMaterial = material(0xa6c979);
+const material = (color, roughness = 1, metalness = 0) =>
+  new THREE.MeshStandardMaterial({ color, roughness, metalness, flatShading: true });
+
+const soilBaseMaterial = material(0x714831);
+const ridgeMaterial = material(0xb37648);
+const stemMaterial = material(0x4a8c54);
+const leafMaterial = material(0x6fae63);
+const headMaterial = material(0xd9b85c); // Warm golden wheat heads
 
 function box(parent, width, height, depth, meshMaterial, x, y, z) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), meshMaterial);
@@ -90,10 +96,10 @@ function grassTexture() {
   context.fillRect(0, 0, 128, 128);
   let seed = 19;
   const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
-  for (let index = 0; index < 420; index += 1) {
+  for (let index = 0; index < 450; index += 1) {
     const x = random() * 128;
     const y = random() * 128;
-    context.strokeStyle = random() > 0.45 ? '#b6d1a9' : '#d7e7ca';
+    context.strokeStyle = random() > 0.4 ? '#b0ce9e' : '#d2e4c2';
     context.lineWidth = random() > 0.7 ? 1.5 : 1;
     context.beginPath();
     context.moveTo(x, y + 2);
@@ -113,8 +119,8 @@ const terrainGeometry = new THREE.PlaneGeometry(600, 600, 180, 180);
 terrainGeometry.rotateX(-Math.PI / 2);
 const terrainPositions = terrainGeometry.attributes.position;
 const terrainColors = [];
-const grassLight = new THREE.Color(0x91c17c);
-const grassShade = new THREE.Color(0x77ac70);
+const grassLight = new THREE.Color(0x94c47b);
+const grassShade = new THREE.Color(0x73a869);
 for (let index = 0; index < terrainPositions.count; index += 1) {
   const x = terrainPositions.getX(index);
   const z = terrainPositions.getZ(index);
@@ -135,7 +141,7 @@ scene.add(terrain);
 function grassClumpGeometry() {
   const vertices = [];
   for (let blade = 0; blade < 5; blade += 1) {
-    const angle = blade * Math.PI * 2 / 5;
+    const angle = (blade * Math.PI * 2) / 5;
     const spread = 0.11 + (blade % 2) * 0.04;
     const sideX = -Math.sin(angle) * 0.026;
     const sideZ = Math.cos(angle) * 0.026;
@@ -170,7 +176,7 @@ for (let index = 0; index < tuftCount; index += 1) {
     const radius = index < 1900 ? 5.5 + randomGrass() * 26 : 26 + Math.sqrt(randomGrass()) * 105;
     x = Math.cos(angle) * radius;
     z = Math.sin(angle) * radius;
-  } while (x > -7.5 && x < -4.1 && z > -6.7 && z < -3.5);
+  } while (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2);
   const height = 0.65 + randomGrass() * 1.05;
   const width = 0.8 + randomGrass() * 0.7;
   tuftTransform.position.set(x, groundHeight(x, z) + 0.012, z);
@@ -184,32 +190,94 @@ tufts.instanceMatrix.needsUpdate = true;
 tufts.instanceColor.needsUpdate = true;
 scene.add(tufts);
 
+// ==========================================================================
+// WILDFLOWERS (COZY PASTORAL MEADOW)
+// ==========================================================================
+function addWildflowers() {
+  const flowerGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.04, 6);
+  const flowerMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const flowerCount = 420;
+  const flowers = new THREE.InstancedMesh(flowerGeo, flowerMat, flowerCount);
+  const transform = new THREE.Object3D();
+
+  const flowerPalette = [
+    new THREE.Color(0xfff3a8), // Buttercup yellow
+    new THREE.Color(0xffffff), // Daisy white
+    new THREE.Color(0xf06856), // Red poppy
+    new THREE.Color(0xaf8ce0), // Lavender
+    new THREE.Color(0x6aa6f2), // Cornflower blue
+    new THREE.Color(0xf2a444), // Marigold orange
+  ];
+
+  for (let index = 0; index < flowerCount; index += 1) {
+    let x;
+    let z;
+    do {
+      const angle = randomGrass() * Math.PI * 2;
+      const radius = 4.2 + randomGrass() * 24;
+      x = Math.cos(angle) * radius;
+      z = Math.sin(angle) * radius;
+    } while (
+      (x > -2.6 && x < 2.6 && z > -2.6 && z < 2.6) || // Avoid wheat plot
+      (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2)   // Avoid house
+    );
+
+    const y = groundHeight(x, z) + 0.16 + randomGrass() * 0.12;
+    transform.position.set(x, y, z);
+    transform.rotation.set((randomGrass() - 0.5) * 0.25, randomGrass() * Math.PI * 2, (randomGrass() - 0.5) * 0.25);
+    const scale = 0.75 + randomGrass() * 0.65;
+    transform.scale.set(scale, scale, scale);
+    transform.updateMatrix();
+    flowers.setMatrixAt(index, transform.matrix);
+
+    const chosenColor = flowerPalette[Math.floor(randomGrass() * flowerPalette.length)];
+    flowers.setColorAt(index, chosenColor);
+  }
+  flowers.instanceMatrix.needsUpdate = true;
+  flowers.instanceColor.needsUpdate = true;
+  scene.add(flowers);
+}
+addWildflowers();
+
+// ==========================================================================
+// FARMHOUSE & CHIMNEY SMOKE
+// ==========================================================================
+const farmhouseGroup = new THREE.Group();
+const chimneyPuffs = [];
+let houseHitbox;
+
 function addFarmhouse() {
-  const house = new THREE.Group();
+  const house = farmhouseGroup;
   house.position.set(-5.8, groundHeight(-5.8, -5.1), -5.1);
   scene.add(house);
 
-  const foundation = material(0xa99a81);
-  const siding = material(0xf0e3c6);
-  const trim = material(0xfff4dc);
-  const roof = material(0x9b5849);
-  const roofEdge = material(0x74483e);
-  const door = material(0x805740);
-  const glass = new THREE.MeshStandardMaterial({ color: 0x91bac0, roughness: 0.2, metalness: 0.05 });
+  const foundation = material(0x9a886f);
+  const siding = material(0xf7ecd5);      // Warm butter-cream siding
+  const trim = material(0x6c4424);        // Warm rich timber trim
+  const roof = material(0xa24d38);        // Terracotta tile roof
+  const roofEdge = material(0x733425);
+  const door = material(0x6b3f22);
+  const warmGlass = new THREE.MeshStandardMaterial({
+    color: 0xffe9a6,
+    emissive: 0x8a5e18,
+    roughness: 0.25,
+    metalness: 0.1,
+  });
 
-  box(house, 2.85, 0.19, 2.65, foundation, 0, 0.08, 0);
-  box(house, 2.55, 1.8, 2.35, siding, 0, 1.06, 0);
-  box(house, 2.68, 0.12, 2.49, trim, 0, 0.23, 0);
-  box(house, 2.68, 0.11, 2.49, trim, 0, 1.97, 0);
+  box(house, 2.9, 0.22, 2.7, foundation, 0, 0.08, 0);
+  box(house, 2.58, 1.82, 2.38, siding, 0, 1.07, 0);
+  box(house, 2.72, 0.14, 2.52, trim, 0, 0.23, 0);
+  box(house, 2.72, 0.12, 2.52, trim, 0, 1.98, 0);
 
+  // Gable ends
   const gableShape = new THREE.Shape();
-  gableShape.moveTo(-1.28, 2.01);
-  gableShape.lineTo(1.28, 2.01);
-  gableShape.lineTo(0, 2.83);
+  gableShape.moveTo(-1.29, 2.01);
+  gableShape.lineTo(1.29, 2.01);
+  gableShape.lineTo(0, 2.85);
   gableShape.closePath();
   const gableGeometry = new THREE.ShapeGeometry(gableShape);
-  const gableMaterial = new THREE.MeshStandardMaterial({ color: 0xf0e3c6, roughness: 1, side: THREE.DoubleSide });
-  for (const z of [-1.18, 1.18]) {
+  const gableMaterial = new THREE.MeshStandardMaterial({ color: 0xf7ecd5, roughness: 1, side: THREE.DoubleSide });
+  for (const z of [-1.19, 1.19]) {
     const gable = new THREE.Mesh(gableGeometry, gableMaterial);
     gable.position.z = z;
     gable.castShadow = true;
@@ -217,39 +285,288 @@ function addFarmhouse() {
     house.add(gable);
   }
 
+  // Roof slopes & eaves
   for (const side of [-1, 1]) {
-    const panel = box(house, 1.58, 0.13, 2.82, roof, side * 0.72, 2.43, 0);
+    const panel = box(house, 1.62, 0.14, 2.86, roof, side * 0.73, 2.45, 0);
     panel.rotation.z = side * -0.59;
-    const fascia = box(house, 1.58, 0.1, 0.08, roofEdge, side * 0.72, 2.44, 1.42);
+    const fascia = box(house, 1.62, 0.1, 0.09, roofEdge, side * 0.73, 2.46, 1.43);
     fascia.rotation.z = side * -0.59;
+    const fasciaBack = box(house, 1.62, 0.1, 0.09, roofEdge, side * 0.73, 2.46, -1.43);
+    fasciaBack.rotation.z = side * -0.59;
   }
 
-  box(house, 0.39, 0.82, 0.39, roofEdge, -0.65, 2.76, -0.55);
-  box(house, 0.53, 0.12, 0.53, foundation, -0.65, 3.2, -0.55);
+  // Stone Chimney
+  const chimneyMat = material(0x736d65);
+  box(house, 0.42, 1.05, 0.42, chimneyMat, -0.65, 2.85, -0.55);
+  box(house, 0.54, 0.14, 0.54, foundation, -0.65, 3.38, -0.55);
 
-  box(house, 0.72, 1.32, 0.06, trim, 0, 0.89, 1.21);
-  box(house, 0.6, 1.22, 0.075, door, 0, 0.83, 1.26);
-  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), material(0xe5bd66));
-  knob.position.set(0.21, 0.84, 1.32);
+  // Front Door & Steps
+  box(house, 0.76, 1.34, 0.07, trim, 0, 0.9, 1.22);
+  box(house, 0.62, 1.24, 0.08, door, 0, 0.84, 1.27);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), material(0xdfaf4a));
+  knob.position.set(0.22, 0.84, 1.33);
   house.add(knob);
-  box(house, 1.01, 0.13, 0.55, foundation, 0, 0.13, 1.47);
+  box(house, 1.05, 0.14, 0.6, foundation, 0, 0.13, 1.5);
 
+  // Front Porch Lantern
+  const lanternBracket = box(house, 0.06, 0.15, 0.12, material(0x2d1f14), 0.46, 1.25, 1.25);
+  const lanternLight = new THREE.Mesh(
+    new THREE.BoxGeometry(0.1, 0.14, 0.1),
+    new THREE.MeshStandardMaterial({ color: 0xffe285, emissive: 0xffaa2b, roughness: 0.3 })
+  );
+  lanternLight.position.set(0.46, 1.18, 1.31);
+  house.add(lanternLight);
+
+  // Front Windows with Cozy Flower Boxes
   for (const x of [-0.87, 0.87]) {
-    box(house, 0.52, 0.66, 0.065, trim, x, 1.25, 1.22);
-    box(house, 0.43, 0.55, 0.075, glass, x, 1.25, 1.27);
-    box(house, 0.055, 0.58, 0.09, trim, x, 1.25, 1.32);
-    box(house, 0.48, 0.055, 0.09, trim, x, 1.25, 1.32);
+    box(house, 0.54, 0.68, 0.07, trim, x, 1.25, 1.23);
+    box(house, 0.44, 0.56, 0.08, warmGlass, x, 1.25, 1.28);
+    box(house, 0.05, 0.58, 0.09, trim, x, 1.25, 1.33);
+    box(house, 0.48, 0.05, 0.09, trim, x, 1.25, 1.33);
+
+    // Flower Box
+    box(house, 0.56, 0.12, 0.14, material(0x5a391e), x, 0.86, 1.33);
+    // Flowers in box
+    const flowerColors = [0xde4337, 0xf6d148, 0xeb7b9b, 0xffffff];
+    for (let f = -2; f <= 2; f += 1) {
+      const petal = new THREE.Mesh(
+        new THREE.SphereGeometry(0.045, 5, 4),
+        material(flowerColors[(f + 4) % flowerColors.length])
+      );
+      petal.position.set(x + f * 0.09, 0.96, 1.35);
+      house.add(petal);
+    }
   }
+
+  // Side Windows
   for (const side of [-1, 1]) {
-    const x = side * 1.31;
-    box(house, 0.07, 0.77, 0.75, trim, x, 1.23, -0.12);
-    box(house, 0.08, 0.66, 0.65, glass, x + side * 0.05, 1.23, -0.12);
-    box(house, 0.1, 0.7, 0.055, trim, x + side * 0.11, 1.23, -0.12);
+    const x = side * 1.32;
+    box(house, 0.08, 0.78, 0.76, trim, x, 1.23, -0.12);
+    box(house, 0.09, 0.67, 0.66, warmGlass, x + side * 0.05, 1.23, -0.12);
+    box(house, 0.11, 0.7, 0.06, trim, x + side * 0.11, 1.23, -0.12);
+  }
+
+  // Generous invisible Click Hitbox for the farmhouse
+  houseHitbox = new THREE.Mesh(
+    new THREE.BoxGeometry(4.2, 4.0, 4.2),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  houseHitbox.position.set(-5.8, groundHeight(-5.8, -5.1) + 1.8, -5.1);
+  houseHitbox.userData.isFarmhouse = true;
+  scene.add(houseHitbox);
+
+  // Mark all child meshes for hover and raycasting
+  house.traverse((child) => {
+    if (child.isMesh) child.userData.isFarmhouse = true;
+  });
+
+  // Cozy Chimney Smoke Puffs
+  const puffMat = new THREE.MeshLambertMaterial({
+    color: 0xfaeedd,
+    transparent: true,
+    opacity: 0.55,
+  });
+  for (let i = 0; i < 5; i += 1) {
+    const puff = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 1), puffMat);
+    puff.position.set(-0.65, 3.45 + i * 0.28, -0.55);
+    puff.scale.setScalar(0.7 + i * 0.25);
+    puff.userData = {
+      baseY: 3.45,
+      offset: i * 0.85,
+      speed: 0.65,
+    };
+    house.add(puff);
+    chimneyPuffs.push(puff);
   }
 }
 addFarmhouse();
 
-// The field is a thin patch of worked earth level with the surrounding grass.
+function updateChimneySmoke(deltaSeconds = 0) {
+  for (let i = 0; i < chimneyPuffs.length; i += 1) {
+    const puff = chimneyPuffs[i];
+    puff.userData.offset += deltaSeconds * puff.userData.speed;
+    const progress = (puff.userData.offset % 3.6) / 3.6;
+    puff.position.y = puff.userData.baseY + progress * 1.8;
+    puff.position.x = -0.65 + Math.sin(progress * Math.PI * 2) * 0.12 + progress * 0.2;
+    const scale = (0.7 + progress * 1.1);
+    puff.scale.set(scale, scale * 1.1, scale);
+    puff.material.opacity = Math.sin(progress * Math.PI) * 0.55;
+  }
+}
+
+// ==========================================================================
+// RUSTIC FARM ENVIRONMENT: FENCE, PATH, TREES, HAY BALES, SIGNPOST
+// ==========================================================================
+
+// 1. Winding Cobblestone Garden Path (Farmhouse -> Wheat Field)
+function addGardenPath() {
+  const pathMat = material(0x8a8479, 0.95);
+  const pathSteps = [
+    [-5.8, -3.9], [-5.2, -3.6], [-4.6, -3.2],
+    [-3.9, -2.9], [-3.2, -2.6], [-2.5, -2.4], [-1.9, -2.2]
+  ];
+  for (let i = 0; i < pathSteps.length; i += 1) {
+    const [x, z] = pathSteps[i];
+    const stone = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.32 + (i % 2) * 0.08, 0.35 + (i % 2) * 0.08, 0.06, 7),
+      pathMat
+    );
+    stone.position.set(x, groundHeight(x, z) + 0.015, z);
+    stone.rotation.y = (i * 1.3);
+    stone.receiveShadow = true;
+    scene.add(stone);
+  }
+}
+addGardenPath();
+
+// 2. Rustic Split-Rail Wooden Fence around Wheat Plots
+function addFence() {
+  const fenceWood = material(0x764b28);
+  const postGeom = new THREE.CylinderGeometry(0.06, 0.075, 0.72, 6);
+  const railGeom = new THREE.BoxGeometry(1.22, 0.05, 0.09);
+
+  // Fence posts around field boundary
+  const posts = [
+    // Top boundary (z = -2.35)
+    [-1.25, -2.35], [0, -2.35], [1.25, -2.35], [2.35, -2.35],
+    // Right boundary (x = 2.35)
+    [2.35, -1.2], [2.35, 0], [2.35, 1.2], [2.35, 2.35],
+    // Bottom boundary (z = 2.35)
+    [1.25, 2.35], [0, 2.35], [-1.25, 2.35], [-2.35, 2.35],
+    // Left boundary (x = -2.35) - open gateway left near path!
+    [-2.35, 1.2], [-2.35, 0]
+  ];
+
+  for (const [px, pz] of posts) {
+    const post = new THREE.Mesh(postGeom, fenceWood);
+    post.position.set(px, groundHeight(px, pz) + 0.3, pz);
+    post.rotation.y = Math.sin(px * pz) * 0.3;
+    post.castShadow = true;
+    post.receiveShadow = true;
+    scene.add(post);
+  }
+
+  // Horizontal rails connecting top
+  for (let x = -0.6; x <= 1.8; x += 1.2) {
+    for (const h of [0.18, 0.42]) {
+      const rail = new THREE.Mesh(railGeom, fenceWood);
+      rail.position.set(x, groundHeight(x, -2.35) + h, -2.35);
+      rail.castShadow = true;
+      scene.add(rail);
+    }
+  }
+  // Horizontal rails connecting right
+  for (let z = -0.6; z <= 1.8; z += 1.2) {
+    for (const h of [0.18, 0.42]) {
+      const rail = new THREE.Mesh(railGeom, fenceWood);
+      rail.rotation.y = Math.PI / 2;
+      rail.position.set(2.35, groundHeight(2.35, z) + h, z);
+      rail.castShadow = true;
+      scene.add(rail);
+    }
+  }
+  // Horizontal rails connecting bottom
+  for (let x = 1.8; x >= -1.8; x -= 1.2) {
+    for (const h of [0.18, 0.42]) {
+      const rail = new THREE.Mesh(railGeom, fenceWood);
+      rail.position.set(x, groundHeight(x, 2.35) + h, 2.35);
+      rail.castShadow = true;
+      scene.add(rail);
+    }
+  }
+}
+addFence();
+
+// 3. Golden Hay Bales
+function addHayBales() {
+  const hayMat = material(0xd6a347);
+  const twineMat = material(0x452e18);
+
+  function createBale(x, z, rotY = 0) {
+    const bale = new THREE.Group();
+    bale.position.set(x, groundHeight(x, z) + 0.25, z);
+    bale.rotation.y = rotY;
+
+    box(bale, 0.95, 0.5, 0.58, hayMat, 0, 0, 0);
+    // Twine bands
+    box(bale, 0.97, 0.52, 0.04, twineMat, 0, 0, -0.16);
+    box(bale, 0.97, 0.52, 0.04, twineMat, 0, 0, 0.16);
+
+    scene.add(bale);
+    return bale;
+  }
+
+  createBale(2.6, -1.8, 0.2);
+  createBale(2.8, -1.2, -0.1);
+  const topBale = createBale(2.7, -1.5, 0.08);
+  topBale.position.y += 0.48;
+}
+addHayBales();
+
+// 4. Cozy Orchard Trees
+function addTree(x, z, scale = 1) {
+  const tree = new THREE.Group();
+  tree.position.set(x, groundHeight(x, z), z);
+  tree.scale.setScalar(scale);
+
+  const trunkMat = material(0x56381d);
+  const foliageMat = material(0x4a7c36);
+  const appleMat = material(0xd9382b);
+
+  // Trunk
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.38, 2.4, 7), trunkMat);
+  trunk.position.y = 1.2;
+  trunk.castShadow = true;
+  tree.add(trunk);
+
+  // Foliage clusters (fluffy cloud shape)
+  const canopyOffsets = [
+    [0, 2.7, 0, 1.4],
+    [-0.5, 2.5, 0.4, 1.0],
+    [0.6, 2.6, -0.3, 1.1],
+    [0.2, 3.2, 0.3, 1.0],
+  ];
+  for (const [cx, cy, cz, cr] of canopyOffsets) {
+    const sphere = new THREE.Mesh(new THREE.DodecahedronGeometry(cr, 1), foliageMat);
+    sphere.position.set(cx, cy, cz);
+    sphere.castShadow = true;
+    tree.add(sphere);
+  }
+
+  // Red Apples
+  const appleOffsets = [
+    [-0.5, 2.2, 0.7], [0.7, 2.3, 0.2], [-0.3, 2.8, -0.8], [0.4, 2.7, 0.7]
+  ];
+  for (const [ax, ay, az] of appleOffsets) {
+    const apple = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5), appleMat);
+    apple.position.set(ax, ay, az);
+    tree.add(apple);
+  }
+
+  scene.add(tree);
+}
+addTree(-8.5, -6.6, 1.15); // Behind farmhouse on hill
+addTree(3.8, -5.6, 0.95);  // North edge of pasture
+
+// 5. Wooden Farm Signpost
+function addSignpost() {
+  const signWood = material(0x6e4324);
+  const signBoard = material(0xd7b483);
+  const signpost = new THREE.Group();
+  signpost.position.set(-2.1, groundHeight(-2.1, -1.9), -1.9);
+
+  box(signpost, 0.08, 0.9, 0.08, signWood, 0, 0.45, 0);
+  const board = box(signpost, 0.52, 0.22, 0.05, signBoard, 0.16, 0.75, 0);
+  board.rotation.y = 0.35;
+
+  scene.add(signpost);
+}
+addSignpost();
+
+// ==========================================================================
+// SOIL AND PLANTING FIELD
+// ==========================================================================
+
 const fieldOutline = new THREE.Shape();
 fieldOutline.moveTo(-1.7, -1.9);
 fieldOutline.lineTo(1.7, -1.9);
@@ -274,7 +591,7 @@ for (let row = 0; row < ROWS; row += 1) {
     const index = row * COLUMNS + column;
     const x = (column - 1) * 1.22;
     const z = (row - 1) * 1.22;
-    const soilMaterial = material(0x98613f);
+    const soilMaterial = material(0x945f3c);
     const soil = box(scene, 1.06, 0.1, 1.06, soilMaterial, x, -0.11, z);
     soil.userData.plotIndex = index;
     plotMeshes.push(soil);
@@ -290,24 +607,57 @@ function render() {
   renderer.render(scene, camera);
 }
 
+// ==========================================================================
+// WEATHER SYSTEM
+// ==========================================================================
+
 const weatherSettings = {
   sunny: {
-    description: 'Clear skies and warm sunlight.', sky: 0xb8e1df,
-    ambient: 2.4, sun: 3.2, rain: 0, speed: 0, opacity: 0, length: 0, fog: 120,
+    description: 'Clear skies and warm sunlight.',
+    sky: 0xa2d3e9,
+    ambient: 2.5,
+    sun: 3.4,
+    rain: 0,
+    speed: 0,
+    opacity: 0,
+    length: 0,
+    fog: 130,
   },
   light: {
-    description: 'A light shower is falling.', sky: 0xabc5c8,
-    ambient: 2.0, sun: 1.9, rain: 1600, speed: 9, opacity: 0.45, length: 0.32, fog: 100,
+    description: 'A light shower is falling.',
+    sky: 0xabc8ce,
+    ambient: 2.1,
+    sun: 2.0,
+    rain: 1600,
+    speed: 9,
+    opacity: 0.45,
+    length: 0.32,
+    fog: 105,
   },
   moderate: {
-    description: 'Steady rain is falling.', sky: 0x829fa9,
-    ambient: 1.6, sun: 1.15, rain: 3000, speed: 13, opacity: 0.56, length: 0.44, fog: 80,
+    description: 'Steady rain is falling.',
+    sky: 0x85a2ad,
+    ambient: 1.7,
+    sun: 1.2,
+    rain: 3000,
+    speed: 13,
+    opacity: 0.56,
+    length: 0.44,
+    fog: 85,
   },
   heavy: {
-    description: 'A heavy downpour is falling.', sky: 0x637c8b,
-    ambient: 1.25, sun: 0.65, rain: 5000, speed: 18, opacity: 0.68, length: 0.58, fog: 65,
+    description: 'A heavy downpour is falling.',
+    sky: 0x667f8f,
+    ambient: 1.3,
+    sun: 0.7,
+    rain: 5000,
+    speed: 18,
+    opacity: 0.68,
+    length: 0.58,
+    fog: 68,
   },
 };
+
 const MAX_RAIN_DROPS = weatherSettings.heavy.rain;
 const RAIN_SPAN = 28;
 let rainSeed = 9247;
@@ -334,10 +684,10 @@ const rain = new THREE.LineSegments(rainGeometry, rainMaterial);
 rain.frustumCulled = false;
 rain.visible = false;
 scene.add(rain);
+
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 let currentWeather = weatherSettings.sunny;
-let rainFrame = 0;
-let lastRainTime = 0;
+let lastTickTime = performance.now();
 
 function updateRain(deltaSeconds = 0) {
   for (let index = 0; index < currentWeather.rain; index += 1) {
@@ -361,17 +711,12 @@ function updateRain(deltaSeconds = 0) {
   rainPositionAttribute.needsUpdate = true;
 }
 
-function animateRain(now) {
-  const deltaSeconds = lastRainTime ? Math.min((now - lastRainTime) / 1000, 0.05) : 0;
-  lastRainTime = now;
-  updateRain(deltaSeconds);
-  render();
-  rainFrame = requestAnimationFrame(animateRain);
-}
-
 function setWeather(name) {
   currentWeather = weatherSettings[name] || weatherSettings.sunny;
-  weatherDescription.textContent = currentWeather.description;
+  if (weatherDescription) weatherDescription.textContent = currentWeather.description;
+  const modalWeather = document.querySelector('#farm-modal-weather');
+  if (modalWeather) modalWeather.textContent = currentWeather.description;
+
   scene.background.setHex(currentWeather.sky);
   scene.fog.color.setHex(currentWeather.sky);
   scene.fog.far = currentWeather.fog;
@@ -380,19 +725,42 @@ function setWeather(name) {
   rain.visible = currentWeather.rain > 0;
   rainGeometry.setDrawRange(0, currentWeather.rain * 2);
   rainMaterial.opacity = currentWeather.opacity;
-  if (rainFrame) cancelAnimationFrame(rainFrame);
-  rainFrame = 0;
-  lastRainTime = 0;
-  if (rain.visible) {
-    updateRain();
-    if (!reducedMotion.matches) rainFrame = requestAnimationFrame(animateRain);
-  }
+
+  if (rain.visible) updateRain();
   render();
 }
 
 weatherSelect.addEventListener('change', () => setWeather(weatherSelect.value));
 reducedMotion.addEventListener('change', () => setWeather(weatherSelect.value));
 setWeather(weatherSelect.value);
+
+// Unified Animation Loop
+function animateScene(now) {
+  const deltaSeconds = Math.min((now - lastTickTime) / 1000, 0.06);
+  lastTickTime = now;
+
+  let needsRender = false;
+  if (!reducedMotion.matches) {
+    updateChimneySmoke(deltaSeconds);
+    needsRender = true;
+  }
+
+  if (rain.visible && !reducedMotion.matches) {
+    updateRain(deltaSeconds);
+    needsRender = true;
+  }
+
+  if (needsRender) {
+    render();
+  }
+
+  requestAnimationFrame(animateScene);
+}
+requestAnimationFrame(animateScene);
+
+// ==========================================================================
+// WHEAT SEEDLING GROWTH
+// ==========================================================================
 
 function addWheatSeedlings(index) {
   const { x, z } = plotPositions[index];
@@ -438,6 +806,10 @@ function addWheatSeedlings(index) {
   requestAnimationFrame(animate);
 }
 
+// ==========================================================================
+// VIEWPORT & RESIZE
+// ==========================================================================
+
 let fittedDistance = null;
 function resize() {
   const width = canvas.clientWidth;
@@ -447,7 +819,7 @@ function resize() {
   const fit = Math.max(13, 12.2 / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect));
   const distance = fittedDistance === null
     ? fit
-    : THREE.MathUtils.clamp(controls.getDistance() * fit / fittedDistance, controls.minDistance, controls.maxDistance);
+    : THREE.MathUtils.clamp((controls.getDistance() * fit) / fittedDistance, controls.minDistance, controls.maxDistance);
   fittedDistance = fit;
   const direction = camera.position.clone().sub(controls.target).normalize();
   camera.position.copy(controls.target).addScaledVector(direction, distance);
@@ -459,29 +831,47 @@ function resize() {
 }
 new ResizeObserver(resize).observe(canvas);
 
+// ==========================================================================
+// INTERACTION & RAYCASTING (PLOTS + FARMHOUSE CLICK)
+// ==========================================================================
+
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
-let hoveredIndex = -1;
+let hoveredPlotIndex = -1;
+let isFarmhouseHovered = false;
 let selectedIndex = 0;
 let keyboardFocus = false;
 let activePointer = null;
 let dragged = false;
 let suppressClick = false;
 
-function pickPlot(event) {
+function pickTarget(event) {
   const bounds = canvas.getBoundingClientRect();
   pointer.set(
     ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
     -((event.clientY - bounds.top) / bounds.height) * 2 + 1,
   );
   raycaster.setFromCamera(pointer, camera);
-  return raycaster.intersectObjects(plotMeshes, false)[0]?.object.userData.plotIndex ?? -1;
+
+  // Check plot meshes and farmhouse hitbox
+  const targets = [houseHitbox, ...plotMeshes];
+  const hits = raycaster.intersectObjects(targets, false);
+  if (!hits.length) return null;
+
+  const first = hits[0].object;
+  if (first.userData.isFarmhouse) {
+    return { type: 'farmhouse' };
+  }
+  if (first.userData.plotIndex !== undefined) {
+    return { type: 'plot', index: first.userData.plotIndex };
+  }
+  return null;
 }
 
 function updateHighlights() {
   for (let index = 0; index < PLOT_COUNT; index += 1) {
-    const active = index === hoveredIndex || (keyboardFocus && index === selectedIndex);
-    plotMaterials[index].color.setHex(active ? 0xbd8052 : 0x98613f);
+    const active = index === hoveredPlotIndex || (keyboardFocus && index === selectedIndex);
+    plotMaterials[index].color.setHex(active ? 0xbd8052 : 0x945f3c);
     plotMaterials[index].emissive.setHex(active ? 0x38220b : 0x000000);
   }
   render();
@@ -489,7 +879,17 @@ function updateHighlights() {
 
 function updateCanvasLabel() {
   const state = plantedPlots.has(selectedIndex) ? 'already planted' : 'empty';
-  canvas.setAttribute('aria-label', `3D wheat field. Plot ${selectedIndex + 1} of ${PLOT_COUNT} is ${state}. Use WASD to move the camera, arrow keys to select a plot, and Enter to plant wheat.`);
+  canvas.setAttribute(
+    'aria-label',
+    `3D wheat field. Plot ${selectedIndex + 1} of ${PLOT_COUNT} is ${state}. Use WASD to move camera, arrow keys to select a plot, Enter to plant wheat. Click the farmhouse to view the calendar.`
+  );
+}
+
+function updatePlantedCountLedger() {
+  const ledgerEl = document.querySelector('#farm-planted-count');
+  if (ledgerEl) {
+    ledgerEl.textContent = `${plantedPlots.size} / ${PLOT_COUNT} plots planted`;
+  }
 }
 
 function plantWheat(index) {
@@ -500,6 +900,21 @@ function plantWheat(index) {
     ? 'Every plot has wheat planted.'
     : `Wheat planted in plot ${index + 1}.`;
   updateCanvasLabel();
+  updatePlantedCountLedger();
+}
+
+function setFarmhouseHover(hovered, clientX = 0, clientY = 0) {
+  if (isFarmhouseHovered === hovered && (!hovered || !farmhouseTooltip)) return;
+  isFarmhouseHovered = hovered;
+  if (farmhouseTooltip) {
+    if (hovered) {
+      farmhouseTooltip.removeAttribute('hidden');
+      farmhouseTooltip.style.left = `${clientX}px`;
+      farmhouseTooltip.style.top = `${clientY}px`;
+    } else {
+      farmhouseTooltip.setAttribute('hidden', '');
+    }
+  }
 }
 
 canvas.addEventListener('pointerdown', (event) => {
@@ -508,31 +923,56 @@ canvas.addEventListener('pointerdown', (event) => {
   dragged = false;
   suppressClick = false;
 });
+
 canvas.addEventListener('pointermove', (event) => {
-  if (activePointer?.id === event.pointerId &&
-      Math.hypot(event.clientX - activePointer.x, event.clientY - activePointer.y) > 6) {
+  if (
+    activePointer?.id === event.pointerId &&
+    Math.hypot(event.clientX - activePointer.x, event.clientY - activePointer.y) > 6
+  ) {
     dragged = true;
   }
   if (dragged) {
     canvas.style.cursor = 'grabbing';
-    if (hoveredIndex !== -1) {
-      hoveredIndex = -1;
+    if (hoveredPlotIndex !== -1) {
+      hoveredPlotIndex = -1;
       updateHighlights();
     }
+    setFarmhouseHover(false);
     return;
   }
-  const index = pickPlot(event);
-  canvas.style.cursor = index >= 0 && !plantedPlots.has(index) ? 'pointer' : 'grab';
-  if (index !== hoveredIndex) {
-    hoveredIndex = index;
-    updateHighlights();
+
+  const target = pickTarget(event);
+  if (target?.type === 'farmhouse') {
+    canvas.style.cursor = 'pointer';
+    if (hoveredPlotIndex !== -1) {
+      hoveredPlotIndex = -1;
+      updateHighlights();
+    }
+    setFarmhouseHover(true, event.clientX, event.clientY);
+  } else if (target?.type === 'plot') {
+    setFarmhouseHover(false);
+    canvas.style.cursor = !plantedPlots.has(target.index) ? 'pointer' : 'grab';
+    if (target.index !== hoveredPlotIndex) {
+      hoveredPlotIndex = target.index;
+      updateHighlights();
+    }
+  } else {
+    setFarmhouseHover(false);
+    canvas.style.cursor = 'grab';
+    if (hoveredPlotIndex !== -1) {
+      hoveredPlotIndex = -1;
+      updateHighlights();
+    }
   }
 });
+
 canvas.addEventListener('pointerleave', () => {
-  hoveredIndex = -1;
+  hoveredPlotIndex = -1;
+  setFarmhouseHover(false);
   canvas.style.cursor = 'grab';
   updateHighlights();
 });
+
 canvas.addEventListener('pointerup', (event) => {
   if (activePointer?.id === event.pointerId) {
     activePointer = null;
@@ -541,32 +981,48 @@ canvas.addEventListener('pointerup', (event) => {
   }
   canvas.style.cursor = 'grab';
 });
+
 canvas.addEventListener('pointercancel', () => {
   activePointer = null;
   dragged = false;
   suppressClick = false;
+  setFarmhouseHover(false);
   canvas.style.cursor = 'grab';
 });
+
 canvas.addEventListener('click', (event) => {
   if (suppressClick) {
     suppressClick = false;
     return;
   }
-  const index = pickPlot(event);
-  if (index < 0) return;
-  selectedIndex = index;
-  canvas.focus({ preventScroll: true });
-  plantWheat(index);
+  const target = pickTarget(event);
+  if (!target) return;
+
+  if (target.type === 'farmhouse') {
+    setFarmhouseHover(false);
+    updatePlantedCountLedger();
+    window.FarmCalendar?.openFarmhouseMenu?.();
+    return;
+  }
+
+  if (target.type === 'plot') {
+    selectedIndex = target.index;
+    canvas.focus({ preventScroll: true });
+    plantWheat(target.index);
+  }
 });
+
 canvas.addEventListener('focus', () => {
   keyboardFocus = true;
   updateCanvasLabel();
   updateHighlights();
 });
+
 canvas.addEventListener('blur', () => {
   keyboardFocus = false;
   updateHighlights();
 });
+
 canvas.addEventListener('keydown', (event) => {
   let next = selectedIndex;
   if (event.key === 'ArrowLeft' && selectedIndex % COLUMNS > 0) next -= 1;
@@ -600,7 +1056,20 @@ window.addEventListener('keydown', (event) => {
   controls.target.addScaledVector(movement, distance);
   if (rain.visible) updateRain();
   controls.update();
+  render();
 });
 
 updateCanvasLabel();
 resize();
+
+// Expose on window for debugging and test verification
+window.FarmGame = {
+  scene,
+  camera,
+  controls,
+  plantWheat,
+  pickTarget,
+  plantedPlots,
+  weatherSettings,
+  setWeather,
+};

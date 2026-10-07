@@ -3,42 +3,258 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f4eddb" />
+    <meta name="theme-color" content="#dcc39e" />
     <title>Farm Hands</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <link rel="stylesheet" href="./styles.css?v=calendar-rain-wasd-1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,600&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css?v=cozy-farm-1" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=calendar-rain-wasd-1"></script>
-    <script type="module" src="./calendar.js?v=calendar-rain-wasd-1"></script>
+    <script type="module" src="./game.js?v=cozy-farm-1"></script>
+    <script type="module" src="./calendar.js?v=cozy-farm-1"></script>
   </head>
   <body>
     <main class="game-shell">
       <section class="farm" aria-label="3D wheat planting field">
-        <canvas id="field" tabindex="0" aria-label="3D wheat field. Drag to rotate, scroll or pinch to zoom. Use WASD to move the camera, arrow keys to select a plot, and Enter to plant wheat." aria-describedby="field-help field-status"></canvas>
-        <aside class="calendar" aria-label="Farm calendar">
-          <div class="calendar-heading"><span>Calendar</span><span>3× real time</span></div>
-          <div class="calendar-date" id="calendar-date">March 1</div>
-          <div class="calendar-details"><span id="calendar-season">Spring · Year 1</span><span id="calendar-clock">06:00:00</span></div>
-          <div class="calendar-day" id="calendar-day">Day 60 of 365</div>
-          <div class="calendar-year-track" id="calendar-year-track" role="progressbar" aria-label="Progress through the year" aria-valuemin="0" aria-valuemax="100" aria-valuenow="16" aria-valuetext="Day 60 of 365, Year 1"><span id="calendar-year-fill"></span></div>
+        <canvas id="field" tabindex="0" aria-label="3D wheat field. Drag to rotate, scroll or pinch to zoom. Use WASD to move the camera, arrow keys to select a plot, and Enter to plant wheat. Click the farmhouse to view the farming calendar." aria-describedby="field-help field-status"></canvas>
+
+        <!-- Cozy Top-Left HUD: Farm Crest & Farmhouse Calendar Button -->
+        <header class="farm-hud farm-hud-left" aria-label="Farm overview">
+          <div class="hud-brand">
+            <span class="hud-brand-icon" aria-hidden="true">🌾</span>
+            <div class="hud-brand-info">
+              <span class="hud-brand-title">Farm Hands</span>
+              <span class="hud-brand-subtitle">Willow Creek Homestead</span>
+            </div>
+          </div>
+          <button id="farmhouse-btn" class="cozy-hud-btn farmhouse-trigger-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Click to open Farmhouse Calendar (or click Farmhouse in 3D)">
+            <span class="btn-icon" aria-hidden="true">🏡</span>
+            <span class="btn-content">
+              <strong id="hud-season">Spring · Year 1</strong>
+              <span class="hud-time-sub" id="hud-date-time">March 1 · 06:00:00</span>
+            </span>
+            <span class="hud-btn-tag" aria-hidden="true">Calendar 📖</span>
+          </button>
+        </header>
+
+        <!-- Cozy Top-Right HUD: Weather & Developer Speed Controls -->
+        <aside class="farm-hud farm-hud-right" aria-label="Farm environment and developer controls">
+          <div class="weather-controls cozy-panel">
+            <div class="panel-header-row">
+              <label for="weather-select" class="panel-label">
+                <span aria-hidden="true">🌤️</span> Weather
+              </label>
+            </div>
+            <select id="weather-select" aria-describedby="weather-description">
+              <option value="sunny">☀️ Warm sunlight</option>
+              <option value="light">🌦️ Light rain</option>
+              <option value="moderate">🌧️ Moderate rain</option>
+              <option value="heavy">⛈️ Heavy rain</option>
+            </select>
+            <span id="weather-description" class="weather-description" aria-live="polite">Clear skies and warm sunlight.</span>
+          </div>
+
+          <!-- Developer Speedup Button -->
+          <div class="dev-controls cozy-panel">
+            <div class="panel-header-row">
+              <span class="panel-label"><span aria-hidden="true">🛠️</span> Dev Mode</span>
+            </div>
+            <button id="speed-btn" class="cozy-btn dev-speed-btn" type="button" aria-label="Developer time speed" title="Click to cycle time speed (3×, 15×, 60×, 300×, 1200×) or press T">
+              <span class="speed-bolt" aria-hidden="true">⚡</span>
+              <span class="speed-text" id="speed-btn-label">3× Speed</span>
+            </button>
+          </div>
         </aside>
-        <div class="weather-controls">
-          <label for="weather-select">Weather</label>
-          <select id="weather-select" aria-describedby="weather-description">
-            <option value="sunny">Normal sunlight</option>
-            <option value="light">Light rain</option>
-            <option value="moderate">Moderate rain</option>
-            <option value="heavy">Heavy rain</option>
-          </select>
-          <span id="weather-description" class="weather-description" aria-live="polite">Clear skies and warm sunlight.</span>
+
+        <!-- 3D Farmhouse Hover / Click Prompt -->
+        <div id="farmhouse-tooltip" class="farmhouse-tooltip" aria-hidden="true" hidden>
+          <span class="tooltip-icon">🏡</span>
+          <span class="tooltip-text">Farmhouse · Click to view Calendar</span>
+        </div>
+
+        <!-- Farmhouse Calendar Menu (Modal Dialog) -->
+        <div id="farmhouse-modal" class="farmhouse-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-modal-title" hidden>
+          <div class="modal-backdrop" id="modal-backdrop" aria-hidden="true"></div>
+          <div class="modal-card">
+            <header class="modal-header">
+              <div class="modal-title-group">
+                <div class="modal-house-icon" aria-hidden="true">🏡</div>
+                <div>
+                  <h2 id="calendar-modal-title">Farmhouse Almanac & Calendar</h2>
+                  <p class="modal-subtitle">Willow Creek Homestead · Seasonal crop ledger & daily records</p>
+                </div>
+              </div>
+              <button id="modal-close-btn" class="cozy-icon-btn modal-close-btn" type="button" aria-label="Close farmhouse menu">✕</button>
+            </header>
+
+            <div class="modal-body">
+              <!-- Live Calendar Card -->
+              <section class="almanac-section live-date-section" aria-label="Current date and time">
+                <div class="date-hero-card">
+                  <div class="date-top-bar">
+                    <span class="season-badge" id="calendar-season">Spring · Year 1</span>
+                    <span class="speed-badge" id="calendar-speed-badge">3× real time</span>
+                  </div>
+                  <div class="date-primary-row">
+                    <div class="calendar-date" id="calendar-date">March 1</div>
+                    <div class="calendar-clock-box">
+                      <span class="clock-label">Game Clock</span>
+                      <span class="calendar-clock" id="calendar-clock">06:00:00</span>
+                    </div>
+                  </div>
+                  <div class="calendar-progress-wrap">
+                    <div class="progress-info-row">
+                      <span class="calendar-day" id="calendar-day">Day 60 of 365</span>
+                      <span class="year-label" id="calendar-year-label">Year 1</span>
+                    </div>
+                    <div class="calendar-year-track" id="calendar-year-track" role="progressbar" aria-label="Progress through the year" aria-valuemin="0" aria-valuemax="100" aria-valuenow="16" aria-valuetext="Day 60 of 365, Year 1">
+                      <span id="calendar-year-fill"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Dev Speedup Option in Menu -->
+                <div class="modal-dev-box">
+                  <div class="dev-box-header">
+                    <span class="dev-badge">⚡ Developer Controls</span>
+                    <span class="dev-hint">Speed up calendar progression for testing</span>
+                  </div>
+                  <div class="dev-box-actions">
+                    <button id="modal-speed-btn" class="cozy-btn dev-speed-btn" type="button" title="Cycle game speed">
+                      ⏩ Dev Speed: <span id="modal-speed-text">3×</span>
+                    </button>
+                    <span class="dev-cycle-info" id="dev-cycle-info">Click to cycle: 3× · 15× · 60× · 300× · 1200×</span>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Seasonal Crop Calendar -->
+              <section class="almanac-section" aria-label="Seasonal farming guide">
+                <div class="section-heading-row">
+                  <h3 class="section-title">🌾 Farming Seasons & Planting Guide</h3>
+                  <span class="section-note">Highlight indicates current season</span>
+                </div>
+                <div class="season-cards-grid" id="season-cards-grid">
+                  <div class="season-card" data-season="Spring">
+                    <div class="season-card-banner">
+                      <span class="season-icon" aria-hidden="true">🌱</span>
+                      <h4>Spring</h4>
+                      <span class="season-months">Mar · Apr · May</span>
+                    </div>
+                    <div class="season-card-body">
+                      <div class="crop-group">
+                        <span class="crop-badge-label">Primary Crop:</span>
+                        <span class="crop-badge active-crop">🌾 Spring Wheat</span>
+                      </div>
+                      <p class="season-desc">Ground is freshly thawed and moist. Ideal for tilling rows and sowing golden wheat seedlings.</p>
+                      <div class="season-tag-row">
+                        <span class="farm-tag">✨ Sowing Time</span>
+                        <span class="farm-tag">🌧️ Spring Showers</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="season-card" data-season="Summer">
+                    <div class="season-card-banner">
+                      <span class="season-icon" aria-hidden="true">☀️</span>
+                      <h4>Summer</h4>
+                      <span class="season-months">Jun · Jul · Aug</span>
+                    </div>
+                    <div class="season-card-body">
+                      <div class="crop-group">
+                        <span class="crop-badge-label">Primary Crop:</span>
+                        <span class="crop-badge">🌾 Golden Wheat</span>
+                      </div>
+                      <p class="season-desc">Plentiful warm sunshine ripens the wheat heads to amber gold. Keep soil hydrated during dry spells.</p>
+                      <div class="season-tag-row">
+                        <span class="farm-tag">☀️ Ripening</span>
+                        <span class="farm-tag">🌻 Sunflowers</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="season-card" data-season="Autumn">
+                    <div class="season-card-banner">
+                      <span class="season-icon" aria-hidden="true">🍂</span>
+                      <h4>Autumn</h4>
+                      <span class="season-months">Sep · Oct · Nov</span>
+                    </div>
+                    <div class="season-card-body">
+                      <div class="crop-group">
+                        <span class="crop-badge-label">Primary Crop:</span>
+                        <span class="crop-badge">🌾 Autumn Rye</span>
+                      </div>
+                      <p class="season-desc">Harvest festival season! Gather your full golden wheat bushels and stack fresh hay bales before frost.</p>
+                      <div class="season-tag-row">
+                        <span class="farm-tag">🎃 Harvest Festival</span>
+                        <span class="farm-tag">🍎 Apple Orchard</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="season-card" data-season="Winter">
+                    <div class="season-card-banner">
+                      <span class="season-icon" aria-hidden="true">❄️</span>
+                      <h4>Winter</h4>
+                      <span class="season-months">Dec · Jan · Feb</span>
+                    </div>
+                    <div class="season-card-body">
+                      <div class="crop-group">
+                        <span class="crop-badge-label">Primary Crop:</span>
+                        <span class="crop-badge">🌿 Winter Greens</span>
+                      </div>
+                      <p class="season-desc">Snow blankets the peaceful pasture. Tend the farmhouse hearth, oil farm tools, and order new seeds.</p>
+                      <div class="season-tag-row">
+                        <span class="farm-tag">🪵 Fireside Rest</span>
+                        <span class="farm-tag">❄️ Frosty Ground</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Live Farm Ledger & Field Status -->
+              <section class="almanac-section farm-ledger-section" aria-label="Farm status ledger">
+                <div class="ledger-box">
+                  <div class="ledger-item">
+                    <span class="ledger-icon" aria-hidden="true">🌾</span>
+                    <div class="ledger-details">
+                      <span class="ledger-label">Wheat Field Status</span>
+                      <strong class="ledger-value" id="farm-planted-count">0 / 9 plots planted</strong>
+                    </div>
+                  </div>
+                  <div class="ledger-item">
+                    <span class="ledger-icon" aria-hidden="true">🌤️</span>
+                    <div class="ledger-details">
+                      <span class="ledger-label">Current Weather</span>
+                      <strong class="ledger-value" id="farm-modal-weather">Clear skies and warm sunlight</strong>
+                    </div>
+                  </div>
+                  <div class="ledger-item">
+                    <span class="ledger-icon" aria-hidden="true">🏡</span>
+                    <div class="ledger-details">
+                      <span class="ledger-label">Homestead</span>
+                      <strong class="ledger-value">Willow Creek Farmhouse</strong>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <footer class="modal-footer">
+              <span class="footer-tip"><span aria-hidden="true">💡</span> Click the 3D farmhouse anytime or press <kbd>C</kbd> to return to this calendar</span>
+              <button id="modal-footer-close-btn" class="cozy-btn primary-btn" type="button">Back to Farm</button>
+            </footer>
+          </div>
         </div>
 
         <div class="sr-only">
           <h1>Farm Hands</h1>
-          <p id="field-help">Click or tap to plant. Drag to rotate. Scroll or pinch to zoom. Use WASD to move the camera, arrow keys to select a plot, and Enter to plant.</p>
-          <p class="field-status" id="field-status" role="status">Choose a soil plot to plant wheat.</p>
+          <p id="field-help">Click or tap to plant wheat. Drag to rotate. Scroll or pinch to zoom. Use WASD to move the camera across the farm, arrow keys to select a plot, and Enter to plant wheat. Click the farmhouse or press C to open the farming calendar.</p>
+          <p class="field-status" id="field-status" role="status">Choose a soil plot to plant wheat, or click the farmhouse to open the calendar.</p>
         </div>
       </section>
     </main>
