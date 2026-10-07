@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
+import { getGameDate } from './calendar.js';
+import { getGameDate } from './calendar.js';
 
 const COLUMNS = 3;
 const ROWS = 3;
@@ -716,16 +718,10 @@ function setWeather(name) {
   if (weatherDescription) weatherDescription.textContent = currentWeather.description;
   const modalWeather = document.querySelector('#farm-modal-weather');
   if (modalWeather) modalWeather.textContent = currentWeather.description;
-
-  scene.background.setHex(currentWeather.sky);
-  scene.fog.color.setHex(currentWeather.sky);
-  scene.fog.far = currentWeather.fog;
-  ambientLight.intensity = currentWeather.ambient;
-  sunlight.intensity = currentWeather.sun;
+  // Sky, fog, and light intensities are driven by updateDaylight().
   rain.visible = currentWeather.rain > 0;
   rainGeometry.setDrawRange(0, currentWeather.rain * 2);
   rainMaterial.opacity = currentWeather.opacity;
-
   if (rain.visible) updateRain();
   render();
 }
@@ -734,33 +730,112 @@ weatherSelect.addEventListener('change', () => setWeather(weatherSelect.value));
 reducedMotion.addEventListener('change', () => setWeather(weatherSelect.value));
 setWeather(weatherSelect.value);
 
-// Unified Animation Loop
+// ─── Daylight cycle ──────────────────────────────────────────────────────
+// Each keyframe is keyed by fractional hour (0–24).
+// Fields: sky, fog colour, fog far distance, ambient intensity,
+//         sun colour, sun intensity, sun position [x,y,z].
+const daylightKeyframes = [
+  { hour:  0,   sky: 0x0c1524, fog: 0x0c1524, fogFar: 55,  ambient: 0.35, sunColor: 0x8899bb, sunIntensity: 0.0,  sunPos: [-5, -4,  7] },
+  { hour:  5,   sky: 0x1a2438, fog: 0x1a2438, fogFar: 60,  ambient: 0.4,  sunColor: 0x99aabb, sunIntensity: 0.05, sunPos: [-8,  0,  7] },
+  { hour:  6,   sky: 0x5e4a5e, fog: 0x5e4a5e, fogFar: 75,  ambient: 0.85, sunColor: 0xffb87a, sunIntensity: 0.9,  sunPos: [-9,  2,  7] },
+  { hour:  7,   sky: 0xe8a87a, fog: 0xdaa07a, fogFar: 90,  ambient: 1.4,  sunColor: 0xffc88e, sunIntensity: 1.8,  sunPos: [-8,  5,  7] },
+  { hour:  8.5, sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 120, ambient: 2.4,  sunColor: 0xfff1cd, sunIntensity: 3.2,  sunPos: [-5, 11,  7] },
+  { hour: 12,   sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 120, ambient: 2.4,  sunColor: 0xfff8e0, sunIntensity: 3.4,  sunPos: [ 0, 14,  2] },
+  { hour: 16,   sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 120, ambient: 2.3,  sunColor: 0xfff1cd, sunIntensity: 3.0,  sunPos: [ 5, 11, -5] },
+  { hour: 18,   sky: 0xe8a87a, fog: 0xdaa07a, fogFar: 90,  ambient: 1.4,  sunColor: 0xffad6e, sunIntensity: 1.6,  sunPos: [ 8,  4, -7] },
+  { hour: 19.5, sky: 0x6e4a5e, fog: 0x6e4a5e, fogFar: 75,  ambient: 0.7,  sunColor: 0xe08855, sunIntensity: 0.5,  sunPos: [ 9,  1, -7] },
+  { hour: 20.5, sky: 0x1a2438, fog: 0x1a2438, fogFar: 60,  ambient: 0.4,  sunColor: 0x8899bb, sunIntensity: 0.05, sunPos: [ 8, -1, -7] },
+  { hour: 24,   sky: 0x0c1524, fog: 0x0c1524, fogFar: 55,  ambient: 0.35, sunColor: 0x8899bb, sunIntensity: 0.0,  sunPos: [-5, -4,  7] },
+];
+
+// Weather acts as a multiplier on top of the daylight base values.
+const weatherDaylightMult = {
+  sunny:    { ambient: 1.0, sun: 1.0,   fogFar: 1.0  },
+  light:    { ambient: 0.83, sun: 0.59, fogFar: 0.83 },
+  moderate: { ambient: 0.67, sun: 0.36, fogFar: 0.67 },
+  heavy:    { ambient: 0.52, sun: 0.20, fogFar: 0.54 },
+};
+
+const _skyA = new THREE.Color();
+const _skyB = new THREE.Color();
+const _fogA = new THREE.Color();
+const _fogB = new THREE.Color();
+const _sunA = new THREE.Color();
+const _sunB = new THREE.Color();
+
+function updateDaylight() {
+  const date = getGameDate();
+  const hour = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+
+  // Find the two keyframes we sit between.
+  let lo = daylightKeyframes[0];
+  let hi = daylightKeyframes[1];
+  for (let i = 1; i < daylightKeyframes.length; i++) {
+    if (daylightKeyframes[i].hour >= hour) {
+      hi = daylightKeyframes[i];
+      lo = daylightKeyframes[i - 1];
+      break;
+    }
+  }
+
+  const span = hi.hour - lo.hour || 1;
+  const t = THREE.MathUtils.clamp((hour - lo.hour) / span, 0, 1);
+  // Smooth-step for more natural transitions
+  const s = t * t * (3 - 2 * t);
+
+  // Interpolate colours
+  _skyA.setHex(lo.sky);
+  _skyB.setHex(hi.sky);
+  _skyA.lerp(_skyB, s);
+
+  _fogA.setHex(lo.fog);
+  _fogB.setHex(hi.fog);
+  _fogA.lerp(_fogB, s);
+
+  _sunA.setHex(lo.sunColor);
+  _sunB.setHex(hi.sunColor);
+  _sunA.lerp(_sunB, s);
+
+  // Scalar lerps
+  const baseFogFar     = THREE.MathUtils.lerp(lo.fogFar, hi.fogFar, s);
+  const baseAmbient    = THREE.MathUtils.lerp(lo.ambient, hi.ambient, s);
+  const baseSunInt     = THREE.MathUtils.lerp(lo.sunIntensity, hi.sunIntensity, s);
+  const sunX           = THREE.MathUtils.lerp(lo.sunPos[0], hi.sunPos[0], s);
+  const sunY           = THREE.MathUtils.lerp(lo.sunPos[1], hi.sunPos[1], s);
+  const sunZ           = THREE.MathUtils.lerp(lo.sunPos[2], hi.sunPos[2], s);
+
+  // Apply weather multiplier
+  const wName = weatherSelect.value;
+  const wm = weatherDaylightMult[wName] || weatherDaylightMult.sunny;
+
+  // If raining, tint the sky/fog slightly towards the rain palette colour
+  if (wName !== 'sunny') {
+    const rainSky = new THREE.Color(currentWeather.sky);
+    _skyA.lerp(rainSky, 0.4);
+    _fogA.lerp(rainSky, 0.4);
+  }
+
+  scene.background.copy(_skyA);
+  scene.fog.color.copy(_fogA);
+  scene.fog.far = baseFogFar * wm.fogFar;
+  ambientLight.intensity = baseAmbient * wm.ambient;
+  sunlight.color.copy(_sunA);
+  sunlight.intensity = baseSunInt * wm.sun;
+  sunlight.position.set(sunX, sunY, sunZ);
+}
+
+// Unified animation loop updates daylight, smoke, and rain together.
 function animateScene(now) {
   const deltaSeconds = Math.min((now - lastTickTime) / 1000, 0.06);
   lastTickTime = now;
 
-  let needsRender = false;
-  if (!reducedMotion.matches) {
-    updateChimneySmoke(deltaSeconds);
-    needsRender = true;
-  }
-
-  if (rain.visible && !reducedMotion.matches) {
-    updateRain(deltaSeconds);
-    needsRender = true;
-  }
-
-  if (needsRender) {
-    render();
-  }
-
+  updateDaylight();
+  if (!reducedMotion.matches) updateChimneySmoke(deltaSeconds);
+  if (rain.visible && !reducedMotion.matches) updateRain(deltaSeconds);
+  render();
   requestAnimationFrame(animateScene);
 }
 requestAnimationFrame(animateScene);
-
-// ==========================================================================
-// WHEAT SEEDLING GROWTH
-// ==========================================================================
 
 function addWheatSeedlings(index) {
   const { x, z } = plotPositions[index];

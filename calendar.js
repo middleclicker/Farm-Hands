@@ -93,6 +93,11 @@ function advanceGameTime() {
   }
 }
 
+export function getGameDate() {
+  advanceGameTime();
+  return new Date(GAME_START + accumulatedGameMs);
+}
+
 function updateSpeedUI() {
   const speedStr = `${gameSpeed}×`;
   if (speedBtnLabel) speedBtnLabel.textContent = `${speedStr} Speed`;
