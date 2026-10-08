@@ -1,4 +1,5 @@
 import { eventMatches } from './keybinds.js?v=town-7';
+import { weatherForDate, groundTooWet } from './weather.mjs?v=weather-13';
 
 const DEFAULT_SPEED = 120;
 const SPEED_LEVELS = [120, 300, 1000, 10000];
@@ -75,12 +76,10 @@ const timeSkipConfirm = document.querySelector('#time-skip-confirm');
 const tabEventsBtn = document.querySelector('#tab-events');
 const tabMapBtn = document.querySelector('#tab-map');
 const tabInventoryBtn = document.querySelector('#tab-inventory');
-const tabShopBtn = document.querySelector('#tab-shop');
 const tabKnowledgeBtn = document.querySelector('#tab-knowledge');
 const tabEventsPanel = document.querySelector('#tab-events-panel');
 const tabMapPanel = document.querySelector('#tab-map-panel');
 const tabInventoryPanel = document.querySelector('#tab-inventory-panel');
-const tabShopPanel = document.querySelector('#tab-shop-panel');
 const tabKnowledgePanel = document.querySelector('#tab-knowledge-panel');
 const modalTabs = document.querySelector('.modal-tabs');
 
@@ -220,26 +219,21 @@ function setActiveTab(name) {
   const isMap = name === 'map';
   const isInventory = name === 'inventory';
   const isEvents = name === 'events';
-  const isShop = name === 'shop';
   const isKnowledge = name === 'knowledge';
   tabEventsBtn?.classList.toggle('is-active', isEvents);
   tabMapBtn?.classList.toggle('is-active', isMap);
   tabInventoryBtn?.classList.toggle('is-active', isInventory);
-  tabShopBtn?.classList.toggle('is-active', isShop);
   tabKnowledgeBtn?.classList.toggle('is-active', isKnowledge);
   tabEventsBtn?.setAttribute('aria-selected', String(isEvents));
   tabMapBtn?.setAttribute('aria-selected', String(isMap));
   tabInventoryBtn?.setAttribute('aria-selected', String(isInventory));
-  tabShopBtn?.setAttribute('aria-selected', String(isShop));
   tabKnowledgeBtn?.setAttribute('aria-selected', String(isKnowledge));
   if (tabEventsPanel) tabEventsPanel.hidden = !isEvents;
   if (tabMapPanel) tabMapPanel.hidden = !isMap;
   if (tabInventoryPanel) tabInventoryPanel.hidden = !isInventory;
-  if (tabShopPanel) tabShopPanel.hidden = !isShop;
   if (tabKnowledgePanel) tabKnowledgePanel.hidden = !isKnowledge;
   if (isMap) window.FarmGame?.updateFarmMap?.();
   if (isInventory) window.FarmGame?.updateInventory?.();
-  if (isShop) window.FarmGame?.updateInventory?.();
 }
 
 export function closeFarmhouseMenu() {
@@ -328,7 +322,8 @@ function renderEventCalendar(date) {
     const heading = `${WEEKDAY_LABELS[selected.getUTCDay()]}, ${months[selected.getUTCMonth()]} ${selected.getUTCDate()}`;
     const title = event?.title ?? 'No event';
     const description = event?.description ?? 'No event is scheduled for this day.';
-    calendarDayDetail.innerHTML = `<span class="calendar-detail-kicker">Field note · ${selected.getUTCFullYear()}</span><h3>${heading}</h3><strong>${title}</strong><p>${description}</p>`;
+    const weather = weatherForDate(selected);
+    calendarDayDetail.innerHTML = `<span class="calendar-detail-kicker">Field note · ${selected.getUTCFullYear()}</span><h3>${heading}</h3><strong>${title}</strong><p>${description}</p><p class="calendar-weather">Forecast: ${weather.label}, ${weather.highC.toFixed(1)}°C high. ${groundTooWet(selected) ? 'Ground too wet for grading or cultivation.' : 'Ground workable.'}</p>`;
   }
 }
 
@@ -413,7 +408,6 @@ function pauseMenuIsOpen() {
 tabEventsBtn?.addEventListener('click', () => setActiveTab('events'));
 tabMapBtn?.addEventListener('click', () => setActiveTab('map'));
 tabInventoryBtn?.addEventListener('click', () => setActiveTab('inventory'));
-tabShopBtn?.addEventListener('click', () => setActiveTab('shop'));
 tabKnowledgeBtn?.addEventListener('click', () => setActiveTab('knowledge'));
 calendarPrevMonth?.addEventListener('click', () => {
   const now = getGameDate();
@@ -457,12 +451,12 @@ timeSkipConfirm?.addEventListener('click', () => {
 });
 modalTabs?.addEventListener('keydown', (event) => {
   if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-  const tabs = [tabEventsBtn, tabMapBtn, tabInventoryBtn, tabShopBtn, tabKnowledgeBtn];
+  const tabs = [tabEventsBtn, tabMapBtn, tabInventoryBtn, tabKnowledgeBtn];
   const currentIndex = tabs.indexOf(document.activeElement);
   const delta = event.key === 'ArrowRight' ? 1 : -1;
   const nextIndex = (currentIndex + delta + tabs.length) % tabs.length;
   tabs[nextIndex]?.focus();
-  setActiveTab(['events', 'map', 'inventory', 'shop', 'knowledge'][nextIndex]);
+  setActiveTab(['events', 'map', 'inventory', 'knowledge'][nextIndex]);
   event.preventDefault();
 });
 

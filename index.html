@@ -9,11 +9,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600;700;800&family=Alegreya+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=field-12" />
+    <link rel="stylesheet" href="./styles.css?v=weather-13" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=field-12"></script>
+    <script type="module" src="./game.js?v=weather-13"></script>
   </head>
   <body>
     <main class="game-shell">
@@ -21,7 +21,7 @@
         <canvas id="field" tabindex="0" aria-label="3D Willow Creek Homestead. Meet Farmer John and choose a place for the first field." aria-describedby="field-help field-status"></canvas>
         <div id="plot-action-menu" class="plot-action-menu" role="dialog" aria-label="Plot actions" hidden></div>
         <div id="plot-stopwatch" class="plot-stopwatch" role="timer" hidden><span class="stopwatch-face" aria-hidden="true"></span><span id="plot-stopwatch-time">0.0s</span></div>
-        <div id="dirt-mound-label" class="dirt-mound-label" aria-hidden="true" hidden>Soil nearby: 0</div>
+        <div id="dirt-mound-label" class="dirt-mound-label" aria-hidden="true" hidden>Dirt pile: 0</div>
         <div id="sample-cue" class="sample-cue" role="status" hidden><span class="sample-cue-bag" aria-hidden="true"><i></i></span><strong id="sample-cue-text">Scooping soil</strong></div>
 
         <div id="farm-onboarding" class="farm-onboarding" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" hidden>
@@ -47,18 +47,22 @@
             <div class="clock-face" aria-hidden="true"><span class="clock-hand clock-hour" id="clock-hour-hand"></span><span class="clock-hand clock-minute" id="clock-minute-hand"></span><span class="clock-pivot"></span></div>
             <div class="clock-copy"><span class="clock-caption">Farm time</span><time id="hud-clock" datetime="06:00">6:00 AM</time><time id="hud-date" datetime="2001-07-01">July 1, 2001</time></div>
           </div><div class="energy-display"><span>John's energy</span><strong id="hud-energy">100%</strong><div class="energy-track"><span id="energy-fill"></span></div></div></div>
+          <div id="weather-hud" class="weather-hud" aria-live="polite"><strong id="weather-label">Sunny spells</strong><span id="weather-temperature">20°C</span><small id="weather-ground">Ground workable</small></div>
           <button id="speed-btn" class="cozy-hud-btn time-control" type="button" title="Cycle game time speed" aria-label="Game time speed">
             <span>Time</span> <strong id="speed-btn-label">120×</strong>
           </button>
         </aside>
-        <aside id="cleanup-hud" class="cleanup-hud" aria-live="polite" hidden><strong>Field condition</strong><span id="cleanup-instruction">Click each stone to have John remove it.</span><div>Cleanliness <b id="ground-cleanliness">100%</b></div><div>Flatness <b id="ground-flatness">90%</b></div><div>Soil quality <b id="ground-quality">?</b></div><div>Soil nearby <b id="ground-dirt">0</b></div></aside>
+        <aside id="cleanup-hud" class="cleanup-hud" aria-live="polite" hidden><strong>Field condition</strong><span id="cleanup-instruction">Click each stone to have John remove it.</span><div>Cleanliness <b id="ground-cleanliness">100%</b></div><div>Flatness <b id="ground-flatness">90%</b></div><div>Soil quality <b id="ground-quality">?</b></div></aside>
+        <button id="stop-john-control" class="john-control-exit" type="button" hidden>Stop walking as John</button>
         <aside id="soil-journey-hud" class="soil-journey-hud" aria-live="polite" hidden><strong id="soil-journey-title">Soil study</strong><span id="soil-journey-status"></span><div id="soil-coverage" class="mission-meter" hidden><span id="soil-coverage-label">0% represented</span><div><i id="soil-coverage-fill"></i></div></div><div id="lab-progress" class="mission-meter" hidden><span id="lab-progress-label">Lab testing · 0%</span><div><i id="lab-progress-fill"></i></div></div><div class="mission-buttons"><button id="soil-journey-action" type="button" hidden></button><button id="soil-plan-undo" type="button" hidden>Undo point</button></div></aside>
         <button id="mail-alert" class="mail-alert" type="button" hidden>✉ New mail</button>
         <div id="mailbox-world-alert" class="mailbox-world-alert" aria-label="New mail at the farmhouse mailbox" hidden>✉ New mail</div>
         <button id="leave-car" class="car-toggle" type="button" hidden>Leave car</button>
-        <aside id="soil-plan-hud" class="soil-plan-hud" aria-live="polite" hidden><strong>Charlie's soil plan</strong><span id="soil-plan-name"></span><div id="soil-plan-ingredients"></div><small id="soil-plan-progress"></small><div class="soil-plan-buttons"><button id="soil-plan-shop" type="button" hidden>Open shop</button><button id="soil-plan-start" type="button" hidden>Start correction</button></div></aside>
+        <aside id="soil-plan-hud" class="soil-plan-hud" aria-live="polite" hidden><strong>Charlie's soil plan</strong><span id="soil-plan-name"></span><div id="soil-plan-ingredients"></div><small id="soil-plan-progress"></small><div class="soil-plan-buttons"><button id="soil-plan-shop" type="button" hidden>Find farm shop</button><button id="soil-plan-start" type="button" hidden>Start correction</button></div></aside>
         <aside id="drive-phone" class="drive-phone" aria-label="Driving navigation" hidden><div class="phone-speaker" aria-hidden="true"></div><div class="phone-screen"><div class="drive-phone-status"><span>Willow Creek Maps</span><span>◖◖ ▰</span></div><div class="drive-phone-top"><span class="nav-arrow" aria-hidden="true">↗</span><div><small>YOUR ROUTE</small><strong id="drive-direction">Science center</strong></div></div><canvas id="drive-map" width="220" height="236" aria-label="Map showing the real farm road, car position, and destination"></canvas><div class="drive-phone-bottom"><div><small>REMAINING</small><strong id="drive-distance">0 m</strong></div><div><small>SPEED</small><strong id="drive-speed">0 mph</strong></div></div></div><p>W accelerate · S brake/reverse · A/D steer<br>Touch: drag map up and sideways</p><div class="phone-home-bar" aria-hidden="true"></div></aside>
         <div id="mailbox-modal" class="mailbox-overlay" role="dialog" aria-modal="true" aria-labelledby="mailbox-title" hidden><div class="mailbox-card"><button id="mailbox-close" class="mailbox-close" type="button" aria-label="Close mailbox">×</button><span class="mailbox-kicker">Willow Creek · Post</span><h2 id="mailbox-title">Farmhouse Mailbox</h2><div id="mailbox-content"></div></div></div>
+        <div id="house-interior" class="house-interior-overlay" role="dialog" aria-modal="true" aria-labelledby="house-interior-title" hidden><div class="house-interior-card"><span class="mailbox-kicker">Inside the farmhouse</span><h2 id="house-interior-title">John's kitchen</h2><div class="interior-scene" aria-hidden="true"><div class="interior-window"></div><div class="interior-shelf">✦ &nbsp; ✦ &nbsp; ✦</div><div class="interior-table"></div></div><p>A quiet place to plan the next day. The field guide and soil reports live in the journal.</p><button id="house-interior-journal" type="button">Open journal</button><button id="house-interior-exit" type="button">Go outside</button></div></div>
+        <div id="town-shop-modal" class="town-shop-overlay" role="dialog" aria-modal="true" aria-labelledby="town-shop-title" hidden><div class="town-shop-card"><span class="mailbox-kicker">Willow Creek · Farm supplies</span><h2 id="town-shop-title">Town Farm Shop</h2><p>Seed, amendments, and hand equipment for the fields. Purchases are left beside John's house until the farm has storage.</p><div id="farm-shop" class="farm-shop"></div><button id="town-shop-close" type="button">Leave shop</button></div></div>
         <div id="charlie-modal" class="charlie-overlay" role="dialog" aria-modal="true" aria-labelledby="charlie-title" hidden><div class="charlie-card dialogue-card"><div class="dialogue-portrait charlie-portrait" aria-hidden="true">C</div><div class="dialogue-copy"><span class="mailbox-kicker">A visit from Charlie</span><h2 id="charlie-title">Charlie</h2><p id="charlie-issues"></p><div id="charlie-plans" class="charlie-plans" hidden></div></div><div class="dialogue-controls"><button id="charlie-next" type="button">Continue</button><button id="charlie-close" type="button" aria-label="Close Charlie's visit">Later</button></div></div></div>
 
         <div id="crop-book" class="crop-book-overlay" role="dialog" aria-modal="true" aria-labelledby="crop-book-title" hidden>
@@ -69,12 +73,11 @@
               <span class="crop-book-kicker">From Charlie · Farmer John's field guide · Volume 1</span>
               <h2 id="crop-book-title">Winter Wheat</h2>
               <div class="crop-book-art" aria-hidden="true"><svg viewBox="0 0 120 120"><path d="M59 109V25M59 80 38 59M59 69 81 45M59 50 45 30M59 40 73 20" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M40 48q-15-8-15-20 14 1 18 17M79 41q15-9 16-21-16 3-19 19M44 28q-10-8-8-19 12 4 13 16M73 21q11-10 9-19-14 5-13 18" fill="currentColor"/></svg></div>
-              <p>Winter wheat is sown in autumn, survives the cold as a young plant, then grows again in spring.</p>
+              <h3 id="crop-book-section-title">What winter wheat is for</h3><p id="crop-book-section-text">Winter wheat grain is milled into flour for bread, biscuits, and other foods. It may also be used as animal feed. Its straw can be baled for bedding after harvest.</p>
             </div>
             <div class="crop-book-page crop-book-page-right">
-              <h3>Our first growing year</h3>
-              <ol><li><strong>July–August</strong> · Turn under grass and break up soil for a seedbed.</li><li><strong>September–early October</strong> · Drill seed.</li><li><strong>Autumn</strong> · Seedlings establish.</li><li><strong>Winter</strong> · Growth slows.</li><li><strong>Spring</strong> · Tillering, stems, and ears develop.</li><li><strong>Summer</strong> · Grain ripens for harvest.</li></ol>
-              <button id="crop-book-close" class="cozy-btn primary-btn" type="button">Back to the farm</button>
+              <h3 id="crop-book-page-title">Why we grow it</h3><p id="crop-book-page-text">The grain and straw give the farm two useful products. The real harvest depends on weather, soil, and care; this first field is our chance to learn.</p>
+              <button id="crop-book-close" class="cozy-btn primary-btn" type="button">Next page</button>
             </div>
           </div>
         </div>
@@ -87,7 +90,7 @@
               <div class="modal-title-group">
                 <div>
                   <h2 id="calendar-modal-title">Farmhouse Journal</h2>
-                  <p class="modal-subtitle">The season, the land, and what is in the barn</p>
+                  <p class="modal-subtitle">The season, the land, and supplies beside the house</p>
                 </div>
               </div>
               <button id="modal-close-btn" class="cozy-icon-btn modal-close-btn" type="button" aria-label="Close farmhouse menu">✕</button>
@@ -98,7 +101,6 @@
                 <button id="tab-events" class="modal-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="tab-events-panel">Calendar</button>
                 <button id="tab-map" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-map-panel">Farm map</button>
                 <button id="tab-inventory" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-inventory-panel">Inventory</button>
-                <button id="tab-shop" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-shop-panel">Shop</button>
                 <button id="tab-knowledge" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-knowledge-panel">Knowledge</button>
               </div>
 
@@ -116,17 +118,13 @@
               </div>
 
               <div id="tab-inventory-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-inventory" hidden>
-                <p class="inventory-intro">What is in the barn</p>
+                <p class="inventory-intro">Supplies are stashed outside John's house. There is no barn or storage building yet.</p>
                 <div class="inventory-grid" id="farm-inventory" aria-live="polite"></div>
                 <p class="inventory-field" id="farm-planted-count">9 weedy · 0 cleared · 0 ready · 0 drilled</p>
               </div>
 
-              <div id="tab-shop-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-shop" hidden>
-                <p class="inventory-intro">Stock the barn or sell what you have grown.</p>
-                <div id="farm-shop" class="farm-shop"></div>
-              </div>
               <div id="tab-knowledge-panel" class="tab-panel knowledge-panel" role="tabpanel" aria-labelledby="tab-knowledge" hidden>
-                <section id="journal-field-guide" hidden><h3>Charlie's winter wheat field guide</h3><p>Turn under the summer grass, break up the soil into a seedbed, and drill winter wheat from September through early October. It establishes in autumn, rests through winter, tillers in spring, flowers in May–June, and ripens for harvest in July–August.</p><div class="knowledge-cycle"><span>Prepare</span><span>Drill</span><span>Establish</span><span>Rest</span><span>Grow</span><span>Harvest</span></div></section>
+                <section id="journal-field-guide" hidden><h3>Charlie's winter wheat field guide</h3><p><strong>Uses.</strong> Grain can be milled into flour for bread and biscuits or used as animal feed. Straw left after harvest can be baled for bedding. In Willow Creek, grain and straw can be sold at the farm shop.</p><p><strong>Planting.</strong> Drill winter wheat into a firm seedbed in September or early October. It sprouts and establishes roots before winter, slows in the cold, then resumes growth in spring. Prepare the field first: test the soil, choose a plan, turn under the grass, and break up the exposed soil with a walk-behind tiller.</p><p><strong>Year at a glance.</strong> July–August: prepare. September–October: drill. October–November: establish. December–January: slow growth. February–March: tiller and apply spring fertiliser. April: stems extend. May–June: flowers and grain form. June–July: grain fills and ripens; harvest in July–August when ready. Wet ground can delay grading and cultivation.</p><div class="knowledge-cycle"><span>Prepare</span><span>Drill</span><span>Establish</span><span>Rest</span><span>Grow</span><span>Harvest</span></div></section>
                 <section id="journal-soil-report" class="journal-soil-report" aria-live="polite"><h4>Field soil report</h4><p>Collect samples after ground cleanup. Results will arrive by mail from the town science center.</p></section>
               </div>
             </div>

@@ -1,6 +1,8 @@
 // Small procedural cues keep the farm audible without downloaded assets.
 let context;
 let muted = false;
+let musicTimer = null;
+let musicStep = 0;
 try { muted = localStorage.getItem('farm-hands-sound-muted') === 'yes'; } catch {}
 const tones = {
   click: [440, 620, 0.055, 'triangle'], plan: [330, 495, 0.13, 'sine'],
@@ -34,4 +36,47 @@ export function soundMuted() { return muted; }
 export function setSoundMuted(value) {
   muted = Boolean(value);
   try { localStorage.setItem('farm-hands-sound-muted', muted ? 'yes' : 'no'); } catch {}
+  if (muted && musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+  else if (!muted) startMusic();
 }
+
+const melody = [261.63, 329.63, 392, 329.63, 293.66, 349.23, 440, 349.23,
+  261.63, 329.63, 392, 523.25, 440, 392, 329.63, 293.66];
+const bass = [130.81, 146.83, 164.81, 130.81];
+function musicNote(frequency, at, duration, volume, type) {
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, at);
+  gain.gain.setValueAtTime(0.0001, at);
+  gain.gain.linearRampToValueAtTime(volume, at + 0.035);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+  oscillator.connect(gain).connect(context.destination);
+  oscillator.start(at);
+  oscillator.stop(at + duration + 0.01);
+}
+export function startMusic() {
+  if (muted || musicTimer || document.hidden) return;
+  try {
+    context ??= new (window.AudioContext || window.webkitAudioContext)();
+    context.resume();
+    const playBar = () => {
+      if (muted || document.hidden || context.state !== 'running') return;
+      const at = context.currentTime + 0.04;
+      for (let beat = 0; beat < 4; beat += 1) {
+        const index = (musicStep + beat) % melody.length;
+        musicNote(melody[index], at + beat * 0.45, 0.34, 0.014, 'triangle');
+        if (beat % 2 === 0) musicNote(bass[Math.floor(index / 4)], at + beat * 0.45, 0.62, 0.01, 'sine');
+      }
+      musicStep = (musicStep + 4) % melody.length;
+    };
+    playBar();
+    musicTimer = setInterval(playBar, 1800);
+  } catch { /* Audio remains optional when the browser blocks it. */ }
+}
+document.addEventListener('pointerdown', startMusic, { once: true });
+document.addEventListener('keydown', startMusic, { once: true });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+  else if (!document.hidden && context) startMusic();
+});

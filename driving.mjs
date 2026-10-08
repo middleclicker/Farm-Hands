@@ -32,6 +32,6 @@ export function distanceToRoad(x, z, roadCenter, townZ, parking) {
     const endZ = Math.min(townZ, atZ + 2);
     distance = Math.min(distance, distanceToSegment(x,z,roadCenter(atZ),atZ,roadCenter(endZ),endZ));
   }
-  distance = Math.min(distance, distanceToSegment(x,z,roadCenter(townZ - 3.4),townZ - 3.4,roadCenter(townZ) + 3.2,townZ - 3.4));
+  distance = Math.min(distance, distanceToSegment(x,z,roadCenter(townZ - 3.4),townZ - 3.4,roadCenter(townZ) - 3.2,townZ - 3.4));
   return distance;
 }

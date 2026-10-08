@@ -28,5 +28,6 @@ test('off-road speed is lower and road distance follows the road geometry', () =
   assert.ok(drive(parked,{ gas: true },5).speed > drive(parked,{ gas: true },5,false).speed);
   const center = (z) => z < 8 ? -5.8 : -5.8 - Math.min(4.6,(z - 8)*0.38);
   assert.ok(distanceToRoad(center(18),18,center,52,{ x: -9.2,z: -3.15 }) < 0.1);
+  assert.ok(distanceToRoad(center(52) - 3.2,48.6,center,52,{ x: -9.2,z: -3.15 }) < 0.5);
   assert.ok(distanceToRoad(5,18,center,52,{ x: -9.2,z: -3.15 }) > 5);
 });

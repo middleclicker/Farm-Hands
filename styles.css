@@ -2313,3 +2313,26 @@ html, body {
   .onboarding-card { padding: 20px; }
 }
 .farm-onboarding,.charlie-overlay { place-items: end center; backdrop-filter: none; }
+.weather-hud { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 2px 9px; width: 235px; margin-top: 10px; padding: 8px 11px; border: 3px solid #68472d; border-radius: 5px; color: #50391f; background: #f3e1b6; box-shadow: 0 4px 0 #4a3020; font: 700 13px var(--font-serif); }
+.weather-hud strong { font-size: 16px; }
+.weather-hud small { flex-basis: 100%; color: #5d6441; }
+.weather-hud.is-wet { background: #d8dfd5; }
+.john-control-exit { position: absolute; z-index: 31; left: 83px; top: 18px; padding: 9px 13px; border: 3px solid #77502e; border-radius: 5px; color: #402a1a; background: #f1d9aa; box-shadow: 0 4px 0 #563921; font: 800 14px var(--font-serif); cursor: pointer; }
+.john-control-exit[hidden] { display: none; }
+.town-shop-overlay,.house-interior-overlay { position: absolute; z-index: 96; inset: 0; display: grid; place-items: center; padding: 15px; background: #171d15c7; }
+.town-shop-overlay[hidden],.house-interior-overlay[hidden] { display: none; }
+.town-shop-card,.house-interior-card { width: min(690px,100%); max-height: min(88dvh,760px); overflow: auto; padding: 24px 28px; border: 9px solid #6c482d; outline: 3px solid #cda472; color: #46301e; background: repeating-linear-gradient(0deg,#f7e5bc,#f7e5bc 30px,#edd6a8 31px); box-shadow: 10px 15px 0 #1f170d8c,inset 0 0 0 3px #c59f67; font: 16px var(--font-serif); }
+.town-shop-card h2,.house-interior-card h2 { margin: 5px 0 9px; font: 800 30px var(--font-serif); }
+.town-shop-card button,.house-interior-card button { padding: 7px 11px; border: 2px solid #4d6336; color: #fff2d2; background: #6d844b; font: 800 14px var(--font-serif); cursor: pointer; }
+.town-shop-card button:hover,.town-shop-card button:focus-visible,.house-interior-card button:hover,.house-interior-card button:focus-visible { background: #8ca765; }
+.town-shop-card #town-shop-close { margin-top: 13px; }
+.interior-scene { position: relative; height: 190px; margin: 15px 0; overflow: hidden; border: 5px solid #7d5637; background: linear-gradient(#c7a879 0 69%,#8d6241 69% 100%); box-shadow: inset 0 0 0 6px #ad8659; }
+.interior-window { position: absolute; left: 18%; top: 22px; width: 108px; height: 86px; border: 10px solid #70472b; background: linear-gradient(#8abaca,#e5e0a2); box-shadow: inset 0 0 0 5px #d2ad74; }
+.interior-window:after { content: ''; position: absolute; left: 45%; top: 0; bottom: 0; width: 7px; background: #70472b; }
+.interior-shelf { position: absolute; right: 12%; top: 35px; width: 160px; padding: 10px; border-bottom: 12px solid #5f3a23; color: #f2d283; font-size: 25px; }
+.interior-table { position: absolute; left: 39%; bottom: 8px; width: 170px; height: 49px; border-radius: 45% 45% 5px 5px; background: #6c432b; box-shadow: 0 42px 0 -15px #483020; }
+.crop-book-page p { font-size: 17px; }
+.crop-book-overlay { overflow-y: auto; }
+.crop-book { max-height: calc(100dvh - 38px); overflow-y: auto; }
+.calendar-weather { border-top: 1px dashed #b9935c; padding-top: 8px; color: #5c6945; font-weight: 700; }
+@media(max-width:650px) { .weather-hud { width: 190px; } .town-shop-card,.house-interior-card { padding: 17px; } }
