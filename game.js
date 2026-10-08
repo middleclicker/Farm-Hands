@@ -1,17 +1,16 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { getGameDate } from './calendar.js?v=cozy-farm-winter-wheat-4';
-import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=cozy-farm-winter-wheat-4';
+import { getGameDate } from './calendar.js?v=seasonal-farm-4';
+import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=seasonal-farm-3';
+import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=seasonal-farm-4';
 // Importing the menu wires up the Escape menu (credits + keybind settings).
-import './menu.js?v=cozy-farm-winter-wheat-4';
+import './menu.js?v=seasonal-farm-4';
 
 const COLUMNS = 3;
 const ROWS = 3;
 const PLOT_COUNT = COLUMNS * ROWS;
 const canvas = document.querySelector('#field');
 const status = document.querySelector('#field-status');
-const weatherSelect = document.querySelector('#weather-select');
-const weatherDescription = document.querySelector('#weather-description');
 
 // Each soil plot progresses through four states over the winter-wheat year:
 // weedy (overgrown after the previous harvest) → cleared (weeds removed) →
@@ -19,10 +18,15 @@ const weatherDescription = document.querySelector('#weather-description');
 const PLOT_STATE = Object.freeze({
   WEEDY: 'weedy',
   CLEARED: 'cleared',
+  TESTED: 'tested',
   CULTIVATED: 'cultivated',
   PLANTED: 'planted',
+  HARVESTED: 'harvested',
 });
 const plotStates = new Array(PLOT_COUNT).fill(PLOT_STATE.WEEDY);
+const plotCare = Array.from({ length: PLOT_COUNT }, () => ({}));
+const inventory = { seed: PLOT_COUNT, fertiliser: PLOT_COUNT, treatment: PLOT_COUNT, grain: 0, straw: 0 };
+const wheatGroups = new Array(PLOT_COUNT).fill(null);
 
 let renderer;
 try {
@@ -169,6 +173,17 @@ function resetCameraToDefault() {
   saveCameraState(true);
   render();
 }
+
+function focusFarmhouse() {
+  const target = new THREE.Vector3(-5.8, groundHeight(-5.8, -5.1) + 1.1, -5.1);
+  controls.target.copy(target);
+  camera.position.copy(target).add(new THREE.Vector3(5.5, 5.2, 8));
+  controls.update();
+  saveCameraState(true);
+  render();
+}
+
+document.querySelector('#home-btn')?.addEventListener('click', focusFarmhouse);
 
 // Warm pastoral lighting
 const ambientLight = new THREE.HemisphereLight(0xe8f4ff, 0x6e945c, 2.5);
@@ -373,15 +388,13 @@ function box(parent, width, height, depth, meshMaterial, x, y, z) {
 }
 
 // Terrain feature placements (shared by the 3D scene and the farmhouse map).
-const POND = { x: 8.8, z: 6.8, radius: 2.1 };
 const HILL = { x: 2, z: -9, height: 3.4, spread: 7 };
 const PINE_POSITIONS = [
-  [-11.0, -7.0], [-9.5, -9.0], [-7.8, -7.6], [-10.2, -5.4], [-12.2, -8.2],
-  [-6.8, -8.6], [-8.6, -10.2], [-11.4, -5.8], [-7.0, -5.6],
+  [-12.0, -7.0], [-11.5, -9.0], [-12.8, -8.6], [-10.6, -10.2], [-13.4, -5.8],
 ];
 const ROCK_POSITIONS = [
   [-3.4, 3.2], [4.2, 3.6], [3.8, -3.2], [-3.8, -3.4],
-  [7.3, 5.9], [9.6, 5.8], [8.2, 8.3], [10.3, 7.3], [6.9, 7.2], [9.9, 6.9],
+  [7.3, 5.9], [9.6, 5.8], [8.2, 8.3], [10.3, 7.3],
 ];
 const GARDEN_PATH_STEPS = [
   [-5.8, -3.9], [-5.2, -3.6], [-4.6, -3.2],
@@ -505,8 +518,7 @@ for (let index = 0; index < tuftCount; index += 1) {
     x = Math.cos(angle) * radius;
     z = Math.sin(angle) * radius;
   } while (
-    (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2) || // Farmhouse
-    Math.hypot(x - POND.x, z - POND.z) < POND.radius + 0.7 // Pond
+    (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2) // Farmhouse
   );
   const height = 0.65 + randomGrass() * 1.05;
   const width = 0.8 + randomGrass() * 0.7;
@@ -550,8 +562,7 @@ function addWildflowers() {
       z = Math.sin(angle) * radius;
     } while (
       (x > -2.6 && x < 2.6 && z > -2.6 && z < 2.6) || // Avoid wheat plot
-      (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2) || // Avoid house
-      Math.hypot(x - POND.x, z - POND.z) < POND.radius + 0.7 // Avoid pond
+      (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2) // Avoid house
     );
 
     const y = groundHeight(x, z) + 0.16 + randomGrass() * 0.12;
@@ -649,25 +660,13 @@ function addFarmhouse() {
   lanternLight.position.set(0.46, 1.18, 1.31);
   house.add(lanternLight);
 
-  // Front Windows with Cozy Flower Boxes
+  // Front windows
   for (const x of [-0.87, 0.87]) {
     box(house, 0.54, 0.68, 0.07, trim, x, 1.25, 1.23);
     box(house, 0.44, 0.56, 0.08, warmGlass, x, 1.25, 1.28);
     box(house, 0.05, 0.58, 0.09, trim, x, 1.25, 1.33);
     box(house, 0.48, 0.05, 0.09, trim, x, 1.25, 1.33);
 
-    // Flower Box
-    box(house, 0.56, 0.12, 0.14, material(0x5a391e), x, 0.86, 1.33);
-    // Flowers in box
-    const flowerColors = [0xde4337, 0xf6d148, 0xeb7b9b, 0xffffff];
-    for (let f = -2; f <= 2; f += 1) {
-      const petal = new THREE.Mesh(
-        new THREE.SphereGeometry(0.045, 5, 4),
-        material(flowerColors[(f + 4) % flowerColors.length])
-      );
-      petal.position.set(x + f * 0.09, 0.96, 1.35);
-      house.add(petal);
-    }
   }
 
   // Side Windows
@@ -873,7 +872,7 @@ function addTree(x, z, scale = 1) {
 
   scene.add(tree);
 }
-addTree(-8.5, -6.6, 1.15); // Behind farmhouse on hill
+addTree(-10.7, -7.4, 1.0); // Far enough from the farmhouse roof and hitbox
 addTree(3.8, -5.6, 0.95);  // North edge of pasture
 
 // 5. Wooden Farm Signpost
@@ -892,34 +891,8 @@ function addSignpost() {
 addSignpost();
 
 // ==========================================================================
-// INTERESTING TERRAIN: POND, PINE FOREST, BOULDERS
+// INTERESTING TERRAIN: PINE FOREST AND BOULDERS
 // ==========================================================================
-
-function addPond() {
-  const waterLevel = groundHeight(POND.x, POND.z);
-
-  // Sandy bank
-  const bank = new THREE.Mesh(new THREE.CircleGeometry(POND.radius + 0.5, 30), material(0xc9b285));
-  bank.rotation.x = -Math.PI / 2;
-  bank.position.set(POND.x, waterLevel - 0.02, POND.z);
-  bank.receiveShadow = true;
-  scene.add(bank);
-
-  // Water surface
-  const water = new THREE.Mesh(
-    new THREE.CircleGeometry(POND.radius, 30),
-    new THREE.MeshStandardMaterial({
-      color: 0x4a90c9,
-      roughness: 0.15,
-      metalness: 0.1,
-      transparent: true,
-      opacity: 0.9,
-    }),
-  );
-  water.rotation.x = -Math.PI / 2;
-  water.position.set(POND.x, waterLevel + 0.01, POND.z);
-  scene.add(water);
-}
 
 function addPine(x, z, scale = 1) {
   const pine = new THREE.Group();
@@ -956,7 +929,6 @@ function addBoulder(x, z, scale = 1) {
   scene.add(rock);
 }
 
-addPond();
 PINE_POSITIONS.forEach(([x, z], index) => addPine(x, z, 0.85 + (index % 3) * 0.15));
 ROCK_POSITIONS.forEach(([x, z], index) => addBoulder(x, z, 0.75 + (index % 3) * 0.3));
 
@@ -1124,6 +1096,7 @@ scene.add(rain);
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 let currentWeather = weatherSettings.sunny;
+let currentWeatherName = 'sunny';
 let lastTickTime = performance.now();
 
 function updateRain(deltaSeconds = 0) {
@@ -1149,10 +1122,8 @@ function updateRain(deltaSeconds = 0) {
 }
 
 function setWeather(name) {
+  currentWeatherName = weatherSettings[name] ? name : 'sunny';
   currentWeather = weatherSettings[name] || weatherSettings.sunny;
-  if (weatherDescription) weatherDescription.textContent = currentWeather.description;
-  const modalWeather = document.querySelector('#farm-modal-weather');
-  if (modalWeather) modalWeather.textContent = currentWeather.description;
   // Sky, fog, and light intensities are driven by updateDaylight().
   rain.visible = currentWeather.rain > 0;
   rainGeometry.setDrawRange(0, currentWeather.rain * 2);
@@ -1165,53 +1136,39 @@ function setWeather(name) {
 // PROGRESS PERSISTENCE
 // ==========================================================================
 
-const STORAGE_PLOT_STATES_KEY = 'farm-hands-plot-states-v1';
-const STORAGE_WEATHER_KEY = 'farm-hands-weather-v1';
-const STORAGE_LEGACY_PLOTS_KEY = 'farm-hands-planted-plots-v1';
+// New saves use a seasonal field. Legacy planted plots are cleared on migration
+// so the old starter plants do not appear in the new winter wheat year.
+const STORAGE_FARM_KEY = 'farm-hands-seasonal-farm-v2';
 
 function saveGameProgress() {
   try {
-    localStorage.setItem(STORAGE_PLOT_STATES_KEY, JSON.stringify(plotStates));
-    localStorage.setItem(STORAGE_WEATHER_KEY, weatherSelect.value);
+    localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ plotStates, plotCare, inventory }));
   } catch {
     // Storage unavailable (e.g. private browsing); the game keeps running.
   }
 }
 
 function restoreGameProgress() {
-  let restoredStates = false;
   try {
-    const raw = localStorage.getItem(STORAGE_PLOT_STATES_KEY);
+    const raw = localStorage.getItem(STORAGE_FARM_KEY);
     const saved = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(saved)) {
+    const legacyStates = raw ? null : JSON.parse(localStorage.getItem('farm-hands-plot-states-v1') || 'null');
+    if (Array.isArray(saved?.plotStates) || Array.isArray(legacyStates)) {
       for (let index = 0; index < PLOT_COUNT; index += 1) {
-        if (Object.values(PLOT_STATE).includes(saved[index])) {
-          plotStates[index] = saved[index];
-          restoredStates = true;
+        const state = saved?.plotStates?.[index] ?? legacyStates?.[index];
+        if (Object.values(PLOT_STATE).includes(state)) {
+          plotStates[index] = !raw && state === PLOT_STATE.PLANTED ? PLOT_STATE.WEEDY : state;
+          const care = saved?.plotCare?.[index];
+          if (care && typeof care === 'object') plotCare[index] = care;
         }
       }
+    }
+    for (const key of Object.keys(inventory)) {
+      const value = saved?.inventory?.[key];
+      if (Number.isInteger(value) && value >= 0) inventory[key] = value;
     }
   } catch {
     // Fall through to a fresh field.
-  }
-
-  // Migrate the legacy planted-plots key once, if present.
-  if (!restoredStates) {
-    let legacy = null;
-    try {
-      const raw = localStorage.getItem(STORAGE_LEGACY_PLOTS_KEY);
-      legacy = raw ? JSON.parse(raw) : null;
-    } catch {
-      legacy = null;
-    }
-    if (Array.isArray(legacy)) {
-      for (const value of legacy) {
-        const index = Number(value);
-        if (Number.isInteger(index) && index >= 0 && index < PLOT_COUNT) {
-          plotStates[index] = PLOT_STATE.PLANTED;
-        }
-      }
-    }
   }
 
   for (let index = 0; index < PLOT_COUNT; index += 1) {
@@ -1219,25 +1176,14 @@ function restoreGameProgress() {
     if (plotStates[index] === PLOT_STATE.PLANTED) addWheatSeedlings(index, false);
   }
 
-  let savedWeather = null;
-  try {
-    savedWeather = localStorage.getItem(STORAGE_WEATHER_KEY);
-  } catch {
-    savedWeather = null;
-  }
-  if (savedWeather && weatherSettings[savedWeather]) {
-    weatherSelect.value = savedWeather;
-  }
-  setWeather(weatherSelect.value);
+  setWeather('sunny');
   refreshStatus();
   updateFieldLedger();
+  updateInventory();
+  saveGameProgress();
 }
 
-weatherSelect.addEventListener('change', () => {
-  setWeather(weatherSelect.value);
-  saveGameProgress();
-});
-reducedMotion.addEventListener('change', () => setWeather(weatherSelect.value));
+reducedMotion.addEventListener('change', () => setWeather(currentWeatherName));
 restoreGameProgress();
 
 // ─── Daylight cycle ──────────────────────────────────────────────────────
@@ -1315,7 +1261,7 @@ function updateDaylight() {
   const sunZ           = THREE.MathUtils.lerp(lo.sunPos[2], hi.sunPos[2], s);
 
   // Apply weather multiplier
-  const wName = weatherSelect.value;
+  const wName = currentWeatherName;
   const wm = weatherDaylightMult[wName] || weatherDaylightMult.sunny;
 
   // If raining, tint the sky/fog slightly towards the rain palette colour
@@ -1402,11 +1348,18 @@ function updateCameraMemory(deltaSeconds) {
 }
 
 // Unified Animation Loop
+let lastCropDay = '';
 function animateScene(now) {
   const deltaSeconds = Math.min((now - lastTickTime) / 1000, 0.06);
   lastTickTime = now;
 
   updateDaylight();
+  const gameDay = getGameDate().toISOString().slice(0, 10);
+  if (gameDay !== lastCropDay) {
+    lastCropDay = gameDay;
+    updateCropVisuals();
+    refreshStatus();
+  }
   if (!reducedMotion.matches) updateChimneySmoke(deltaSeconds);
   if (rain.visible && !reducedMotion.matches) updateRain(deltaSeconds);
   if (updateCameraMovement(deltaSeconds)) {
@@ -1423,6 +1376,7 @@ requestAnimationFrame(animateScene);
 // ==========================================================================
 
 function addWheatSeedlings(index, animateGrowth = true) {
+  if (wheatGroups[index]) return;
   const { x, z } = plotPositions[index];
   const cluster = new THREE.Group();
   cluster.position.set(x, -0.02, z);
@@ -1450,8 +1404,10 @@ function addWheatSeedlings(index, animateGrowth = true) {
     }
   }
   scene.add(cluster);
+  wheatGroups[index] = cluster;
 
   if (!animateGrowth) {
+    updateCropVisuals();
     render();
     return;
   }
@@ -1465,9 +1421,28 @@ function addWheatSeedlings(index, animateGrowth = true) {
     cluster.scale.y = 0.02 + 0.98 * (1 - (1 - progress) ** 3);
     render();
     if (progress < 1) requestAnimationFrame(animate);
+    else updateCropVisuals();
   }
   cluster.scale.y = 0.02;
   requestAnimationFrame(animate);
+}
+
+function updateCropVisuals() {
+  const date = getGameDate();
+  const phase = farmPhase(date);
+  const height = {
+    drilling: 0.2, establishing: 0.34, dormant: 0.34,
+    tillering: 0.58, 'stem-extension': 0.8, flowering: 1,
+    ripening: 1.08, 'harvest-prep': 1.08,
+  }[phase];
+  for (const group of wheatGroups) if (group) group.scale.y = height;
+  const year = date.getUTCFullYear();
+  const ripenStart = Date.UTC(year, 5, 15);
+  const ripenEnd = Date.UTC(year, 6, 20);
+  const gold = date.getUTCMonth() >= 8 ? 0 : THREE.MathUtils.clamp((date.getTime() - ripenStart) / (ripenEnd - ripenStart), 0, 1);
+  stemMaterial.color.copy(new THREE.Color(0x4a8c54)).lerp(new THREE.Color(0xc8a654), gold);
+  leafMaterial.color.copy(new THREE.Color(0x6fae63)).lerp(new THREE.Color(0xd8ba6e), gold);
+  headMaterial.color.copy(new THREE.Color(0x79ad64)).lerp(new THREE.Color(0xe7c261), gold);
 }
 
 // ==========================================================================
@@ -1549,8 +1524,10 @@ function updateHighlights() {
 function describePlotState(index) {
   const state = plotStates[index];
   if (state === PLOT_STATE.WEEDY) return 'overgrown with weeds';
-  if (state === PLOT_STATE.CLEARED) return 'cleared, ready to cultivate';
+  if (state === PLOT_STATE.CLEARED) return 'cleared, ready for soil testing';
+  if (state === PLOT_STATE.TESTED) return 'soil tested, ready to cultivate';
   if (state === PLOT_STATE.CULTIVATED) return 'cultivated, ready to drill';
+  if (state === PLOT_STATE.HARVESTED) return 'harvested, ready to clear';
   return 'planted with winter wheat';
 }
 
@@ -1571,7 +1548,7 @@ function updateHelpText() {
   const helpEl = document.querySelector('#field-help');
   if (!helpEl) return;
   const movementKeys = MOVE_ACTIONS.map((action) => bindingLabel(action)).join('');
-  helpEl.textContent = `Click or tap a plot to clear weeds, cultivate the seedbed, or drill winter wheat in September and October. Drag to rotate. Scroll or pinch to zoom. `
+  helpEl.textContent = `Click or tap a plot to do the field work allowed by the calendar: clear, test, cultivate, drill, tend, fertilise, treat, or harvest. Drag to rotate. Scroll or pinch to zoom. `
     + `Use ${movementKeys} to move the camera across the farm, `
     + `${bindingSummary('selectLeft')}/${bindingSummary('selectRight')}/${bindingSummary('selectUp')}/${bindingSummary('selectDown')} `
     + `to select a plot, and ${bindingSummary('plant')} to work the soil. `
@@ -1588,18 +1565,13 @@ function countState(state) {
 }
 
 function fieldSummary() {
-  return `${countState(PLOT_STATE.WEEDY)} weedy · ${countState(PLOT_STATE.CLEARED)} cleared · ${countState(PLOT_STATE.CULTIVATED)} ready · ${countState(PLOT_STATE.PLANTED)} drilled`;
+  return `${countState(PLOT_STATE.WEEDY)} weedy · ${countState(PLOT_STATE.CLEARED)} cleared · ${countState(PLOT_STATE.TESTED)} tested · ${countState(PLOT_STATE.CULTIVATED)} ready · ${countState(PLOT_STATE.PLANTED)} drilled · ${countState(PLOT_STATE.HARVESTED)} harvested`;
 }
 
 function updateFieldLedger() {
   const ledgerEl = document.querySelector('#farm-planted-count');
   if (ledgerEl) ledgerEl.textContent = fieldSummary();
   updateFarmMap();
-}
-
-function isDrillingSeason() {
-  const month = getGameDate().getUTCMonth();
-  return month === 8 || month === 9; // September and October
 }
 
 function applyPlotVisual(index) {
@@ -1609,36 +1581,31 @@ function applyPlotVisual(index) {
 }
 
 function refreshStatus() {
-  const weedy = countState(PLOT_STATE.WEEDY);
-  const cleared = countState(PLOT_STATE.CLEARED);
-  const cultivated = countState(PLOT_STATE.CULTIVATED);
-  const drilled = countState(PLOT_STATE.PLANTED);
-
-  if (drilled === PLOT_COUNT) {
-    status.textContent = 'Every plot has winter wheat drilled.';
-  } else if (weedy === PLOT_COUNT) {
-    status.textContent = "It's July — the field is overgrown with weeds. Click a plot to clear it, then cultivate the seedbed before drilling wheat in September.";
-  } else if (isDrillingSeason() && cultivated > 0) {
-    status.textContent = 'Drilling season — click each cultivated plot to drill winter wheat.';
-  } else if (cultivated > 0) {
-    status.textContent = 'Seedbed prepared. Winter wheat can be drilled from September to early October.';
-  } else {
-    status.textContent = `${weedy} weedy · ${cleared} cleared · ${cultivated} ready · ${drilled} drilled`;
-  }
+  status.textContent = phaseMessage(getGameDate());
 }
 
 function clearWeeds(index) {
-  if (index < 0 || index >= PLOT_COUNT || plotStates[index] !== PLOT_STATE.WEEDY) return;
+  if (allowedAction(getGameDate(), plotStates[index], plotCare[index]) !== 'clear') return;
   plotStates[index] = PLOT_STATE.CLEARED;
+  plotCare[index] = {};
   applyPlotVisual(index);
-  status.textContent = `Weeds cleared from plot ${index + 1}. Click again to cultivate the seedbed.`;
+  status.textContent = `Plot ${index + 1} cleared. Test the soil before cultivation.`;
+  updateCanvasLabel();
+  updateFieldLedger();
+  saveGameProgress();
+}
+
+function testSoil(index) {
+  if (allowedAction(getGameDate(), plotStates[index], plotCare[index]) !== 'test') return;
+  plotStates[index] = PLOT_STATE.TESTED;
+  status.textContent = `Soil tested in plot ${index + 1}. Cultivate the seedbed next.`;
   updateCanvasLabel();
   updateFieldLedger();
   saveGameProgress();
 }
 
 function cultivate(index) {
-  if (index < 0 || index >= PLOT_COUNT || plotStates[index] !== PLOT_STATE.CLEARED) return;
+  if (allowedAction(getGameDate(), plotStates[index], plotCare[index]) !== 'cultivate') return;
   plotStates[index] = PLOT_STATE.CULTIVATED;
   applyPlotVisual(index);
   status.textContent = `Plot ${index + 1} cultivated — seedbed ready.`;
@@ -1648,13 +1615,11 @@ function cultivate(index) {
 }
 
 function drillWheat(index) {
-  if (index < 0 || index >= PLOT_COUNT || plotStates[index] !== PLOT_STATE.CULTIVATED) return;
-  if (!isDrillingSeason()) {
-    status.textContent = 'Winter wheat can only be drilled from September to early October. Clear weeds and cultivate the field meanwhile.';
-    updateCanvasLabel();
-    return;
-  }
+  if (allowedAction(getGameDate(), plotStates[index], plotCare[index]) !== 'drill') return;
+  if (inventory.seed < 1) { status.textContent = 'No winter wheat seed remains in inventory.'; return; }
+  inventory.seed -= 1;
   plotStates[index] = PLOT_STATE.PLANTED;
+  plotCare[index] = { drilledYear: getGameDate().getUTCFullYear() };
   applyPlotVisual(index);
   addWheatSeedlings(index);
   const drilled = countState(PLOT_STATE.PLANTED);
@@ -1663,15 +1628,57 @@ function drillWheat(index) {
     : `Winter wheat drilled in plot ${index + 1}.`;
   updateCanvasLabel();
   updateFieldLedger();
+  updateInventory();
   saveGameProgress();
 }
 
 function handlePlotAction(index) {
-  const state = plotStates[index];
-  if (state === PLOT_STATE.WEEDY) clearWeeds(index);
-  else if (state === PLOT_STATE.CLEARED) cultivate(index);
-  else if (state === PLOT_STATE.CULTIVATED) drillWheat(index);
-  // PLANTED: no further action.
+  if (!Number.isInteger(index) || index < 0 || index >= PLOT_COUNT) return;
+  const action = allowedAction(getGameDate(), plotStates[index], plotCare[index]);
+  if (action === 'clear') return clearWeeds(index);
+  if (action === 'test') return testSoil(index);
+  if (action === 'cultivate') return cultivate(index);
+  if (action === 'drill') return drillWheat(index);
+  if (action === 'protect') plotCare[index].protected = true;
+  else if (action === 'fertilize') {
+    if (!inventory.fertiliser) { status.textContent = 'No spring fertiliser remains in inventory.'; return; }
+    inventory.fertiliser -= 1;
+    plotCare[index].fertilized = true;
+  } else if (action === 'treat') {
+    if (!inventory.treatment) { status.textContent = 'No crop treatment remains in inventory.'; return; }
+    inventory.treatment -= 1;
+    plotCare[index].treated = true;
+  } else if (action === 'harvest') {
+    plotStates[index] = PLOT_STATE.HARVESTED;
+    inventory.grain += 4;
+    inventory.straw += 2;
+    inventory.seed += 1; // Keep back enough seed for the next growing year.
+    scene.remove(wheatGroups[index]);
+    wheatGroups[index] = null;
+    applyPlotVisual(index);
+  } else {
+    status.textContent = phaseMessage(getGameDate());
+    return;
+  }
+  const labels = { protect: 'checked for weeds and pests', fertilize: 'given spring fertiliser', treat: 'treated during flowering', harvest: 'harvested' };
+  status.textContent = `Plot ${index + 1} ${labels[action]}.`;
+  updateCanvasLabel();
+  updateFieldLedger();
+  updateInventory();
+  saveGameProgress();
+}
+
+function updateInventory() {
+  const container = document.querySelector('#farm-inventory');
+  if (!container) return;
+  const items = [
+    ['Winter wheat seed', inventory.seed, 'bags'],
+    ['Spring fertiliser', inventory.fertiliser, 'bags'],
+    ['Crop treatment', inventory.treatment, 'applications'],
+    ['Stored grain', inventory.grain, 'sacks'],
+    ['Baled straw', inventory.straw, 'bales'],
+  ];
+  container.innerHTML = items.map(([label, count, unit]) => `<div class="inventory-item"><span>${label}</span><strong>${count}</strong><small>${unit}</small></div>`).join('');
 }
 
 canvas.addEventListener('pointerdown', (event) => {
@@ -1705,7 +1712,7 @@ canvas.addEventListener('pointermove', (event) => {
       updateHighlights();
     }
   } else if (target?.type === 'plot') {
-    canvas.style.cursor = plotStates[target.index] !== PLOT_STATE.PLANTED ? 'pointer' : 'grab';
+    canvas.style.cursor = allowedAction(getGameDate(), plotStates[target.index], plotCare[target.index]) ? 'pointer' : 'grab';
     if (target.index !== hoveredPlotIndex) {
       hoveredPlotIndex = target.index;
       updateHighlights();
@@ -1876,7 +1883,6 @@ function buildFarmMap() {
   const parts = [
     `<defs>
       <linearGradient id="map-ground-gradient" x2="0" y2="1"><stop stop-color="#dce9c3"/><stop offset="1" stop-color="#b5cf91"/></linearGradient>
-      <linearGradient id="map-water-gradient" x2="0" y2="1"><stop stop-color="#9ed8dc"/><stop offset="1" stop-color="#498eaa"/></linearGradient>
       <pattern id="map-grass-pattern" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M 7 10 l 2 -4 m 0 4 l 2 -3 M 24 27 l 2 -5 m 0 5 l 2 -3" stroke="#6f9d64" stroke-width="1.2" opacity=".35" fill="none"/></pattern>
     </defs>`,
     `<rect class="map-ground" width="760" height="360" />`,
@@ -1906,17 +1912,7 @@ function buildFarmMap() {
   const pathPoints = GARDEN_PATH_STEPS.map(([x, z]) => `${mapX(x)},${mapY(z)}`).join(' ');
   parts.push(`<polyline class="map-path-base" points="${pathPoints}" /><polyline class="map-path-stones" points="${pathPoints}" />`);
 
-  const pondX = mapX(POND.x);
-  const pondY = mapY(POND.z);
-  parts.push(`<g transform="translate(${pondX} ${pondY})">
-    <path class="map-pond-bank" d="M -47 -8 C -44 -29 -18 -37 2 -34 C 24 -36 47 -21 50 -1 C 55 20 31 37 7 38 C -14 42 -47 27 -50 8 Z" />
-    <path class="map-pond" d="M -39 -7 C -36 -24 -14 -29 4 -27 C 25 -28 39 -17 42 0 C 43 17 23 29 5 30 C -17 32 -39 18 -41 5 Z" />
-    <path class="map-pond-shine" d="M -24 -9 C -14 -20 2 -21 14 -18" />
-    <path class="map-pond-ripple" d="M -12 13 q 8 -5 16 0 m 8 -8 q 6 -4 13 0" />
-    <path class="map-reeds" d="M -38 13 l -3 -13 m 3 13 l 3 -10 M 31 23 l 2 -13 m -2 13 l -4 -10" />
-  </g>`);
-
-  for (const [x, z] of [[-8.5, -6.6], [3.8, -5.6]]) parts.push(orchardGlyph(mapX(x), mapY(z)));
+  for (const [x, z] of [[-10.7, -7.4], [3.8, -5.6]]) parts.push(orchardGlyph(mapX(x), mapY(z)));
 
   // Slightly enlarged field symbols keep the nine plot stages readable.
   parts.push(`<rect class="map-field-shadow" x="319" y="129" width="122" height="122" rx="12" />`);
@@ -1957,7 +1953,6 @@ function buildFarmMap() {
   parts.push(mapLabel('Farmhouse', 197, 143, 98));
   parts.push(mapLabel('Apple trees', 467, 93, 100));
   parts.push(mapLabel('Wheat field', 448, 225, 100));
-  parts.push(mapLabel('Pond', 560, 330, 63));
   parts.push(`<g class="map-compass" transform="translate(704 55)"><circle r="29"/><path d="M 0 -21 L 5 0 L 0 -4 L -5 0 Z"/><path class="map-compass-south" d="M 0 21 L 5 0 L 0 4 L -5 0 Z"/><text y="-33">N</text></g>`);
   parts.push(`<rect class="map-inner-border" x="8" y="8" width="744" height="344" rx="10" />`);
 
@@ -1969,7 +1964,7 @@ function updateMapPlots() {
   document.querySelectorAll('.map-plot').forEach((cell) => {
     const index = Number(cell.dataset.index);
     const state = plotStates[index];
-    cell.classList.remove('state-weedy', 'state-cleared', 'state-cultivated', 'state-planted');
+    cell.classList.remove('state-weedy', 'state-cleared', 'state-tested', 'state-cultivated', 'state-planted', 'state-harvested');
     cell.classList.add(`state-${state}`);
     cell.querySelector('title').textContent = `Plot ${index + 1}: ${describePlotState(index)}`;
   });
@@ -1996,11 +1991,15 @@ window.FarmGame = {
   camera,
   controls,
   plotStates,
+  plotCare,
+  inventory,
   handlePlotAction,
   clearWeeds,
+  testSoil,
   cultivate,
   drillWheat,
   updateFarmMap,
+  updateInventory,
   pickTarget,
   weatherSettings,
   setWeather,

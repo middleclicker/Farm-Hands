@@ -9,75 +9,39 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,600&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=farm-map-1" />
+    <link rel="stylesheet" href="./styles.css?v=seasonal-farm-4" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=terrain-3"></script>
+    <script type="module" src="./game.js?v=seasonal-farm-4"></script>
   </head>
   <body>
     <main class="game-shell">
       <section class="farm" aria-label="3D wheat planting field">
-        <canvas id="field" tabindex="0" aria-label="3D wheat field. Drag to rotate, scroll or pinch to zoom. Use WASD to move the camera, arrow keys to select a plot, and Enter to plant wheat. Press Escape for the menu, credits, and keybind settings." aria-describedby="field-help field-status"></canvas>
+        <canvas id="field" tabindex="0" aria-label="3D wheat field. Select a plot and work it during the appropriate season. Press Escape for the menu." aria-describedby="field-help field-status"></canvas>
 
-        <!-- Cozy Top-Left HUD: Farm Crest & Farmhouse Calendar Button -->
+        <!-- Farm controls -->
         <header class="farm-hud farm-hud-left" aria-label="Farm overview">
-          <div class="hud-brand">
-            <span class="hud-brand-icon" aria-hidden="true">🌾</span>
-            <div class="hud-brand-info">
-              <span class="hud-brand-title">Farm Hands</span>
-              <span class="hud-brand-subtitle">Willow Creek Homestead</span>
-            </div>
-          </div>
-          <button id="farmhouse-btn" class="cozy-hud-btn farmhouse-trigger-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Click to open Farmhouse Calendar (or click Farmhouse in 3D)">
-            <span class="btn-icon" aria-hidden="true">🏡</span>
-            <span class="btn-content">
-              <strong id="hud-season">Summer · Year 1</strong>
-              <span class="hud-time-sub" id="hud-date-time">July 1 · 06:00:00</span>
-            </span>
-            <span class="hud-btn-tag" aria-hidden="true">Calendar 📖</span>
-          </button>
+          <button id="farmhouse-btn" class="cozy-hud-btn" type="button" aria-haspopup="dialog" aria-expanded="false">Calendar</button>
+          <button id="home-btn" class="cozy-hud-btn" type="button" title="Return the camera to the farmhouse">Back to home</button>
         </header>
 
-        <!-- Cozy Top-Right HUD: Weather & Developer Speed Controls -->
-        <aside class="farm-hud farm-hud-right" aria-label="Farm environment and developer controls">
-          <div class="weather-controls cozy-panel">
-            <div class="panel-header-row">
-              <label for="weather-select" class="panel-label">
-                <span aria-hidden="true">🌤️</span> Weather
-              </label>
-            </div>
-            <select id="weather-select" aria-describedby="weather-description">
-              <option value="sunny">☀️ Warm sunlight</option>
-              <option value="light">🌦️ Light rain</option>
-              <option value="moderate">🌧️ Moderate rain</option>
-              <option value="heavy">⛈️ Heavy rain</option>
-            </select>
-            <span id="weather-description" class="weather-description" aria-live="polite">Clear skies and warm sunlight.</span>
-          </div>
-
-          <!-- Developer Speedup Button -->
-          <div class="dev-controls cozy-panel">
-            <div class="panel-header-row">
-              <span class="panel-label"><span aria-hidden="true">🛠️</span> Dev Mode</span>
-            </div>
-            <button id="speed-btn" class="cozy-btn dev-speed-btn" type="button" aria-label="Developer time speed" title="Click to cycle time speed (3×, 15×, 60×, 300×, 1200×) or press T">
-              <span class="speed-bolt" aria-hidden="true">⚡</span>
-              <span class="speed-text" id="speed-btn-label">3× Speed</span>
-            </button>
-          </div>
+        <aside class="farm-hud farm-hud-right" aria-label="Time controls">
+          <button id="speed-btn" class="cozy-hud-btn time-control" type="button" title="Cycle game time speed" aria-label="Game time speed">
+            <span>Time</span> <strong id="speed-btn-label">3× Speed</strong>
+          </button>
         </aside>
+        <p class="field-status" id="field-status" role="status">Clear, test, and cultivate empty plots. Winter wheat drilling begins in September.</p>
 
         <!-- Farmhouse Calendar Menu (Modal Dialog) -->
         <div id="farmhouse-modal" class="farmhouse-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-modal-title" hidden>
           <div class="modal-backdrop" id="modal-backdrop" aria-hidden="true"></div>
-          <div class="modal-card">
+          <div class="modal-card farm-journal">
             <header class="modal-header">
               <div class="modal-title-group">
-                <div class="modal-house-icon" aria-hidden="true">🏡</div>
                 <div>
-                  <h2 id="calendar-modal-title">Farmhouse Calendar</h2>
-                  <p class="modal-subtitle">Willow Creek Homestead · Upcoming events & daily records</p>
+                  <h2 id="calendar-modal-title">Farmhouse Journal</h2>
+                  <p class="modal-subtitle">The season, the land, and what is in the barn</p>
                 </div>
               </div>
               <button id="modal-close-btn" class="cozy-icon-btn modal-close-btn" type="button" aria-label="Close farmhouse menu">✕</button>
@@ -85,127 +49,28 @@
 
             <div class="modal-body">
               <div class="modal-tabs" role="tablist" aria-label="Farmhouse menu sections">
-                <button id="tab-events" class="modal-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="tab-events-panel">📅 Event Calendar</button>
-                <button id="tab-map" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-map-panel">🗺️ Farm Map</button>
+                <button id="tab-events" class="modal-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="tab-events-panel">Calendar</button>
+                <button id="tab-map" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-map-panel">Farm map</button>
+                <button id="tab-inventory" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-inventory-panel">Inventory</button>
               </div>
 
-              <!-- Tab 1: Event Calendar -->
               <div id="tab-events-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-events">
-                <!-- Live Calendar Card -->
-                <section class="almanac-section live-date-section" aria-label="Current date and time">
-                  <div class="date-hero-card">
-                    <div class="date-top-bar">
-                      <span class="season-badge" id="calendar-season">Summer · Year 1</span>
-                      <span class="speed-badge" id="calendar-speed-badge">3× real time</span>
-                    </div>
-                    <div class="date-primary-row">
-                      <div class="calendar-date" id="calendar-date">July 1</div>
-                      <div class="calendar-clock-box">
-                        <span class="clock-label">Game Clock</span>
-                        <span class="calendar-clock" id="calendar-clock">06:00:00</span>
-                      </div>
-                    </div>
-                    <div class="calendar-progress-wrap">
-                      <div class="progress-info-row">
-                        <span class="calendar-day" id="calendar-day">Day 182 of 365</span>
-                        <span class="year-label" id="calendar-year-label">Year 1</span>
-                      </div>
-                      <div class="calendar-year-track" id="calendar-year-track" role="progressbar" aria-label="Progress through the year" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-valuetext="Day 182 of 365, Year 1">
-                        <span id="calendar-year-fill"></span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Dev Speedup Option in Menu -->
-                  <div class="modal-dev-box">
-                    <div class="dev-box-header">
-                      <span class="dev-badge">⚡ Developer Controls</span>
-                      <span class="dev-hint">Speed up calendar progression for testing</span>
-                    </div>
-                    <div class="dev-box-actions">
-                      <button id="modal-speed-btn" class="cozy-btn dev-speed-btn" type="button" title="Cycle game speed">
-                        ⏩ Dev Speed: <span id="modal-speed-text">3×</span>
-                      </button>
-                      <span class="dev-cycle-info" id="dev-cycle-info">Click to cycle: 3× · 15× · 60× · 300× · 1200×</span>
-                    </div>
-                  </div>
-                </section>
-
-                <!-- Events Calendar -->
-                <section class="almanac-section" aria-label="Events calendar">
-                  <div class="section-heading-row">
-                    <h3 class="section-title">📅 Event Calendar</h3>
-                    <span class="section-note">Upcoming farm events</span>
-                  </div>
-
-                  <div class="event-calendar-card">
-                    <div class="event-calendar-header">
-                      <span class="event-calendar-month" id="event-calendar-month">July 2001</span>
-                    </div>
-                    <div class="event-calendar-grid" id="event-calendar-grid" aria-label="Calendar for the current month"></div>
-                  </div>
-
-                  <div class="upcoming-events-box">
-                    <div class="upcoming-events-title">📌 Upcoming events</div>
-                    <ul class="upcoming-events-list" id="upcoming-events-list"></ul>
-                  </div>
-                </section>
+                <div class="event-calendar-card">
+                  <div class="event-calendar-header"><span class="event-calendar-month" id="event-calendar-month">July 2001</span></div>
+                  <div class="event-calendar-grid" id="event-calendar-grid" aria-label="Calendar for the current month"></div>
+                </div>
               </div>
 
-              <!-- Tab 2: Farm Map -->
               <div id="tab-map-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-map" hidden>
-                <!-- Farm Map -->
-                <section class="almanac-section" aria-label="Farm map">
-                  <div class="section-heading-row">
-                    <h3 class="section-title">🗺️ Farm Map</h3>
-                    <span class="section-note">Your homestead at a glance</span>
-                  </div>
-                  <div class="farm-map-card">
-                    <div class="farm-map-meta"><span>WILLOW CREEK · FIELD GUIDE</span><span>FIELD 01 / 9 PLOTS</span></div>
-                    <div id="farm-map" class="farm-map" aria-label="Top-down map of the farm"></div>
-                    <div class="map-legend" aria-label="Field plot legend">
-                      <strong class="map-legend-title">Field stages</strong>
-                      <span class="legend-item"><span class="legend-swatch swatch-weedy" aria-hidden="true"></span> Weeds</span>
-                      <span class="legend-item"><span class="legend-swatch swatch-cleared" aria-hidden="true"></span> Cleared</span>
-                      <span class="legend-item"><span class="legend-swatch swatch-cultivated" aria-hidden="true"></span> Cultivated</span>
-                      <span class="legend-item"><span class="legend-swatch swatch-planted" aria-hidden="true"></span> Drilled</span>
-                    </div>
-                  </div>
-                </section>
+                <div class="farm-map-card"><div id="farm-map" class="farm-map" aria-label="Top-down map of the farm"></div></div>
+              </div>
 
-                <!-- Live Farm Ledger & Field Status -->
-                <section class="almanac-section farm-ledger-section" aria-label="Farm status ledger">
-                  <div class="ledger-box">
-                    <div class="ledger-item">
-                      <span class="ledger-icon" aria-hidden="true">🌾</span>
-                      <div class="ledger-details">
-                        <span class="ledger-label">Wheat Field Status</span>
-                        <strong class="ledger-value" id="farm-planted-count">9 weedy · 0 cleared · 0 ready · 0 drilled</strong>
-                      </div>
-                    </div>
-                    <div class="ledger-item">
-                      <span class="ledger-icon" aria-hidden="true">🌤️</span>
-                      <div class="ledger-details">
-                        <span class="ledger-label">Current Weather</span>
-                        <strong class="ledger-value" id="farm-modal-weather">Clear skies and warm sunlight</strong>
-                      </div>
-                    </div>
-                    <div class="ledger-item">
-                      <span class="ledger-icon" aria-hidden="true">🏡</span>
-                      <div class="ledger-details">
-                        <span class="ledger-label">Homestead</span>
-                        <strong class="ledger-value">Willow Creek Farmhouse</strong>
-                      </div>
-                    </div>
-                  </div>
-                </section>
+              <div id="tab-inventory-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-inventory" hidden>
+                <p class="inventory-intro">Supplies for the field and what your harvest has brought in.</p>
+                <div class="inventory-grid" id="farm-inventory" aria-live="polite"></div>
+                <p class="inventory-field" id="farm-planted-count">9 weedy · 0 cleared · 0 ready · 0 drilled</p>
               </div>
             </div>
-
-            <footer class="modal-footer">
-              <span class="footer-tip"><span aria-hidden="true">💡</span> Click the 3D farmhouse anytime or press <kbd>C</kbd> to return to this calendar</span>
-              <button id="modal-footer-close-btn" class="cozy-btn primary-btn" type="button">Back to Farm</button>
-            </footer>
           </div>
         </div>
 
@@ -337,7 +202,6 @@
         <div class="sr-only">
           <h1>Farm Hands</h1>
           <p id="field-help">Click or tap a plot to clear weeds, cultivate the seedbed, or drill winter wheat in September and October. Drag to rotate. Scroll or pinch to zoom. Use WASD to move the camera across the farm, arrow keys to select a plot, and Enter / Space to work the soil. Click the farmhouse or press C / H to open the farming calendar. Press Esc for the menu, credits, and keybind settings.</p>
-          <p class="field-status" id="field-status" role="status">It's July — the field is overgrown with weeds. Clear and cultivate the plots before drilling winter wheat in September.</p>
         </div>
       </section>
     </main>

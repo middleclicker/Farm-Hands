@@ -1,4 +1,4 @@
-import { eventMatches } from './keybinds.js?v=cozy-farm-winter-wheat-4';
+import { eventMatches } from './keybinds.js?v=seasonal-farm-4';
 
 const DEFAULT_SPEED = 3;
 const SPEED_LEVELS = [3, 15, 60, 300, 1200];
@@ -16,20 +16,19 @@ const seasons = ['Winter', 'Winter', 'Spring', 'Spring', 'Spring', 'Summer', 'Su
 // September–October drilling, autumn germination, winter dormancy, spring
 // tillering and stem extension, and the summer harvest.
 const events = [
-  { month: 6, day: 1, emoji: '🌾', title: 'Field Preparation', description: 'Previous crop is in. Clear weeds, test the soil, and cultivate the seedbed.' },
-  { month: 6, day: 18, emoji: '🚜', title: 'Cultivate the Seedbed', description: 'Work the cleared field into a fine, level seedbed ready for drilling.' },
+  { month: 6, day: 1, emoji: '🚜', title: 'Field Preparation', description: 'Clear empty plots, test the soil, and cultivate a seedbed.' },
+  { month: 6, day: 20, emoji: '🌾', title: 'Wheat Harvest', description: 'Harvest ripe wheat and store the grain.' },
+  { month: 7, day: 1, emoji: '🚜', title: 'Prepare the Next Seedbed', description: 'Clear harvested plots, test the soil, and cultivate for the next crop.' },
   { month: 8, day: 1, emoji: '🌱', title: 'Drill Winter Wheat', description: 'Sow winter wheat into the prepared seedbed — aim to finish by early October.' },
-  { month: 9, day: 15, emoji: '🌧️', title: 'Germination', description: 'Seedlings emerge and establish roots and shoots. Watch for weeds, slugs, and pests.' },
-  { month: 11, day: 21, emoji: '❄️', title: 'Winter Dormancy', description: 'Growth slows through winter. The crop stays established but mostly dormant.' },
-  { month: 1, day: 20, emoji: '🌿', title: 'Tillering & Spring Fertiliser', description: 'Plants push out extra shoots that can form ears. Apply spring fertiliser.' },
-  { month: 3, day: 15, emoji: '📏', title: 'Stem Extension', description: 'The crop enters stem extension — rapid growth rather than field work.' },
-  { month: 5, day: 1, emoji: '🌾', title: 'Ear Emergence & Flowering', description: 'Ears emerge and the wheat flowers. Fungicides and treatments may be used.' },
-  { month: 6, day: 15, emoji: '🌾', title: 'Grain Fill & Ripen', description: 'Grains fill and the crop changes from green to golden.' },
-  { month: 7, day: 20, emoji: '🚜', title: 'Harvest', description: 'The combine harvests the wheat. Dry and store the grain; bale the straw.' },
+  { month: 9, day: 11, emoji: '🌱', title: 'Germination', description: 'Seedlings establish; check for weeds, slugs, and pests through November.' },
+  { month: 11, day: 1, emoji: '❄️', title: 'Winter Dormancy', description: 'Growth slows through December and January.' },
+  { month: 1, day: 1, emoji: '🌿', title: 'Tillering & Spring Fertiliser', description: 'Extra shoots form; apply spring fertiliser through March.' },
+  { month: 3, day: 1, emoji: '🌿', title: 'Stem Extension', description: 'The crop extends its stems; no field action is needed.' },
+  { month: 4, day: 1, emoji: '🌾', title: 'Ear Emergence & Flowering', description: 'Ears emerge, flowers open, and crop treatments may be used through June.' },
+  { month: 5, day: 15, emoji: '🌾', title: 'Grain Fill & Ripen', description: 'Grain fills and the crop turns from green to golden through July.' },
 ];
 const eventByDate = new Map(events.map((event) => [`${event.month}-${event.day}`, event]));
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const LOOKAHEAD_DAYS = 30;
 
 let currentSpeedIndex = 0;
 let gameSpeed = SPEED_LEVELS[0];
@@ -47,13 +46,8 @@ const dayLabel = document.querySelector('#calendar-day');
 const yearTrack = document.querySelector('#calendar-year-track');
 const yearFill = document.querySelector('#calendar-year-fill');
 const yearLabel = document.querySelector('#calendar-year-label');
-const speedBadge = document.querySelector('#calendar-speed-badge');
 const speedBtn = document.querySelector('#speed-btn');
 const speedBtnLabel = document.querySelector('#speed-btn-label');
-const modalSpeedBtn = document.querySelector('#modal-speed-btn');
-const modalSpeedText = document.querySelector('#modal-speed-text');
-const hudSeason = document.querySelector('#hud-season');
-const hudDateTime = document.querySelector('#hud-date-time');
 
 // Farmhouse modal elements
 const farmhouseModal = document.querySelector('#farmhouse-modal');
@@ -65,13 +59,14 @@ const farmhouseHudBtn = document.querySelector('#farmhouse-btn');
 // Events calendar elements
 const eventCalendarMonth = document.querySelector('#event-calendar-month');
 const eventCalendarGrid = document.querySelector('#event-calendar-grid');
-const upcomingEventsList = document.querySelector('#upcoming-events-list');
 
 // Tab elements
 const tabEventsBtn = document.querySelector('#tab-events');
 const tabMapBtn = document.querySelector('#tab-map');
+const tabInventoryBtn = document.querySelector('#tab-inventory');
 const tabEventsPanel = document.querySelector('#tab-events-panel');
 const tabMapPanel = document.querySelector('#tab-map-panel');
+const tabInventoryPanel = document.querySelector('#tab-inventory-panel');
 const modalTabs = document.querySelector('.modal-tabs');
 
 const pad = (value) => String(value).padStart(2, '0');
@@ -97,13 +92,13 @@ function initGameTime() {
       return;
     }
 
-    // Check legacy storage
     const legacyStart = Number(localStorage.getItem('farm-hands-calendar-start-v1'));
     if (Number.isFinite(legacyStart) && legacyStart > 0) {
       accumulatedGameMs = Math.max(0, now - legacyStart) * DEFAULT_SPEED;
       lastRealTick = now;
       return;
     }
+
   } catch {
     // If storage is unavailable, start fresh
   }
@@ -147,11 +142,9 @@ export function getGameDate() {
 
 function updateSpeedUI() {
   const speedStr = `${gameSpeed}×`;
-  if (speedBtnLabel) speedBtnLabel.textContent = `${speedStr} Speed`;
-  if (speedBadge) speedBadge.textContent = `${speedStr} real time`;
-  if (modalSpeedText) modalSpeedText.textContent = speedStr;
+  if (speedBtnLabel) speedBtnLabel.textContent = speedStr;
   if (speedBtn) {
-    speedBtn.setAttribute('aria-label', `Developer speedup: currently ${speedStr}. Click to cycle.`);
+    speedBtn.setAttribute('aria-label', `Game time: ${speedStr}. Click to cycle speed.`);
     if (gameSpeed > 3) {
       speedBtn.classList.add('active-speedup');
     } else {
@@ -195,13 +188,19 @@ export function openFarmhouseMenu() {
 
 function setActiveTab(name) {
   const isMap = name === 'map';
-  tabEventsBtn?.classList.toggle('is-active', !isMap);
+  const isInventory = name === 'inventory';
+  const isEvents = name === 'events';
+  tabEventsBtn?.classList.toggle('is-active', isEvents);
   tabMapBtn?.classList.toggle('is-active', isMap);
-  tabEventsBtn?.setAttribute('aria-selected', String(!isMap));
+  tabInventoryBtn?.classList.toggle('is-active', isInventory);
+  tabEventsBtn?.setAttribute('aria-selected', String(isEvents));
   tabMapBtn?.setAttribute('aria-selected', String(isMap));
-  if (tabEventsPanel) tabEventsPanel.hidden = isMap;
+  tabInventoryBtn?.setAttribute('aria-selected', String(isInventory));
+  if (tabEventsPanel) tabEventsPanel.hidden = !isEvents;
   if (tabMapPanel) tabMapPanel.hidden = !isMap;
+  if (tabInventoryPanel) tabInventoryPanel.hidden = !isInventory;
   if (isMap) window.FarmGame?.updateFarmMap?.();
+  if (isInventory) window.FarmGame?.updateInventory?.();
 }
 
 export function closeFarmhouseMenu() {
@@ -223,25 +222,6 @@ export function toggleFarmhouseMenu() {
 
 let lastRenderedDayKey = '';
 
-function upcomingEvents(date) {
-  const start = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-  const end = start + LOOKAHEAD_DAYS * DAY_MS;
-  const results = [];
-  for (let time = start; time <= end; time += DAY_MS) {
-    const day = new Date(time);
-    const event = eventByDate.get(`${day.getUTCMonth()}-${day.getUTCDate()}`);
-    if (event) {
-      results.push({
-        ...event,
-        year: day.getUTCFullYear(),
-        month: day.getUTCMonth(),
-        day: day.getUTCDate(),
-      });
-    }
-  }
-  return results;
-}
-
 function renderEventCalendar(date) {
   const month = date.getUTCMonth();
   const year = date.getUTCFullYear();
@@ -260,7 +240,8 @@ function renderEventCalendar(date) {
       if (day === today) classes.push('is-today');
       if (event) classes.push('has-event');
       const marker = event ? `<span class="event-cal-dot">${event.emoji}</span>` : '';
-      cells.push(`<span class="${classes.join(' ')}">${day}${marker}</span>`);
+      const description = event ? ` title="${event.title}: ${event.description}"` : '';
+      cells.push(`<span class="${classes.join(' ')}"${description}>${day}${marker}</span>`);
     }
     // Pad the trailing cells so the last week is complete.
     const totalCells = firstWeekday + daysInMonth;
@@ -268,28 +249,6 @@ function renderEventCalendar(date) {
     for (let i = 0; i < trailingBlanks; i += 1) cells.push('<span class="event-cal-day is-empty"></span>');
     eventCalendarGrid.innerHTML = cells.join('');
   }
-}
-
-function renderUpcomingEvents(date) {
-  if (!upcomingEventsList) return;
-  const upcoming = upcomingEvents(date);
-  if (upcoming.length === 0) {
-    upcomingEventsList.innerHTML = '<li class="upcoming-events-empty">No upcoming events in the next 30 days.</li>';
-    return;
-  }
-  upcomingEventsList.innerHTML = upcoming.map((event) => {
-    const isToday = event.month === date.getUTCMonth() && event.day === date.getUTCDate();
-    const yearSuffix = event.year !== date.getUTCFullYear() ? `, ${event.year}` : '';
-    const todayBadge = isToday ? '<span class="upcoming-today">Today</span>' : '';
-    return `<li class="upcoming-event">
-      <span class="upcoming-event-emoji" aria-hidden="true">${event.emoji}</span>
-      <div class="upcoming-event-body">
-        <div class="upcoming-event-title">${event.title}${todayBadge}</div>
-        <div class="upcoming-event-desc">${event.description}</div>
-      </div>
-      <time class="upcoming-event-date">${months[event.month]} ${event.day}${yearSuffix}</time>
-    </li>`;
-  }).join('');
 }
 
 export function isFarmhouseMenuOpen() {
@@ -311,7 +270,6 @@ export function updateCalendar() {
   const dateText = `${months[month]} ${date.getUTCDate()}`;
   const seasonText = `${currentSeason} · Year ${gameYear}`;
   const clockText = `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
-  const shortClockText = `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
   const dayText = `Day ${dayOfYear} of ${daysInYear}`;
 
   if (dateLabel) dateLabel.textContent = dateText;
@@ -325,22 +283,16 @@ export function updateCalendar() {
     yearTrack.setAttribute('aria-valuetext', `Day ${dayOfYear} of ${daysInYear}, Year ${gameYear}`);
   }
 
-  // Update HUD summary
-  if (hudSeason) hudSeason.textContent = seasonText;
-  if (hudDateTime) hudDateTime.textContent = `${months[month].slice(0, 3)} ${date.getUTCDate()} · ${shortClockText}`;
-
   // Re-render the events calendar only when the in-game day changes.
   const dayKey = `${date.getUTCFullYear()}-${month}-${date.getUTCDate()}`;
   if (dayKey !== lastRenderedDayKey) {
     lastRenderedDayKey = dayKey;
     renderEventCalendar(date);
-    renderUpcomingEvents(date);
   }
 }
 
 // Wire up events
 speedBtn?.addEventListener('click', () => cycleGameSpeed());
-modalSpeedBtn?.addEventListener('click', () => cycleGameSpeed());
 // Delegate the HUD trigger so it remains wired even when the module is loaded
 // before the body finishes parsing or is evaluated through the game import.
 document.addEventListener('click', (event) => {
@@ -370,14 +322,15 @@ function pauseMenuIsOpen() {
 // Tab switching
 tabEventsBtn?.addEventListener('click', () => setActiveTab('events'));
 tabMapBtn?.addEventListener('click', () => setActiveTab('map'));
+tabInventoryBtn?.addEventListener('click', () => setActiveTab('inventory'));
 modalTabs?.addEventListener('keydown', (event) => {
   if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-  const tabs = [tabEventsBtn, tabMapBtn];
+  const tabs = [tabEventsBtn, tabMapBtn, tabInventoryBtn];
   const currentIndex = tabs.indexOf(document.activeElement);
   const delta = event.key === 'ArrowRight' ? 1 : -1;
   const nextIndex = (currentIndex + delta + tabs.length) % tabs.length;
   tabs[nextIndex]?.focus();
-  setActiveTab(nextIndex === 0 ? 'events' : 'map');
+  setActiveTab(['events', 'map', 'inventory'][nextIndex]);
   event.preventDefault();
 });
 

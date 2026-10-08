@@ -1,21 +1,32 @@
 # Farm Hands
 
-A cozy singleplayer 3D farming game set in a pastoral countryside with a starter farmhouse, split-rail fencing, cobblestone path, orchard trees, wildflowers, a pond, pine forest, boulders, and a rolling northern hill. The planting field sits in a level clearing, with foothills and rocky, snow-tipped mountains farther out. The full-window field features nine soil plots in a 3×3 winter wheat year: the game begins in July with an overgrown field, then you clear weeds, cultivate the seedbed, and drill wheat during September and October. Drag to rotate around the field; scroll or pinch to zoom in and out; use WASD to move the camera across the ground. Keyboard users can select plots with the arrow keys and work the soil with Enter. Plot states, weather, the farm clock, and the camera position are saved in your browser and restored automatically the next time you visit.
+A small, singleplayer 3D farm centered on one winter wheat field. The game opens on July 1 of Year 1 with nine overgrown plots, no crops already planted, and a farmhouse beside the field.
 
-Press `Esc` at any time to open the pause menu, which holds three options:
+## Play
 
-- **Resume Farming** — close the menu and get back to the field. The farm clock pauses while the menu is open, so reading never costs you in-game time.
-- **Credits** — who grew this little farm, plus the three.js, OrbitControls, and Google Fonts licences.
-- **Settings** — turn camera memory on or off, recenter the camera, and rebind every key in the game. Click a key, press the key you want, and it applies immediately; `Backspace` clears a key, `Esc` cancels, and **Reset keybinds** restores the defaults. A key can only belong to one action, so rebinding it releases it from wherever it was before. `Esc` always opens this menu, even if "Open this menu" is bound to something else.
+- Click or tap a plot to perform its available seasonal action. In July and August, clear the field, test the soil, and cultivate it. Drill winter wheat from September 1 through October 10. The later stages follow the schedule below.
+- Drag to orbit, scroll or pinch to zoom, and use WASD to move the camera. **Back to home** focuses the farmhouse. Click the farmhouse or **Calendar** to open the farmhouse journal.
+- The journal has a calendar page, a map page, and an inventory page. The inventory shows seed, fertiliser, crop treatment, harvested grain, and straw. Supplies and plot work are saved locally in the browser.
+- Use the **Time** control to cycle through 3×, 15×, 60×, 300×, and 1200× game time. Press `Esc` for settings, credits, and keybindings.
 
-Camera memory (on by default) stores both the camera position and its orbit target, so panning, rotating, and zooming all come back exactly as you left them.
+## Winter wheat year
 
-Use the Weather menu to switch between warm sunlight, light rain, moderate rain, and heavy rain. Rain changes the sky, light, and number and speed of falling drops. The scene keeps its chosen weather while you plant or rotate. Rain and smoke animations pause when reduced motion is requested.
+| Calendar | Available field work |
+| --- | --- |
+| July–August | Harvest mature wheat from July 20, then clear, test, and cultivate plots for the next seedbed. The first year starts with clearing. |
+| September–October 10 | Drill winter wheat into cultivated plots. Each plot uses one bag of seed. |
+| October 11–November | Check planted plots for weeds, slugs, and pests. |
+| December–January | Crop dormancy; no plot action. |
+| February–March | Apply spring fertiliser to planted plots. |
+| April | Stem extension; no plot action. |
+| May–June | Treat planted plots as ears emerge, flowers open, and grain begins forming. |
+| June–July | Grain fills and ripens; the plants turn golden. |
+| July 20–August | Harvest ripe wheat, store grain, bale straw, and retain seed for the next sowing. Clear, test, and cultivate after harvest. |
 
-Click the 3D farmhouse (or the top-left Farmhouse button, or press `C`) to open the Farmhouse Calendar menu, which displays the live calendar, a top-down farm map, current year progress, upcoming winter wheat events, and field ledger.
+Seasonal work is enforced when a plot is clicked or activated with the keyboard. If an action is unavailable, the status message explains the current season. After a harvest, the field can be prepared for the next crop in the rotation; the current playable crop is winter wheat.
 
-Use the developer Speed Up button (`⚡ 3× Speed`, or press `T` / `]`) to cycle game speeds (3×, 15×, 60×, 300×, 1200×) for testing calendar progression across days, months, and seasons.
+## Run locally
 
-To run it locally, start a static server in this folder (for example, `python3 -m http.server 8000`) and visit `http://localhost:8000`. The files also run directly from the root of a GitHub Pages repository.
+From this folder, run `python3 -m http.server 8000` and visit [http://localhost:8000](http://localhost:8000). The files can also be served directly by GitHub Pages. Run `node --test tests/farming.test.mjs` to check the seasonal action gates.
 
 The 3D scene uses a local copy of Three.js 0.186.1. Its MIT license is in `vendor/three/LICENSE`.

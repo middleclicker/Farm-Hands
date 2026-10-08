@@ -965,13 +965,16 @@ html, body {
   transition: fill 0.15s ease, stroke 0.15s ease;
 }
 .map-plot.state-cleared .map-plot-surface { fill: #b7895f; stroke: #7c573b; }
+.map-plot.state-tested .map-plot-surface { fill: #ba9367; stroke: #7c573b; }
 .map-plot.state-cultivated .map-plot-surface { fill: #875838; stroke: #5c3b2b; }
 .map-plot.state-planted .map-plot-surface { fill: #76503a; stroke: #4e3b2c; }
+.map-plot.state-harvested .map-plot-surface { fill: #a77b51; stroke: #76573c; }
 .map-plot-furrows, .map-plot-weeds, .map-plot-crop { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .map-plot-furrows { display: none; stroke: #b77b4e; stroke-width: 1.6; }
 .map-plot-weeds { stroke: #b4d17d; stroke-width: 2; }
 .map-plot-crop { display: none; stroke: #7fc87d; stroke-width: 2.2; }
-.map-plot.state-cleared .map-plot-weeds, .map-plot.state-cultivated .map-plot-weeds, .map-plot.state-planted .map-plot-weeds { display: none; }
+.map-plot.state-cleared .map-plot-weeds, .map-plot.state-tested .map-plot-weeds, .map-plot.state-cultivated .map-plot-weeds, .map-plot.state-planted .map-plot-weeds { display: none; }
+.map-plot.state-harvested .map-plot-weeds { display: none; }
 .map-plot.state-cultivated .map-plot-furrows, .map-plot.state-planted .map-plot-furrows, .map-plot.state-planted .map-plot-crop { display: block; }
 .map-plot-number-bg { fill: #fff7dd; opacity: 0.92; }
 .map-plot-num {
@@ -1189,6 +1192,172 @@ html, body {
     flex-direction: column;
     gap: 8px;
   }
+}
+
+/* The farmhouse journal keeps each page focused on one subject. */
+.farm-hud-left { max-width: none; }
+.farm-hud-left .cozy-hud-btn,
+.time-control {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 13px;
+  border-width: 1px;
+  border-color: #a78b68;
+  border-radius: 10px;
+  background: #fff9eb;
+}
+.time-control { gap: 8px; }
+.farm-journal {
+  max-width: 680px;
+  border: 1px solid #a99170;
+  border-radius: 16px;
+  background: #f8f2e6;
+  box-shadow: 0 22px 70px rgba(19, 24, 15, .42);
+}
+.farm-journal .modal-header {
+  padding: 18px 22px 12px;
+  background: #f8f2e6;
+  border: 0;
+}
+.farm-journal .modal-title-group h2 {
+  font-size: 24px;
+  font-weight: 600;
+}
+.farm-journal .modal-subtitle {
+  margin-top: 4px;
+  font-size: 11px;
+  letter-spacing: .02em;
+  color: #766650;
+}
+.farm-journal .modal-close-btn {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  font-size: 18px;
+}
+.farm-journal .modal-body {
+  gap: 17px;
+  padding: 0 22px 22px;
+  background: #f8f2e6;
+}
+.farm-journal .modal-tabs {
+  gap: 22px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #d5c8b4;
+  border-radius: 0;
+  box-shadow: none;
+}
+.farm-journal .modal-tab {
+  flex: none;
+  padding: 10px 1px;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  color: #74654f;
+  background: transparent;
+  font-weight: 700;
+}
+.farm-journal .modal-tab:hover,
+.farm-journal .modal-tab.is-active {
+  color: #3b5834;
+  background: transparent;
+  border-bottom-color: #4e7143;
+  box-shadow: none;
+}
+.farm-journal .event-calendar-card,
+.farm-journal .farm-map-card {
+  padding: 16px;
+  border: 1px solid #ddd0bb;
+  border-radius: 10px;
+  background: #fffcf6;
+  box-shadow: none;
+}
+.farm-journal .event-calendar-month {
+  font-size: 23px;
+  font-weight: 600;
+}
+.farm-journal .event-calendar-grid { gap: 5px; }
+.farm-journal .event-cal-weekday {
+  padding: 10px 0 5px;
+  color: #7c6f5b;
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+.farm-journal .event-cal-day {
+  min-height: 48px;
+  font-size: 13px;
+  font-weight: 700;
+  background: #f7f2e9;
+  border-radius: 6px;
+}
+.farm-journal .event-cal-day.is-empty { background: transparent; }
+.farm-journal .event-cal-day.is-today {
+  color: #fff;
+  background: #496b3f;
+  box-shadow: none;
+}
+.farm-journal .event-cal-dot { font-size: 11px; }
+.farm-journal .farm-map-card { padding: 8px; }
+.farm-journal .farm-map-svg { border: 0; box-shadow: none; }
+.inventory-intro {
+  margin: 0 0 4px;
+  color: #75664f;
+  font-size: 13px;
+}
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.inventory-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 12px;
+  padding: 15px;
+  background: #fffcf6;
+  border: 1px solid #ddd0bb;
+  border-radius: 9px;
+  font-size: 13px;
+  color: #544533;
+}
+.inventory-item strong {
+  grid-row: span 2;
+  align-self: center;
+  color: #3b5834;
+  font-family: var(--font-serif);
+  font-size: 26px;
+}
+.inventory-item small { color: #8b7c66; }
+.inventory-field { color: #75664f; font-size: 12px; }
+.field-status {
+  position: absolute;
+  z-index: 10;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 15px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(90vw, 620px);
+  margin: 0;
+  padding: 9px 13px;
+  border: 1px solid #a78b68;
+  border-radius: 10px;
+  background: rgba(255, 249, 235, .94);
+  box-shadow: var(--shadow-small);
+  color: #3f3527;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+}
+@media (max-width: 640px) {
+  .farm-journal .modal-header { padding: 15px 15px 10px; }
+  .farm-journal .modal-body { padding: 0 15px 15px; }
+  .farm-journal .event-calendar-card { padding: 10px; }
+  .farm-journal .event-cal-day { min-height: 36px; }
+  .farm-journal .modal-tabs { gap: 14px; }
+  .inventory-grid { grid-template-columns: 1fr; }
 }
 
 /* ==========================================================================

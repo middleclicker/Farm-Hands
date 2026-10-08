@@ -2,7 +2,7 @@
 // FARM HANDS KEY BINDINGS
 // --------------------------------------------------------------------------
 // A tiny shared store for every remappable action in the game. Both game.js
-// (camera movement, field planting) and calendar.js (menus, dev speed) read
+// (camera movement, field work) and calendar.js (menus, time speed) read
 // their shortcuts from here, so the Settings panel can rebind them live.
 //
 // Bindings are stored as KeyboardEvent.code values (physical keys) which keeps
@@ -27,20 +27,20 @@ export const KEYBIND_GROUPS = [
   },
   {
     id: 'field',
-    title: 'Field & planting',
-    description: 'Choose a soil plot and sow wheat.',
+    title: 'Field work',
+    description: 'Choose a soil plot and do its seasonal task.',
     actions: [
       { id: 'selectUp', label: 'Select plot above', slots: ['ArrowUp'] },
       { id: 'selectDown', label: 'Select plot below', slots: ['ArrowDown'] },
       { id: 'selectLeft', label: 'Select plot to the left', slots: ['ArrowLeft'] },
       { id: 'selectRight', label: 'Select plot to the right', slots: ['ArrowRight'] },
-      { id: 'plant', label: 'Plant wheat in the selected plot', slots: ['Enter', 'Space'] },
+      { id: 'plant', label: 'Work the selected plot', slots: ['Enter', 'Space'] },
     ],
   },
   {
     id: 'menus',
     title: 'Menus & time',
-    description: 'Open the calendar, the menu, and developer time controls.',
+    description: 'Open the journal and menu, or change game time speed.',
     actions: [
       { id: 'calendar', label: 'Open the farmhouse calendar', slots: ['KeyC', 'KeyH'] },
       { id: 'openMenu', label: 'Open this menu', slots: ['Escape'] },
