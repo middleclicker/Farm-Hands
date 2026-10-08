@@ -11,6 +11,7 @@ const tones = {
   brake: [230, 90, 0.15, 'triangle'], lab: [510, 760, 0.35, 'sine'],
   mail: [660, 990, 0.33, 'sine'], book: [280, 190, 0.2, 'triangle'],
   success: [520, 780, 0.28, 'sine'], error: [250, 180, 0.15, 'triangle'],
+  door: [180, 105, 0.22, 'triangle'], buy: [430, 710, 0.26, 'sine'],
 };
 export function playSound(name = 'click') {
   if (muted) return;

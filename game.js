@@ -4,10 +4,11 @@ import { advanceToMorning, getGameDate, setGamePaused } from './calendar.js?v=we
 import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=charlie-11';
 import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=town-7';
 import { soilSampleRoute, soilReportDue, soilReportForField, soilReportStatus, SOIL_LAB_COST, nextSoilSamplePoint, soilCoverageAt, soilCoveragePercent, SOIL_LAB_DAY_MS } from './soil-study.mjs?v=charlie-10';
-import { soilIssues, soilPlanOptions, soilPlanIngredients, soilQualityIndex, correctedSoilReport, grainYieldForPlan, SOIL_PLAN_NAMES, SOIL_MATERIALS } from './soil-plans.mjs?v=field-12';
+import { soilIssues, soilPlanOptions, soilPlanIngredients, soilQualityIndex, correctedSoilReport, grainYieldForPlan, SOIL_PLAN_NAMES, SOIL_MATERIALS } from './soil-plans.mjs?v=interiors-14';
 import { advanceCar, distanceToRoad } from './driving.mjs?v=weather-13';
-import { playSound, soundMuted, setSoundMuted } from './sound.js?v=weather-13';
+import { playSound, soundMuted, setSoundMuted } from './sound.js?v=interiors-14';
 import { weatherForDate, groundTooWet } from './weather.mjs?v=weather-13';
+import { createInteriors } from './interiors.mjs?v=interiors-14';
 // Importing the menu wires up the Escape menu (credits + keybind settings).
 import './menu.js?v=weather-13';
 
@@ -73,6 +74,11 @@ let lastFootstep = 0;
 let playerControlsJohn = false;
 const johnKeys = new Set();
 let johnWalking = false;
+let interiorMode = null;
+let bedStyle = null;
+const interiorKeys = new Set();
+let savedExteriorView = null;
+let selectedBedStyle = null;
 
 let renderer;
 try {
@@ -91,6 +97,9 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xa2d3e9);
 scene.fog = new THREE.Fog(0xa2d3e9, 28, 130);
+const interiors = createInteriors();
+const houseInteriorScene = interiors.home.scene;
+const furnitureInteriorScene = interiors.shop.scene;
 
 const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 700);
 camera.position.set(6.5, 8, 12.2);
@@ -106,6 +115,12 @@ controls.minPolarAngle = THREE.MathUtils.degToRad(25);
 controls.maxPolarAngle = THREE.MathUtils.degToRad(80);
 controls.rotateSpeed = 0.8;
 controls.update();
+const driveCameraOffset = new THREE.Vector3();
+let driveCameraReady = false;
+let applyingDriveCamera = false;
+controls.addEventListener('change', () => {
+  if (!applyingDriveCamera && driveCameraReady && carTrip) driveCameraOffset.copy(camera.position).sub(controls.target);
+});
 
 // ==========================================================================
 // CAMERA MEMORY
@@ -182,6 +197,7 @@ function applyCameraState(state) {
 
 function saveCameraState(force = false) {
   if (window.__farmHandsResetting) return;
+  if (interiorMode) return;
   if (!fieldBounds) return;
   if (!isCameraMemoryEnabled()) return;
   const snapshot = JSON.stringify(cameraStateSnapshot());
@@ -630,6 +646,7 @@ function refreshRanchTerrain() {
   for (let index = 0; index < ranchPositions.count; index += 1) ranchPositions.setY(index, groundHeight(ranchPositions.getX(index), ranchPositions.getZ(index)) + 0.035);
   ranchPositions.needsUpdate = true;
   ranchGeometry.computeVertexNormals();
+  refreshFieldLines();
 }
 const dirtMound = new THREE.Mesh(new THREE.ConeGeometry(0.72, 0.48, 9), new THREE.MeshStandardMaterial({ color: 0x98704b, roughness: 1 }));
 dirtMound.castShadow = true;
@@ -678,7 +695,7 @@ function dottedRectangle(bounds, color = 0xf5e2a7, step = 0.32) {
       for (const d of [distance, end]) {
         const x = ax + (bx - ax) * d / length;
         const z = az + (bz - az) * d / length;
-        points.push(new THREE.Vector3(x, groundHeight(x, z) + 0.12, z));
+        points.push(new THREE.Vector3(x, groundHeight(x, z) + 0.055, z));
       }
     }
   };
@@ -686,13 +703,22 @@ function dottedRectangle(bounds, color = 0xf5e2a7, step = 0.32) {
   edge(bounds.maxX, bounds.minZ, bounds.maxX, bounds.maxZ);
   edge(bounds.maxX, bounds.maxZ, bounds.minX, bounds.maxZ);
   edge(bounds.minX, bounds.maxZ, bounds.minX, bounds.minZ);
-  const line = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color, depthTest: false }));
+  const line = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color, depthTest: true }));
   scene.add(line);
   return line;
 }
 const ranchBorder = dottedRectangle(RANCH, 0xf3df9e, 0.4);
 let fieldBorder = null;
 let fieldGrid = null;
+function refreshFieldLines() {
+  for (const line of [ranchBorder, fieldBorder, fieldGrid]) {
+    if (!line) continue;
+    const positions = line.geometry.attributes.position;
+    for (let index = 0; index < positions.count; index += 1) positions.setY(index, groundHeight(positions.getX(index), positions.getZ(index)) + 0.055);
+    positions.needsUpdate = true;
+    line.geometry.computeBoundingSphere();
+  }
+}
 
 // A narrow dirt lane leaves the farmhouse and crosses the ranch boundary.
 const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x9a7950, roughness: 1, side: THREE.DoubleSide });
@@ -701,9 +727,11 @@ const roadCenter = (z) => z < 8 ? -5.8 : -5.8 - Math.min(4.6, (z - 8) * 0.38);
 const TOWN_HALL_X = roadCenter(TOWN_Z) + 4.8;
 const SCIENCE_X = roadCenter(TOWN_Z) - 5.2;
 const FARM_SHOP = { x: roadCenter(41) + 5.2, z: 41 };
+const FURNITURE_SHOP = { x: roadCenter(34) + 5.3, z: 34 };
 const CHARLIE_HOME = { x: roadCenter(31) - 4.5, z: 31 };
 const CHARLIE_LANE_Z = CHARLIE_HOME.z - 2.7;
 let shopHitbox;
+let furnitureHitbox;
 const roadVertices = [];
 for (let z = -3.85; z < TOWN_Z; z += 0.25) {
   const nextZ = Math.min(TOWN_Z, z + 0.25);
@@ -917,6 +945,36 @@ function addTown() {
   shopHitbox = new THREE.Mesh(new THREE.BoxGeometry(5.5,3.5,5),new THREE.MeshBasicMaterial({ visible:false }));
   shopHitbox.position.set(FARM_SHOP.x,shop.position.y + 1.65,FARM_SHOP.z);
   scene.add(shopHitbox);
+
+  const furniture = new THREE.Group();
+  furniture.position.set(FURNITURE_SHOP.x,groundHeight(FURNITURE_SHOP.x,FURNITURE_SHOP.z),FURNITURE_SHOP.z);
+  box(furniture,5.1,0.35,4.45,stone,0,0.11,0);
+  box(furniture,4.55,2.75,3.9,material(0xd0b48b),0,1.55,0);
+  for (const side of [-1,1]) {
+    box(furniture,0.2,2.75,0.2,timber,side*2.12,1.55,-1.95);
+    box(furniture,0.9,1.08,0.08,litGlass,side*1.35,1.65,-2.0);
+    box(furniture,0.08,1.13,0.11,trim,side*1.35,1.65,-2.09);
+  }
+  roofPanel(furniture,2.38,4.0,3.15,0x74513e);
+  box(furniture,1.13,1.81,0.15,timber,0,1.02,-2.01);
+  box(furniture,1.7,0.22,1.0,stone,0,0.13,-2.42);
+  const furnitureSign = townSign('FURNITURE',2.8); furnitureSign.position.set(0,2.55,-2.14); furniture.add(furnitureSign);
+  furniture.traverse((item) => { if (item.isMesh) item.castShadow = true; });
+  scene.add(furniture);
+  furnitureHitbox = new THREE.Mesh(new THREE.BoxGeometry(5.2,3.8,4.7),new THREE.MeshBasicMaterial({ visible:false }));
+  furnitureHitbox.position.set(FURNITURE_SHOP.x,furniture.position.y+1.7,FURNITURE_SHOP.z);
+  scene.add(furnitureHitbox);
+  const laneZ = FURNITURE_SHOP.z - 2.55;
+  const laneVertices = [];
+  for (let x = roadCenter(laneZ); x < FURNITURE_SHOP.x; x += 0.22) {
+    const end = Math.min(FURNITURE_SHOP.x,x+0.22);
+    const edge = (atX,side) => [atX,groundHeight(atX,laneZ+side*0.65)+0.075,laneZ+side*0.65];
+    laneVertices.push(...edge(x,-1),...edge(x,1),...edge(end,-1),...edge(x,1),...edge(end,1),...edge(end,-1));
+  }
+  const laneGeometry = new THREE.BufferGeometry();
+  laneGeometry.setAttribute('position',new THREE.Float32BufferAttribute(laneVertices,3));
+  laneGeometry.computeVertexNormals();
+  scene.add(new THREE.Mesh(laneGeometry,roadMaterial));
 }
 addTown();
 
@@ -1223,6 +1281,34 @@ box(johnShovel, 0.21, 0.28, 0.05, material(0x71766d, 0.8, 0.2), 0, -0.47, 0);
 johnShovel.position.set(0.49, 0.81, 0.04);
 johnShovel.visible = false;
 farmerJohn.add(johnShovel);
+const johnSpreader = new THREE.Group();
+johnSpreader.position.set(0,0,0.75);
+box(johnSpreader,0.68,0.34,0.62,material(0x718b58),0,0.52,0.18);
+box(johnSpreader,0.52,0.08,0.48,material(0xc4ae79),0,0.73,0.18);
+for (const side of [-1,1]) box(johnSpreader,0.07,0.06,0.9,material(0x5e4d39),side*0.28,0.91,-0.23);
+const spreaderWheels = [];
+for (const side of [-1,1]) {
+  const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.08,10),material(0x343a32));
+  wheel.rotation.z = Math.PI / 2; wheel.position.set(side*0.39,0.24,0.18); johnSpreader.add(wheel); spreaderWheels.push(wheel);
+}
+johnSpreader.visible = false;
+farmerJohn.add(johnSpreader);
+const johnTiller = new THREE.Group();
+johnTiller.position.set(0,0,0.78);
+box(johnTiller,0.74,0.4,0.76,material(0xa66b45),0,0.44,0.23);
+box(johnTiller,0.46,0.19,0.36,material(0x535d53),0,0.75,0.13);
+for (const side of [-1,1]) box(johnTiller,0.06,0.06,1.06,material(0x596151),side*0.25,0.85,-0.29);
+const tillerWheels = [];
+for (const side of [-1,1]) {
+  const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.1,10),material(0x363b34));
+  wheel.rotation.z = Math.PI / 2; wheel.position.set(side*0.42,0.24,0.27); johnTiller.add(wheel); tillerWheels.push(wheel);
+}
+const tillerTines = new THREE.Group();
+tillerTines.position.set(0,0.12,0.58);
+for (let index = 0; index < 4; index += 1) box(tillerTines,0.065,0.3,0.07,material(0x4b5148),(index-1.5)*0.15,0,0);
+johnTiller.add(tillerTines);
+johnTiller.visible = false;
+farmerJohn.add(johnTiller);
 const sampleBag = new THREE.Group();
 const sampleCue = document.querySelector('#sample-cue');
 const bagPlastic = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.29, 0.07), new THREE.MeshStandardMaterial({ color: 0xd3e1d4, transparent: true, opacity: 0.52, roughness: 0.18, side: THREE.DoubleSide }));
@@ -1302,6 +1388,12 @@ function updateFarmerJohn(now) {
     }
   }
   const working = Boolean(cleanupWork || activeWork.size || soilPlanWork);
+  const usingSpreader = inventory.spreader > 0 && (Boolean(soilPlanWork) || [...activeWork.values()].some((work) => work.action === 'fertilize'));
+  const usingTiller = inventory.tiller > 0 && [...activeWork.values()].some((work) => work.action === 'break_soil');
+  johnSpreader.visible = usingSpreader && !johnSleeping && !carTrip;
+  johnTiller.visible = usingTiller && !johnSleeping && !carTrip;
+  if (usingSpreader) spreaderWheels.forEach((wheel) => { wheel.rotation.x += 0.09; });
+  if (usingTiller) { tillerWheels.forEach((wheel) => { wheel.rotation.x += 0.15; }); tillerTines.rotation.x += 0.25; johnTiller.position.y = Math.sin(now*0.035)*0.025; }
   const stride = Math.sin(now * 0.013);
   johnLeftLeg.rotation.x = walking ? stride * 0.62 : 0;
   johnRightLeg.rotation.x = walking ? -stride * 0.62 : 0;
@@ -1734,8 +1826,8 @@ window.addEventListener('keydown', (event) => {
   if (!document.querySelector('#town-shop-modal')?.hidden && event.key === 'Escape') {
     event.preventDefault(); event.stopImmediatePropagation(); document.querySelector('#town-shop-modal').hidden = true; canvas.focus({ preventScroll: true });
   }
-  if (!document.querySelector('#house-interior')?.hidden && event.key === 'Escape') {
-    event.preventDefault(); event.stopImmediatePropagation(); document.querySelector('#house-interior').hidden = true; canvas.focus({ preventScroll: true });
+  if (interiorMode && event.key === 'Escape') {
+    event.preventDefault(); event.stopImmediatePropagation(); leaveInterior();
   }
 }, true);
 let touchDriveStart = null;
@@ -1900,7 +1992,8 @@ function drawDriveMap(pose) {
   const spur = [project(roadCenter(TOWN_Z - 3.4),TOWN_Z - 3.4),project(LAB_PARK.x,LAB_PARK.z)];
   const cottageLane = [project(roadCenter(CHARLIE_LANE_Z),CHARLIE_LANE_Z),project(CHARLIE_HOME.x,CHARLIE_LANE_Z)];
   const shopLane = [project(roadCenter(FARM_SHOP.z-2.7),FARM_SHOP.z-2.7),project(FARM_SHOP.x,FARM_SHOP.z-2.7)];
-  for (const points of [roadPoints,driveway,spur,cottageLane,shopLane]) { strokePath(points,10,'#bca47e'); strokePath(points,6,'#efe4c9'); }
+  const furnitureLane = [project(roadCenter(FURNITURE_SHOP.z-2.55),FURNITURE_SHOP.z-2.55),project(FURNITURE_SHOP.x,FURNITURE_SHOP.z-2.55)];
+  for (const points of [roadPoints,driveway,spur,cottageLane,shopLane,furnitureLane]) { strokePath(points,10,'#bca47e'); strokePath(points,6,'#efe4c9'); }
   const route = roadRoute(pose,carTrip?.direction).map((point) => project(point.x,point.z));
   if (route.length) strokePath(route,3,'#3389be');
   const building = (x,z,color,label) => {
@@ -1914,6 +2007,7 @@ function drawDriveMap(pose) {
   building(TOWN_HALL_X,TOWN_Z,'#ba9a69','TOWN HALL');
   building(SCIENCE_X,TOWN_Z,'#5b8789','SCIENCE');
   building(FARM_SHOP.x,FARM_SHOP.z,'#a2784c','SHOP');
+  building(FURNITURE_SHOP.x,FURNITURE_SHOP.z,'#b69068','BEDS');
   building(CHARLIE_HOME.x,CHARLIE_HOME.z,'#ad8060','CHARLIE');
   const destination = carTrip?.direction === 'free' ? null : carTrip?.direction === 'back' ? PARKED_CAR : LAB_PARK;
   if (destination) {
@@ -1931,7 +2025,7 @@ function drawDriveMap(pose) {
 
 function updateDriving(now, deltaSeconds) {
   if (!carTrip && !['driving-out', 'driving-back'].includes(soilStudy.phase)) return;
-  if (pauseMenuIsOpen() || !mailboxModal.hidden || !charlieModal.hidden || !cropBook.hidden || !document.querySelector('#town-shop-modal').hidden || !document.querySelector('#house-interior').hidden || document.querySelector('#farmhouse-modal')?.hidden === false) return;
+  if (interiorMode || pauseMenuIsOpen() || !mailboxModal.hidden || !charlieModal.hidden || !cropBook.hidden || !document.querySelector('#town-shop-modal').hidden || document.querySelector('#farmhouse-modal')?.hidden === false) return;
   if (!carTrip) {
     const direction = soilStudy.phase === 'driving-out' ? 'out' : 'back';
     const initial = direction === 'out' ? PARKED_CAR : LAB_PARK;
@@ -1940,7 +2034,8 @@ function updateDriving(now, deltaSeconds) {
   const held = (key) => driveKeys.has(key) || touchDriveKeys.has(key);
   const cottageRoadDistance = (x,z) => Math.hypot(Math.max(CHARLIE_HOME.x-x,0,x-roadCenter(CHARLIE_LANE_Z)),z-CHARLIE_LANE_Z);
   const shopRoadDistance = (x,z) => Math.hypot(Math.max(roadCenter(FARM_SHOP.z-2.7)-x,0,x-FARM_SHOP.x),z-(FARM_SHOP.z-2.7));
-  const onRoad = Math.min(distanceToRoad(carTrip.x,carTrip.z,roadCenter,TOWN_Z,PARKED_CAR),cottageRoadDistance(carTrip.x,carTrip.z),shopRoadDistance(carTrip.x,carTrip.z)) < 1.1;
+  const furnitureRoadDistance = (x,z) => Math.hypot(Math.max(roadCenter(FURNITURE_SHOP.z-2.55)-x,0,x-FURNITURE_SHOP.x),z-(FURNITURE_SHOP.z-2.55));
+  const onRoad = Math.min(distanceToRoad(carTrip.x,carTrip.z,roadCenter,TOWN_Z,PARKED_CAR),cottageRoadDistance(carTrip.x,carTrip.z),shopRoadDistance(carTrip.x,carTrip.z),furnitureRoadDistance(carTrip.x,carTrip.z)) < 1.1;
   const previous = carTrip;
   let next = advanceCar(carTrip,{ gas: held('gas'), brake: held('brake'), left: held('left'), right: held('right') },deltaSeconds,onRoad);
   next.x = THREE.MathUtils.clamp(next.x,-43,18);
@@ -1948,6 +2043,7 @@ function updateDriving(now, deltaSeconds) {
   const insideBuilding = (x,z) => (Math.abs(x-TOWN_HALL_X)<3.65 && Math.abs(z-TOWN_Z)<2.9)
     || (Math.abs(x-SCIENCE_X)<2.55 && Math.abs(z-TOWN_Z)<2.5)
     || (Math.abs(x-FARM_SHOP.x)<2.6 && Math.abs(z-FARM_SHOP.z)<2.3)
+    || (Math.abs(x-FURNITURE_SHOP.x)<2.7 && Math.abs(z-FURNITURE_SHOP.z)<2.5)
     || (Math.abs(x-CHARLIE_HOME.x)<2.5 && Math.abs(z-CHARLIE_HOME.z)<2.4)
     || (x > -9.2 && x < -2.4 && z > -7.75 && z < -3.85);
   if (insideBuilding(next.x,next.z)) { next = { ...previous, speed: 0, steer: next.steer }; if (Math.abs(previous.speed) > 0.8) playSound('brake'); }
@@ -1958,20 +2054,25 @@ function updateDriving(now, deltaSeconds) {
   for (const wheel of carFrontWheels) wheel.rotation.y = next.steer * 0.55;
   for (const wheel of carWheelMeshes) wheel.rotation.x += next.speed * deltaSeconds / 0.17;
   const target = new THREE.Vector3(next.x,groundHeight(next.x,next.z)+0.9,next.z);
-  const behind = new THREE.Vector3(-Math.sin(next.heading)*7,5.1,-Math.cos(next.heading)*7);
+  if (!driveCameraReady) {
+    driveCameraOffset.set(-Math.sin(next.heading)*7,5.1,-Math.cos(next.heading)*7);
+    driveCameraReady = true;
+  }
+  applyingDriveCamera = true;
   controls.target.lerp(target,0.1);
-  camera.position.lerp(target.clone().add(behind),0.1);
+  camera.position.lerp(controls.target.clone().add(driveCameraOffset),0.1);
   controls.update();
+  applyingDriveCamera = false;
   const destination = next.direction === 'free' ? null : next.direction === 'out' ? LAB_PARK : PARKED_CAR;
   const remaining = destination ? Math.hypot(destination.x-next.x,destination.z-next.z) : Infinity;
-  const roadDistance = Math.min(distanceToRoad(next.x,next.z,roadCenter,TOWN_Z,PARKED_CAR),cottageRoadDistance(next.x,next.z),shopRoadDistance(next.x,next.z));
+  const roadDistance = Math.min(distanceToRoad(next.x,next.z,roadCenter,TOWN_Z,PARKED_CAR),cottageRoadDistance(next.x,next.z),shopRoadDistance(next.x,next.z),furnitureRoadDistance(next.x,next.z));
   document.querySelector('#drive-distance').textContent = destination ? `${Math.ceil(driveRouteDistance(next,next.direction)*12)} m` : 'Free drive';
   document.querySelector('#drive-speed').textContent = `${Math.round(Math.abs(next.speed)*2.2)} mph`;
   document.querySelector('#drive-direction').textContent = next.direction === 'free' ? (roadDistance > 2 ? 'Explore the countryside' : 'Follow Willow Creek Road') : remaining < 2.2 ? 'Stop at the marker' : roadDistance > 2 ? 'Return to the road' : next.direction === 'out' ? (next.z > TOWN_Z-7 ? 'Turn left to the science center' : 'Follow road to town') : (next.z < 1 ? 'Park beside farmhouse' : next.z > TOWN_Z-6 ? (next.x < roadCenter(TOWN_Z)-1.2 ? 'Return to main road' : 'Turn toward farmhouse') : 'Follow road home');
   drawDriveMap(next);
   if (held('gas') && now - lastEngineNote > 540) { playSound('engine'); lastEngineNote = now; }
   if (destination && remaining < 2.2 && Math.abs(next.speed) < 1.4) {
-    driveKeys.clear(); touchDriveKeys.clear(); carTrip = null;
+    driveKeys.clear(); touchDriveKeys.clear(); carTrip = null; driveCameraReady = false;
     soilStudy.carPose.speed = 0; soilStudy.carPose.steer = 0;
     if (next.direction === 'out') { soilStudy.phase = 'lab-arrived'; status.textContent = 'Parked at the science center. Send the sample to the lab.'; }
     else {
@@ -2357,7 +2458,7 @@ function conformPlotSoil(mesh, x, z, scaleX, scaleZ) {
     const offset = i * 3;
     const worldX = x + original[offset] * scaleX;
     const worldZ = z + original[offset + 2] * scaleZ;
-    positions.setY(i, groundHeight(worldX, worldZ) + (original[offset + 1] > 0 ? 0.09 : -0.055));
+    positions.setY(i, groundHeight(worldX, worldZ) + (original[offset + 1] > 0 ? 0.048 : -0.11));
   }
   positions.needsUpdate = true;
   mesh.geometry.computeVertexNormals();
@@ -2582,13 +2683,13 @@ function placeField(bounds, savedCleanup = null) {
       for (const distance of [d, end]) {
         const x = ax + (bx - ax) * distance / length;
         const z = az + (bz - az) * distance / length;
-        gridPoints.push(new THREE.Vector3(x, groundHeight(x, z) + 0.13, z));
+        gridPoints.push(new THREE.Vector3(x, groundHeight(x, z) + 0.055, z));
       }
     }
   };
   for (let col = 1; col < COLUMNS; col += 1) dashed(bounds.minX + width * col / COLUMNS, bounds.minZ, bounds.minX + width * col / COLUMNS, bounds.maxZ);
   for (let row = 1; row < ROWS; row += 1) dashed(bounds.minX, bounds.minZ + depth * row / ROWS, bounds.maxX, bounds.minZ + depth * row / ROWS);
-  fieldGrid = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(gridPoints), new THREE.LineBasicMaterial({ color: 0xe2cf9c, depthTest: false }));
+  fieldGrid = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(gridPoints), new THREE.LineBasicMaterial({ color: 0xe2cf9c, depthTest: true }));
   scene.add(fieldGrid);
   for (let index = 0; index < MAX_GRID * MAX_GRID; index += 1) {
     plotMeshes[index].visible = false;
@@ -2643,7 +2744,7 @@ function fieldAreaIssue(bounds) {
 }
 
 function render() {
-  renderer.render(scene, camera);
+  renderer.render(interiorMode === 'house' ? houseInteriorScene : interiorMode === 'furniture' ? furnitureInteriorScene : scene, camera);
 }
 
 // ==========================================================================
@@ -2669,7 +2770,7 @@ const weatherSettings = {
     sky: 0xabc8ce,
     ambient: 2.1,
     sun: 2.0,
-    rain: 1600,
+    rain: 600,
     speed: 9,
     opacity: 0.45,
     length: 0.32,
@@ -2680,7 +2781,7 @@ const weatherSettings = {
     sky: 0x85a2ad,
     ambient: 1.7,
     sun: 1.2,
-    rain: 3000,
+    rain: 1100,
     speed: 13,
     opacity: 0.56,
     length: 0.44,
@@ -2691,7 +2792,7 @@ const weatherSettings = {
     sky: 0x667f8f,
     ambient: 1.3,
     sun: 0.7,
-    rain: 5000,
+    rain: 1800,
     speed: 18,
     opacity: 0.68,
     length: 0.58,
@@ -2700,13 +2801,12 @@ const weatherSettings = {
 };
 
 const MAX_RAIN_DROPS = weatherSettings.heavy.rain;
-const RAIN_SPAN = 28;
 let rainSeed = 9247;
 const randomRain = () => ((rainSeed = (rainSeed * 1664525 + 1013904223) >>> 0) / 4294967296);
 const rainDrops = Array.from({ length: MAX_RAIN_DROPS }, () => ({
-  x: controls.target.x + (randomRain() - 0.5) * RAIN_SPAN,
-  y: randomRain() * 20,
-  z: controls.target.z + (randomRain() - 0.5) * RAIN_SPAN,
+  u: randomRain(),
+  y: randomRain() * 24,
+  v: randomRain(),
 }));
 const rainPositions = new Float32Array(MAX_RAIN_DROPS * 6);
 const rainGeometry = new THREE.BufferGeometry();
@@ -2732,23 +2832,29 @@ let currentWeatherName = 'sunny';
 let lastTickTime = performance.now();
 
 function updateRain(deltaSeconds = 0) {
+  // Keep the rain volume around the visible frustum, including zoomed-out views.
+  // Positions are seeded in normalized space so changing the span never creates
+  // a small square of rain around the old camera target.
+  const distance = camera.position.distanceTo(controls.target);
+  const span = Math.max(36, Math.min(110, distance * 1.8));
+  const spanX = span * Math.max(1, camera.aspect);
+  const centerX = (camera.position.x + controls.target.x) / 2;
+  const centerZ = (camera.position.z + controls.target.z) / 2;
   for (let index = 0; index < currentWeather.rain; index += 1) {
     const drop = rainDrops[index];
-    if (drop.x - controls.target.x > RAIN_SPAN / 2) drop.x -= RAIN_SPAN;
-    else if (controls.target.x - drop.x > RAIN_SPAN / 2) drop.x += RAIN_SPAN;
-    if (drop.z - controls.target.z > RAIN_SPAN / 2) drop.z -= RAIN_SPAN;
-    else if (controls.target.z - drop.z > RAIN_SPAN / 2) drop.z += RAIN_SPAN;
+    const x = centerX + (drop.u - 0.5) * spanX;
+    const z = centerZ + (drop.v - 0.5) * span;
     drop.y -= currentWeather.speed * deltaSeconds;
-    if (drop.y < groundHeight(drop.x, drop.z) + currentWeather.length) {
-      drop.y = 18 + randomRain() * 2;
+    if (drop.y < groundHeight(x, z) + currentWeather.length) {
+      drop.y = Math.max(22,camera.position.y + 6) + randomRain() * 5;
     }
     const offset = index * 6;
-    rainPositions[offset] = drop.x;
+    rainPositions[offset] = x;
     rainPositions[offset + 1] = drop.y;
-    rainPositions[offset + 2] = drop.z;
-    rainPositions[offset + 3] = drop.x - currentWeather.length * 0.22;
+    rainPositions[offset + 2] = z;
+    rainPositions[offset + 3] = x - currentWeather.length * 0.22;
     rainPositions[offset + 4] = drop.y - currentWeather.length;
-    rainPositions[offset + 5] = drop.z;
+    rainPositions[offset + 5] = z;
   }
   rainPositionAttribute.needsUpdate = true;
 }
@@ -2758,6 +2864,8 @@ function setWeather(name) {
   currentWeather = weatherSettings[name] || weatherSettings.sunny;
   // Sky, fog, and light intensities are driven by updateDaylight().
   rain.visible = currentWeather.rain > 0;
+  // Rain needs many transparent lines; lower the GPU pixel load only while wet.
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1,rain.visible ? 1.5 : 2));
   rainGeometry.setDrawRange(0, currentWeather.rain * 2);
   rainMaterial.opacity = currentWeather.opacity;
   if (rain.visible) updateRain();
@@ -2789,7 +2897,7 @@ const STORAGE_FARM_KEY = 'farm-hands-seasonal-farm-v3';
 function saveGameProgress() {
   if (window.__farmHandsResetting) return;
   try {
-    localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ layoutVersion: 7, fieldBounds, cleanup, terrainEdits, plotStates, plotCare, inventory, coins, energy, soilStudy, johnPosition: { x: farmerJohn.position.x, z: farmerJohn.position.z, facing: farmerJohn.rotation.y }, johnSleeping, sleepMorningAt, pendingJobs }));
+    localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ layoutVersion: 8, fieldBounds, cleanup, terrainEdits, plotStates, plotCare, inventory, coins, energy, bedStyle, soilStudy, johnPosition: { x: farmerJohn.position.x, z: farmerJohn.position.z, facing: farmerJohn.rotation.y }, johnSleeping, sleepMorningAt, pendingJobs }));
   } catch {
     // Storage unavailable (e.g. private browsing); the game keeps running.
   }
@@ -2867,6 +2975,7 @@ function restoreGameProgress() {
         if (Number.isInteger(value) && value >= 0) inventory[key] = value;
       }
       if (Number.isInteger(saved?.coins) && saved.coins >= 0) coins = saved.coins;
+      if (saved?.bedStyle === 'pine' || saved?.bedStyle === 'oak') bedStyle = saved.bedStyle;
       if (Number.isFinite(saved?.energy)) energy = THREE.MathUtils.clamp(saved.energy, 0, 100);
       const savedJohn = saved?.johnPosition;
       if (savedJohn && Number.isFinite(savedJohn.x) && Number.isFinite(savedJohn.z) && Math.abs(savedJohn.x) < 100 && Math.abs(savedJohn.z) < 100) {
@@ -2909,6 +3018,7 @@ function restoreGameProgress() {
   refreshStatus();
   updateFieldLedger();
   updateInventory();
+  updateHomeFurnishings();
   updateCoins();
   updateEnergy();
   refreshSoilStudyHud();
@@ -2928,9 +3038,9 @@ const daylightKeyframes = [
   { hour:  5,   sky: 0x101a2d, fog: 0x101a2d, fogFar: 54,  ambient: 0.12, sunColor: 0x99aabb, sunIntensity: 0.05, sunPos: [-8,  0,  7] },
   { hour:  6,   sky: 0x5e4a5e, fog: 0x5e4a5e, fogFar: 75,  ambient: 0.85, sunColor: 0xffb87a, sunIntensity: 0.9,  sunPos: [-9,  2,  7] },
   { hour:  7,   sky: 0xe8a87a, fog: 0xdaa07a, fogFar: 90,  ambient: 1.4,  sunColor: 0xffc88e, sunIntensity: 1.8,  sunPos: [-8,  5,  7] },
-  { hour:  8.5, sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 150, ambient: 2.4,  sunColor: 0xfff1cd, sunIntensity: 3.2,  sunPos: [-5, 11,  7] },
-  { hour: 12,   sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 150, ambient: 2.4,  sunColor: 0xfff8e0, sunIntensity: 3.4,  sunPos: [ 0, 14,  2] },
-  { hour: 16,   sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 150, ambient: 2.3,  sunColor: 0xfff1cd, sunIntensity: 3.0,  sunPos: [ 5, 11, -5] },
+  { hour:  8.5, sky: 0xaecfc9, fog: 0xaecfc9, fogFar: 150, ambient: 1.8,  sunColor: 0xffedcf, sunIntensity: 2.4,  sunPos: [-5, 11,  7] },
+  { hour: 12,   sky: 0xaecfc9, fog: 0xaecfc9, fogFar: 150, ambient: 1.85, sunColor: 0xfff1d8, sunIntensity: 2.5,  sunPos: [ 0, 14,  2] },
+  { hour: 16,   sky: 0xaecfc9, fog: 0xaecfc9, fogFar: 150, ambient: 1.75, sunColor: 0xffedcf, sunIntensity: 2.3,  sunPos: [ 5, 11, -5] },
   { hour: 18,   sky: 0xe8a87a, fog: 0xdaa07a, fogFar: 90,  ambient: 1.4,  sunColor: 0xffad6e, sunIntensity: 1.6,  sunPos: [ 8,  4, -7] },
   { hour: 19.5, sky: 0x6e4a5e, fog: 0x6e4a5e, fogFar: 75,  ambient: 0.7,  sunColor: 0xe08855, sunIntensity: 0.5,  sunPos: [ 9,  1, -7] },
   { hour: 20.5, sky: 0x101a2d, fog: 0x101a2d, fogFar: 54,  ambient: 0.12, sunColor: 0x8899bb, sunIntensity: 0.05, sunPos: [ 8, -1, -7] },
@@ -3062,7 +3172,7 @@ function desiredMoveDirection() {
 }
 
 function updateCameraMovement(deltaSeconds) {
-  if (playerControlsJohn || carTrip || ['driving-out','driving-back'].includes(soilStudy.phase)) { moveVelocity.set(0,0,0); return false; }
+  if (interiorMode || playerControlsJohn || carTrip || ['driving-out','driving-back'].includes(soilStudy.phase)) { moveVelocity.set(0,0,0); return false; }
   const targetVelocity = desiredMoveDirection().multiplyScalar(MOVE_SPEED);
   const blend = 1 - Math.exp(-MOVE_DAMPING * deltaSeconds);
   moveVelocity.lerp(targetVelocity, blend);
@@ -3096,7 +3206,7 @@ document.querySelector('#stop-john-control')?.addEventListener('click', () => se
 
 function updatePlayerJohn(deltaSeconds) {
   johnWalking = false;
-  if (!playerControlsJohn || johnSleeping || carTrip || pauseMenuIsOpen() || !mailboxModal.hidden || !cropBook.hidden || !charlieModal.hidden || !document.querySelector('#town-shop-modal').hidden || !document.querySelector('#house-interior').hidden) return;
+  if (!playerControlsJohn || interiorMode || johnSleeping || carTrip || pauseMenuIsOpen() || !mailboxModal.hidden || !cropBook.hidden || !charlieModal.hidden || !document.querySelector('#town-shop-modal').hidden) return;
   const sideways = Number(johnKeys.has('d') || johnKeys.has('ArrowRight')) - Number(johnKeys.has('a') || johnKeys.has('ArrowLeft'));
   const forward = Number(johnKeys.has('w') || johnKeys.has('ArrowUp')) - Number(johnKeys.has('s') || johnKeys.has('ArrowDown'));
   if (!sideways && !forward || energy <= 0) return;
@@ -3124,7 +3234,7 @@ function updateCameraMemory(deltaSeconds) {
   cameraSaveCooldown += deltaSeconds;
   if (cameraSaveCooldown < 0.6) return;
   cameraSaveCooldown = 0;
-  saveCameraState();
+  if (!interiorMode) saveCameraState();
   if (johnTravel || carTrip) saveGameProgress();
 }
 
@@ -3132,11 +3242,39 @@ function updateCameraMemory(deltaSeconds) {
 let lastCropDay = '';
 let lastMapDraw = 0;
 let lastLabHudDraw = 0;
+let lastChecklistDraw = 0;
+let lastChecklistMarkup = '';
+function updatePlantingChecklist() {
+  const hud = document.querySelector('#planting-checklist');
+  if (!hud) return;
+  hud.hidden = !fieldBounds;
+  if (!fieldBounds) return;
+  const usable = plotStates.slice(0,PLOT_COUNT).filter((_,index) => !blockedPlots.has(index));
+  const allPlanted = usable.length > 0 && usable.every((state) => state === PLOT_STATE.PLANTED);
+  const date = getGameDate();
+  const month = date.getUTCMonth();
+  const steps = [
+    ['Remove the field stones',cleanup?.rocks?.every((id) => cleanup.removed?.includes(id)) ?? false],
+    ['Level the high and low ground',cleanupReady()],
+    ['Collect soil samples',soilStudy.sampleIndex >= 5],
+    ['Read the lab report',Boolean(soilStudy.mailRead)],
+    [soilStudy.plan && soilStudy.plan !== 'as_is' ? 'Apply Charlie’s soil correction' : 'Choose a soil plan',soilStudy.plan === 'as_is' || Boolean(soilStudy.planApplied)],
+    ['Turn under the grass',usable.every((state) => state !== PLOT_STATE.WEEDY)],
+    ['Buy a walk-behind tiller',inventory.tiller > 0 || allPlanted],
+    ['Make a seedbed',usable.every((state) => [PLOT_STATE.CULTIVATED,PLOT_STATE.PLANTED].includes(state))],
+    ['Get winter wheat seed',inventory.seed > 0 || allPlanted],
+    ['Sow in September–October',allPlanted],
+  ];
+  const next = steps.findIndex(([,done]) => !done);
+  const markup = steps.map(([label,done],index) => `<li class="${done ? 'is-done' : index === next ? 'is-next' : ''}">${label}${index === 9 && !done && month < 8 ? ' · opens 1 September' : ''}</li>`).join('');
+  if (markup !== lastChecklistMarkup) { document.querySelector('#planting-checklist-items').innerHTML = markup; lastChecklistMarkup = markup; }
+}
 function animateScene(now) {
   const deltaSeconds = Math.min((now - lastTickTime) / 1000, 0.06);
   lastTickTime = now;
 
-  updateHomeTransition(now);
+  if (!interiorMode) updateHomeTransition(now);
+  else updateInteriorMovement(deltaSeconds,now);
   updateNightRoutine(now, getGameDate(), deltaSeconds);
   updatePlayerJohn(deltaSeconds);
   updateFarmerJohn(now);
@@ -3151,6 +3289,7 @@ function animateScene(now) {
   positionMailboxAlert();
   positionPlotActionMenu();
   updateDaylight();
+  if (now - lastChecklistDraw > 850) { lastChecklistDraw = now; updatePlantingChecklist(); }
   const gameDay = getGameDate().toISOString().slice(0, 10);
   if (gameDay !== lastCropDay) {
     lastCropDay = gameDay;
@@ -3159,10 +3298,8 @@ function animateScene(now) {
     refreshStatus();
   }
   if (!reducedMotion.matches) updateChimneySmoke(deltaSeconds);
-  if (rain.visible && !reducedMotion.matches) updateRain(deltaSeconds);
-  if (updateCameraMovement(deltaSeconds)) {
-    if (rain.visible) updateRain(0);
-  }
+  updateCameraMovement(deltaSeconds);
+  if (rain.visible && !reducedMotion.matches && !interiorMode) updateRain(deltaSeconds);
   updateCameraMemory(deltaSeconds);
   if (!document.querySelector('#farmhouse-modal')?.hidden && !document.querySelector('#tab-map-panel')?.hidden && now - lastMapDraw > 150) {
     lastMapDraw = now;
@@ -3261,6 +3398,13 @@ let cameraStateRestored = false;
 function resize() {
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
+  if (interiorMode) {
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width,height,false);
+    render();
+    return;
+  }
   if (!width || !height) return;
   const aspect = width / height;
   const fit = Math.max(13, 12.2 / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect));
@@ -3674,8 +3818,8 @@ function pickTarget(event) {
 
   // Interactive objects take priority; the ground is the fallback destination.
   const targets = fieldBounds && !cleanupReady()
-    ? [johnHitbox, mailboxHitbox, carHitbox, shopHitbox, houseHitbox, ...cleanup.rocks.filter((id) => !cleanup.removed.includes(id)).map((id) => cleanupRocks[id]), ...cleanupPatches]
-    : fieldBounds ? [johnHitbox, mailboxHitbox, carHitbox, shopHitbox, houseHitbox, ...plotMeshes.slice(0, PLOT_COUNT)] : [johnHitbox, mailboxHitbox, carHitbox, shopHitbox, houseHitbox];
+    ? [johnHitbox, mailboxHitbox, carHitbox, shopHitbox, furnitureHitbox, houseHitbox, ...cleanup.rocks.filter((id) => !cleanup.removed.includes(id)).map((id) => cleanupRocks[id]), ...cleanupPatches]
+    : fieldBounds ? [johnHitbox, mailboxHitbox, carHitbox, shopHitbox, furnitureHitbox, houseHitbox, ...plotMeshes.slice(0, PLOT_COUNT)] : [johnHitbox, mailboxHitbox, carHitbox, shopHitbox, furnitureHitbox, houseHitbox];
   const hits = raycaster.intersectObjects(targets, false);
   if (!hits.length) {
     const ground = raycaster.intersectObject(ranchGround, false)[0]
@@ -3688,6 +3832,7 @@ function pickTarget(event) {
   if (first === carHitbox) return { type: 'car' };
   if (first === johnHitbox) return { type: 'john' };
   if (first === shopHitbox) return { type: 'shop' };
+  if (first === furnitureHitbox) return { type: 'furniture' };
   if (first.userData.isFarmhouse) {
     return { type: 'farmhouse' };
   }
@@ -3966,7 +4111,7 @@ function applyPlotVisual(index) {
   const usable = ready && !blockedPlots.has(index);
   if (plotMeshes[index]) {
     plotMeshes[index].visible = ready;
-    plotMeshes[index].castShadow = usable && state !== PLOT_STATE.WEEDY;
+    plotMeshes[index].castShadow = false;
   }
   if (ridgeGroups[index]) ridgeGroups[index].visible = usable && (state === PLOT_STATE.CULTIVATED || state === PLOT_STATE.PLANTED);
   if (weedGroups[index]) weedGroups[index].visible = usable && state === PLOT_STATE.WEEDY;
@@ -4209,6 +4354,7 @@ canvas.addEventListener('pointercancel', () => {
 });
 
 canvas.addEventListener('click', (event) => {
+  if (interiorMode) return;
   if (carTrip) return;
   if (suppressClick) {
     suppressClick = false;
@@ -4229,6 +4375,15 @@ canvas.addEventListener('click', (event) => {
     if (Math.hypot(farmerJohn.position.x-FARM_SHOP.x,farmerJohn.position.z-FARM_SHOP.z) > 5.2) { status.textContent = 'Bring John to the town farm shop to buy supplies.'; return; }
     document.querySelector('#town-shop-modal').hidden = false;
     document.querySelector('#town-shop-close')?.focus({ preventScroll: true });
+    return;
+  }
+
+  if (target.type === 'furniture') {
+    if (Math.hypot(farmerJohn.position.x-FURNITURE_SHOP.x,farmerJohn.position.z-FURNITURE_SHOP.z) > 5.5) {
+      status.textContent = 'Bring John to the furniture shop in town to look at beds.';
+      return;
+    }
+    enterInterior('furniture');
     return;
   }
 
@@ -4267,6 +4422,7 @@ canvas.addEventListener('click', (event) => {
 });
 
 canvas.addEventListener('contextmenu', (event) => {
+  if (interiorMode) { event.preventDefault(); return; }
   const target = pickTarget(event);
   if (!['car','farmhouse'].includes(target?.type)) return;
   event.preventDefault();
@@ -4278,11 +4434,117 @@ canvas.addEventListener('contextmenu', (event) => {
 });
 
 function openHouseInterior() {
-  document.querySelector('#house-interior').hidden = false;
-  document.querySelector('#house-interior-journal')?.focus({ preventScroll: true });
+  enterInterior('house');
 }
-document.querySelector('#house-interior-exit')?.addEventListener('click', () => { document.querySelector('#house-interior').hidden = true; canvas.focus({ preventScroll: true }); });
-document.querySelector('#house-interior-journal')?.addEventListener('click', () => { document.querySelector('#house-interior').hidden = true; updateFieldLedger(); window.FarmCalendar?.openFarmhouseMenu?.(); });
+function updateHomeFurnishings() {
+  interiors.mattress.visible = !bedStyle;
+  interiors.homeBed.group.visible = bedStyle === 'pine';
+  interiors.homeOakBed.group.visible = bedStyle === 'oak';
+}
+function enterInterior(mode) {
+  if (interiorMode || carTrip) return;
+  savedExteriorView = { position:camera.position.clone(), target:controls.target.clone(), min:controls.minDistance, max:controls.maxDistance };
+  interiorMode = mode;
+  canvas.setAttribute('aria-label', mode === 'house' ? "Inside John's walkable farmhouse. Use WASD to walk and drag to look around." : 'Inside the walkable furniture shop. Use WASD to walk and click a bed to see its price.');
+  interiors.avatar.position.set(0,0,1.8);
+  (mode === 'house' ? houseInteriorScene : furnitureInteriorScene).add(interiors.avatar);
+  updateHomeFurnishings();
+  controls.minDistance = 2.8;
+  controls.maxDistance = 11;
+  controls.target.set(0,1.1,0.3);
+  camera.position.set(4.3,3.6,7.1);
+  controls.update();
+  document.querySelector('.farm').classList.add('is-interior');
+  document.querySelector('#interior-hud').hidden = false;
+  document.querySelector('#interior-title').textContent = mode === 'house' ? "John's farmhouse" : 'Willow Creek Furniture';
+  document.querySelector('#interior-hint').textContent = mode === 'house' ? 'WASD to walk · drag to look around · click the door to leave' : 'WASD to walk · click a bed to see its price';
+  document.querySelector('#interior-journal').hidden = mode !== 'house';
+  document.querySelector('#interior-bed-choice').hidden = true;
+  selectedBedStyle = null;
+  setGamePaused(true);
+  canvas.focus({ preventScroll:true });
+  playSound('door');
+}
+function leaveInterior() {
+  if (!interiorMode) return;
+  interiorMode = null;
+  updateCanvasLabel();
+  interiorKeys.clear();
+  document.querySelector('.farm').classList.remove('is-interior');
+  document.querySelector('#interior-hud').hidden = true;
+  if (savedExteriorView) {
+    controls.minDistance = savedExteriorView.min;
+    controls.maxDistance = savedExteriorView.max;
+    controls.target.copy(savedExteriorView.target);
+    camera.position.copy(savedExteriorView.position);
+    controls.update();
+  }
+  savedExteriorView = null;
+  if (fieldBounds && !johnSleeping) setGamePaused(false);
+  canvas.focus({ preventScroll:true });
+  playSound('door');
+}
+function updateInteriorMovement(deltaSeconds,now) {
+  if (!interiorMode || pauseMenuIsOpen() || document.querySelector('#farmhouse-modal')?.hidden === false) return;
+  const sideways = Number(interiorKeys.has('d') || interiorKeys.has('ArrowRight')) - Number(interiorKeys.has('a') || interiorKeys.has('ArrowLeft'));
+  const forward = Number(interiorKeys.has('w') || interiorKeys.has('ArrowUp')) - Number(interiorKeys.has('s') || interiorKeys.has('ArrowDown'));
+  if (!sideways && !forward) return;
+  camera.getWorldDirection(moveForward); moveForward.y = 0; moveForward.normalize();
+  moveRight.crossVectors(moveForward,camera.up).normalize();
+  const motion = moveForward.clone().multiplyScalar(forward).addScaledVector(moveRight,sideways).normalize().multiplyScalar(Math.min(deltaSeconds,0.06)*2.6);
+  const avatar = interiors.avatar;
+  const limitX = interiorMode === 'house' ? 3.05 : 3.8;
+  const limitZ = interiorMode === 'house' ? 2.65 : 3.3;
+  const x = THREE.MathUtils.clamp(avatar.position.x+motion.x,-limitX,limitX);
+  const z = THREE.MathUtils.clamp(avatar.position.z+motion.z,-limitZ,limitZ);
+  camera.position.x += x-avatar.position.x; camera.position.z += z-avatar.position.z;
+  controls.target.x += x-avatar.position.x; controls.target.z += z-avatar.position.z;
+  avatar.position.x = x; avatar.position.z = z;
+  avatar.position.y = Math.abs(Math.sin(now*0.014))*0.035;
+  avatar.rotation.y = Math.atan2(motion.x,motion.z);
+  controls.update();
+}
+function interiorPick(event) {
+  const bounds = canvas.getBoundingClientRect();
+  pointer.set((event.clientX-bounds.left)/bounds.width*2-1,-(event.clientY-bounds.top)/bounds.height*2+1);
+  raycaster.setFromCamera(pointer,camera);
+  const targets = interiorMode === 'house' ? [interiors.home.door] : [interiors.shop.door,interiors.pineDisplay.hitbox,interiors.oakDisplay.hitbox];
+  return raycaster.intersectObjects(targets,false)[0]?.object ?? null;
+}
+canvas.addEventListener('pointermove',(event) => {
+  if (!interiorMode) return;
+  event.stopImmediatePropagation();
+  canvas.style.cursor = interiorPick(event) ? 'pointer' : 'grab';
+},true);
+canvas.addEventListener('click',(event) => {
+  if (!interiorMode) return;
+  event.stopImmediatePropagation();
+  const item = interiorPick(event);
+  if (item?.userData.interiorDoor) { leaveInterior(); return; }
+  if (!item?.userData.bedStyle) return;
+  selectedBedStyle = item.userData.bedStyle;
+  const price = selectedBedStyle === 'pine' ? 30 : 45;
+  document.querySelector('#interior-bed-choice').hidden = false;
+  document.querySelector('#interior-bed-name').textContent = `${selectedBedStyle === 'pine' ? 'Pine' : 'Oak'} bed · ${price} coins`;
+  const buy = document.querySelector('#interior-bed-buy');
+  buy.textContent = bedStyle ? 'Bed already owned' : `Buy · ${price} coins`;
+  buy.disabled = Boolean(bedStyle) || coins < price;
+  playSound('click');
+},true);
+document.querySelector('#interior-bed-buy')?.addEventListener('click',() => {
+  if (!selectedBedStyle || bedStyle) return;
+  const price = selectedBedStyle === 'pine' ? 30 : 45;
+  if (coins < price) return;
+  coins -= price;
+  bedStyle = selectedBedStyle;
+  updateHomeFurnishings(); updateCoins(); saveGameProgress();
+  document.querySelector('#interior-bed-buy').textContent = 'Bed purchased';
+  document.querySelector('#interior-bed-buy').disabled = true;
+  status.textContent = `John's new ${bedStyle} bed is set up at the farmhouse.`;
+  playSound('buy');
+});
+document.querySelector('#interior-exit')?.addEventListener('click', leaveInterior);
+document.querySelector('#interior-journal')?.addEventListener('click', () => { updateFieldLedger(); window.FarmCalendar?.openFarmhouseMenu?.(); });
 document.querySelector('#town-shop-close')?.addEventListener('click', () => { document.querySelector('#town-shop-modal').hidden = true; canvas.focus({ preventScroll: true }); });
 
 canvas.addEventListener('focus', () => {
@@ -4297,6 +4559,7 @@ canvas.addEventListener('blur', () => {
 });
 
 canvas.addEventListener('keydown', (event) => {
+  if (interiorMode) return;
   if (playerControlsJohn) return;
   if (['driving-out','driving-back'].includes(soilStudy.phase)) return;
   if (pauseMenuIsOpen() || !fieldBounds || !cleanupReady()) return;
@@ -4317,6 +4580,10 @@ window.addEventListener('keydown', (event) => {
   if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
   if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable]')) return;
   if (pauseMenuIsOpen()) return;
+  if (interiorMode) {
+    if (['w','a','s','d','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.key)) { event.preventDefault(); interiorKeys.add(event.key); }
+    return;
+  }
   if (playerControlsJohn) {
     if (['w','a','s','d','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.key)) { event.preventDefault(); johnKeys.add(event.key); return; }
   }
@@ -4334,6 +4601,7 @@ window.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('keyup', (event) => {
+  interiorKeys.delete(event.key);
   johnKeys.delete(event.key);
   const drive = { w:'gas', ArrowUp:'gas', s:'brake', ArrowDown:'brake', a:'left', ArrowLeft:'left', d:'right', ArrowRight:'right' }[event.key];
   if (drive) driveKeys.delete(drive);
@@ -4343,7 +4611,7 @@ window.addEventListener('keyup', (event) => {
 });
 
 // Clear held keys if the window loses focus so the camera never keeps drifting.
-window.addEventListener('blur', () => { heldKeys.clear(); johnKeys.clear(); });
+window.addEventListener('blur', () => { heldKeys.clear(); johnKeys.clear(); interiorKeys.clear(); });
 
 // Re-render the on-screen/assistive hints whenever keys are rebound, and stop
 // the camera if a rebind happens while a movement key is still held down.
@@ -4414,10 +4682,13 @@ function updateFarmMap() {
   ctx.lineTo(sx(CHARLIE_HOME.x), sy(CHARLIE_LANE_Z));
   ctx.moveTo(sx(roadCenter(FARM_SHOP.z-2.7)),sy(FARM_SHOP.z-2.7));
   ctx.lineTo(sx(FARM_SHOP.x),sy(FARM_SHOP.z-2.7));
+  ctx.moveTo(sx(roadCenter(FURNITURE_SHOP.z-2.55)),sy(FURNITURE_SHOP.z-2.55));
+  ctx.lineTo(sx(FURNITURE_SHOP.x),sy(FURNITURE_SHOP.z-2.55));
   ctx.stroke();
   square(TOWN_HALL_X, TOWN_Z, Math.max(12, mapView.zoom * 3), '#bcb08f');
   square(SCIENCE_X, TOWN_Z, Math.max(12, mapView.zoom * 3), '#587b83');
   square(FARM_SHOP.x, FARM_SHOP.z, Math.max(11,mapView.zoom*2.6), '#a2784c');
+  square(FURNITURE_SHOP.x, FURNITURE_SHOP.z, Math.max(11,mapView.zoom*2.6), '#ae875e');
   square(CHARLIE_HOME.x, CHARLIE_HOME.z, Math.max(11, mapView.zoom * 2.6), '#b6906a');
   square(car.position.x, car.position.z, 7, '#985b43');
   for (const [x, z] of PINE_POSITIONS) {
@@ -4466,6 +4737,7 @@ function updateFarmMap() {
   ctx.fillText('TOWN', sx(TOWN_HALL_X) - 14, sy(TOWN_Z) + 18);
   ctx.fillText('SCIENCE', sx(SCIENCE_X) - 18, sy(TOWN_Z) + 18);
   ctx.fillText('SHOP', sx(FARM_SHOP.x)-12, sy(FARM_SHOP.z)+17);
+  ctx.fillText('BEDS', sx(FURNITURE_SHOP.x)-12, sy(FURNITURE_SHOP.z)+17);
   ctx.fillText('CHARLIE', sx(CHARLIE_HOME.x) - 18, sy(CHARLIE_HOME.z) + 17);
   if (soilStudy.phase === 'mail-ready') { square(MAILBOX_X, MAILBOX_Z, 6, '#f5d36b'); ctx.fillText('MAIL', sx(MAILBOX_X) + 5, sy(MAILBOX_Z) - 4); }
   ctx.strokeStyle = '#594c2d'; ctx.lineWidth = 3; ctx.strokeRect(1.5, 1.5, width - 3, height - 3);

@@ -51,7 +51,10 @@ export function soilQualityIndex(report, plan = 'as_is', applied = false) {
     const gap = metric.value < metric.idealMin ? metric.idealMin - metric.value : metric.value - metric.idealMax;
     return total + Math.max(15, 85 - 110 * gap / span);
   }, 0) / results.length;
-  return Math.round(score);
+  // Hand-applied amendments improve the measured nutrients, but do not make
+  // the whole field as uniform as a precision-machined correction would.
+  const handWorkCeiling = applied && plan === 'full' ? 90 : applied && plan === 'targeted' ? 86 : 100;
+  return Math.min(Math.round(score), handWorkCeiling);
 }
 
 export function soilPlanOptions(report) {

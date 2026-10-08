@@ -13,6 +13,7 @@ test('Charlie explains low and high readings and plans have distinct costs and o
   assert.equal(soilPlanIngredients(report,'as_is').length,0);
   assert.ok(soilQualityIndex(report,'as_is',false) < soilQualityIndex(report,'targeted',true));
   assert.ok(soilQualityIndex(report,'targeted',true) < soilQualityIndex(report,'full',true));
+  assert.equal(soilQualityIndex(report,'full',true),90);
   assert.equal(correctedSoilReport(report,'targeted').ph,6);
   assert.equal(correctedSoilReport(report,'targeted').potassium,185);
   assert.equal(correctedSoilReport(report,'full').potassium,125);
