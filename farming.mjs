@@ -33,7 +33,7 @@ export function allowedAction(date, state, care = {}) {
 
 export function phaseMessage(date) {
   switch (farmPhase(date)) {
-    case 'ripening': return 'Clear, test, and cultivate empty plots. Established grain is filling; harvest begins July 20.';
+    case 'ripening': return 'Summer is for harvest and preparing ground for autumn drilling.';
     case 'harvest-prep': return 'Harvest ripe wheat, then clear, test, and cultivate the next seedbed.';
     case 'drilling': return 'Drill winter wheat into cultivated plots by October 10.';
     case 'establishing': return 'Wheat is germinating. Tend each planted plot for weeds, slugs, and pests.';

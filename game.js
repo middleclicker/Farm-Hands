@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { getGameDate, setGamePaused } from './calendar.js?v=farmer-john-1';
-import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=farmer-john-1';
-import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=farmer-john-1';
+import { getGameDate, setGamePaused } from './calendar.js?v=farmer-john-2';
+import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=farmer-john-2';
+import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=farmer-john-2';
 // Importing the menu wires up the Escape menu (credits + keybind settings).
-import './menu.js?v=farmer-john-1';
+import './menu.js?v=farmer-john-2';
 
 const COLUMNS = 3;
 const ROWS = 3;
@@ -2079,7 +2079,7 @@ function applyPlotVisual(index) {
 }
 
 function refreshStatus() {
-  status.textContent = fieldBounds ? phaseMessage(getGameDate()) : 'Help Farmer John choose a place for the first field.';
+  status.textContent = fieldBounds ? '' : 'Help Farmer John choose a place for the first field.';
 }
 
 function clearWeeds(index) {

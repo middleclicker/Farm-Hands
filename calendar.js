@@ -1,5 +1,5 @@
-import { eventMatches } from './keybinds.js?v=farmer-john-1';
-import { farmPhase, phaseMessage } from './farming.mjs?v=farmer-john-1';
+import { eventMatches } from './keybinds.js?v=farmer-john-2';
+import { farmPhase, phaseMessage } from './farming.mjs?v=farmer-john-2';
 
 const DEFAULT_SPEED = 120;
 const SPEED_LEVELS = [120, 300, 1000, 10000];

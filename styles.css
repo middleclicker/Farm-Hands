@@ -1351,6 +1351,7 @@ html, body {
   text-align: center;
   pointer-events: none;
 }
+.field-status:empty { display: none; }
 @media (max-width: 640px) {
   .farm-journal .modal-header { padding: 15px 15px 10px; }
   .farm-journal .modal-body { padding: 0 15px 15px; }
