@@ -768,6 +768,9 @@ function restoreGameProgress() {
     weatherSelect.value = savedWeather;
   }
   setWeather(weatherSelect.value);
+  status.textContent = plantedPlots.size === PLOT_COUNT
+    ? 'Every plot has wheat planted.'
+    : 'Choose a soil plot to plant wheat, or click the farmhouse to open the calendar.';
   updatePlantedCountLedger();
 }
 
