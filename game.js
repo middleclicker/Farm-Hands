@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { getGameDate } from './calendar.js?v=cozy-farm-winter-wheat-3';
-import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=cozy-farm-winter-wheat-3';
+import { getGameDate } from './calendar.js?v=cozy-farm-winter-wheat-4';
+import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=cozy-farm-winter-wheat-4';
 // Importing the menu wires up the Escape menu (credits + keybind settings).
-import './menu.js?v=cozy-farm-winter-wheat-3';
+import './menu.js?v=cozy-farm-winter-wheat-4';
 
 const COLUMNS = 3;
 const ROWS = 3;
