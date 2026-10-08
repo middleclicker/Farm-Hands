@@ -1,6 +1,6 @@
 # Farm Hands
 
-A small, singleplayer 3D farm about helping Farmer John grow winter wheat. A fresh game opens on July 1 of Year 1 with only a farmhouse, no field, and an empty inventory. John introduces himself, then the player draws a rectangular site for a field of fixed-size crop cells from a gridded, elevated view. Existing saves keep their field and progress.
+A small, singleplayer 3D farm about helping Farmer John grow winter wheat. A fresh game opens on July 1 of Year 1 with a farmhouse, a car, a road to town, no field, and an empty inventory. John introduces himself, then the player draws a rectangular site for a field of fixed-size crop cells from a gridded, elevated view. Existing saves keep their field and progress.
 
 ## Play
 
