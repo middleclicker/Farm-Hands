@@ -4,7 +4,7 @@ import { advanceToMorning, getGameDate, setGamePaused } from './calendar.js?v=ch
 import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=charlie-11';
 import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=town-7';
 import { soilSampleRoute, soilReportDue, soilReportForField, soilReportStatus, SOIL_LAB_COST, nextSoilSamplePoint, soilCoverageAt, soilCoveragePercent, SOIL_LAB_DAY_MS } from './soil-study.mjs?v=charlie-10';
-import { soilIssues, soilPlanOptions, correctedSoilReport, grainYieldForPlan, SOIL_PLAN_NAMES } from './soil-plans.mjs?v=charlie-11';
+import { soilIssues, soilPlanOptions, soilPlanIngredients, soilQualityIndex, correctedSoilReport, grainYieldForPlan, SOIL_PLAN_NAMES, SOIL_MATERIALS } from './soil-plans.mjs?v=field-12';
 import { advanceCar, distanceToRoad } from './driving.mjs?v=charlie-10';
 import { playSound, soundMuted, setSoundMuted } from './sound.js?v=soil-8';
 // Importing the menu wires up the Escape menu (credits + keybind settings).
@@ -32,7 +32,7 @@ const PLOT_STATE = Object.freeze({
 });
 const plotStates = new Array(MAX_GRID * MAX_GRID).fill(PLOT_STATE.WEEDY);
 const plotCare = Array.from({ length: MAX_GRID * MAX_GRID }, () => ({}));
-const inventory = { seed: 0, fertiliser: 0, treatment: 0, grain: 0, straw: 0 };
+const inventory = { seed: 0, fertiliser: 0, treatment: 0, grain: 0, straw: 0, lime: 0, sulphur: 0, phosphate: 0, potash: 0, magnesium: 0, conditioner: 0 };
 let coins = 100;
 let energy = 100;
 const mapView = { centerX: 0, centerZ: 0, zoom: 8 };
@@ -42,6 +42,7 @@ const shopSupplies = [
   { key: 'seed', label: 'Winter wheat seed', unit: 'bags', price: 4 },
   { key: 'fertiliser', label: 'Spring fertiliser', unit: 'bags', price: 3 },
   { key: 'treatment', label: 'Crop treatment', unit: 'applications', price: 3 },
+  ...SOIL_MATERIALS,
 ];
 const sellableGoods = [
   { key: 'grain', label: 'Stored grain', unit: 'sacks', price: 5 },
@@ -57,7 +58,7 @@ const cleanupPatches = [];
 const blockedPlots = new Set();
 let temporaryTerrainEdit = null;
 let lastTerrainRefresh = 0;
-let soilStudy = { phase: 'not-started', points: [], sampleIndex: 0, submittedAt: null, report: null, reportDate: null, mailRead: false, bookOpened: false, guideMailReady: false, plan: null, planApplied: false, charlieStage: 'home', charlieProgress: 0, freeDriving: false, carProgress: 0, carPose: null };
+let soilStudy = { phase: 'not-started', points: [], sampleIndex: 0, submittedAt: null, report: null, reportDate: null, mailRead: false, bookOpened: false, guideMailReady: false, plan: null, planStarted: false, planApplied: false, charlieStage: 'home', charlieProgress: 0, freeDriving: false, carProgress: 0, carPose: null };
 let carTrip = null;
 let soilPlanWork = null;
 const driveKeys = new Set();
@@ -692,6 +693,7 @@ const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x9a7950, roughness
 const TOWN_Z = 52;
 const roadCenter = (z) => z < 8 ? -5.8 : -5.8 - Math.min(4.6, (z - 8) * 0.38);
 const CHARLIE_HOME = { x: roadCenter(31) + 4.5, z: 31 };
+const CHARLIE_LANE_Z = CHARLIE_HOME.z - 2.7;
 const roadVertices = [];
 for (let z = -3.85; z < TOWN_Z; z += 0.25) {
   const nextZ = Math.min(TOWN_Z, z + 0.25);
@@ -817,6 +819,19 @@ function addTown() {
   spur.receiveShadow = true;
   scene.add(spur);
   box(scene, 0.95, 0.42, 0.82, stone, centerX + 3.2, groundHeight(centerX + 3.2, spurZ) + 0.1, spurZ + 1.27);
+
+  const cottageLaneVertices = [];
+  for (let x = roadCenter(CHARLIE_LANE_Z); x < CHARLIE_HOME.x; x += 0.2) {
+    const nextX = Math.min(CHARLIE_HOME.x,x + 0.2);
+    const laneEdge = (atX,side) => [atX,groundHeight(atX,CHARLIE_LANE_Z + side * 0.65) + 0.075,CHARLIE_LANE_Z + side * 0.65];
+    cottageLaneVertices.push(...laneEdge(x,-1),...laneEdge(x,1),...laneEdge(nextX,-1),...laneEdge(x,1),...laneEdge(nextX,1),...laneEdge(nextX,-1));
+  }
+  const cottageLaneGeometry = new THREE.BufferGeometry();
+  cottageLaneGeometry.setAttribute('position',new THREE.Float32BufferAttribute(cottageLaneVertices,3));
+  cottageLaneGeometry.computeVertexNormals();
+  const cottageLane = new THREE.Mesh(cottageLaneGeometry,roadMaterial);
+  cottageLane.receiveShadow = true;
+  scene.add(cottageLane);
 
   const cottage = new THREE.Group();
   cottage.position.set(CHARLIE_HOME.x,groundHeight(CHARLIE_HOME.x,CHARLIE_HOME.z),CHARLIE_HOME.z);
@@ -1173,8 +1188,14 @@ function updateFarmerJohn(now) {
   const walking = Boolean(johnTravel);
   if (walking && now - lastFootstep > 480) { playSound('work'); lastFootstep = now; }
   if (johnTravel) {
+    const previousX = farmerJohn.position.x, previousZ = farmerJohn.position.z;
     const t = THREE.MathUtils.clamp((now - johnTravel.started) / johnTravel.duration, 0, 1);
     farmerJohn.position.lerpVectors(johnTravel.from, johnTravel.to, t);
+    if (!johnSleeping) {
+      const before = Math.floor(energy);
+      energy = Math.max(0,energy - Math.hypot(farmerJohn.position.x-previousX,farmerJohn.position.z-previousZ) * 0.38);
+      if (Math.floor(energy) !== before) updateEnergy();
+    }
     farmerJohn.rotation.y = Math.atan2(johnTravel.to.x - johnTravel.from.x, johnTravel.to.z - johnTravel.from.z);
     if (t >= 1) {
       if (johnTravel.reason === 'summoned') status.textContent = 'Farmer John reached the spot you chose.';
@@ -1182,7 +1203,9 @@ function updateFarmerJohn(now) {
         scoopUntil = now + 1550;
         playSound('scoop');
       }
+      const boardFreeCar = johnTravel.reason === 'board-free-car';
       johnTravel = null;
+      if (boardFreeCar) startFreeDrive();
       saveGameProgress();
     }
   }
@@ -1227,8 +1250,9 @@ const drivePhone = document.querySelector('#drive-phone');
 const driveMap = document.querySelector('#drive-map');
 const mailboxModal = document.querySelector('#mailbox-modal');
 const mailAlert = document.querySelector('#mail-alert');
+const mailboxWorldAlert = document.querySelector('#mailbox-world-alert');
 const charlieModal = document.querySelector('#charlie-modal');
-const carToggle = document.querySelector('#car-toggle');
+const carToggle = document.querySelector('#leave-car');
 const soilPlanHud = document.querySelector('#soil-plan-hud');
 const soundToggle = document.querySelector('#sound-toggle');
 if (soundToggle) { soundToggle.checked = !soundMuted(); soundToggle.addEventListener('change', () => { setSoundMuted(!soundToggle.checked); if (soundToggle.checked) playSound('success'); }); }
@@ -1254,7 +1278,17 @@ function refreshSoilPlanHud() {
   soilPlanHud.hidden = !soilStudy.plan;
   if (!soilStudy.plan) return;
   document.querySelector('#soil-plan-name').textContent = SOIL_PLAN_NAMES[soilStudy.plan] || 'Soil plan';
-  document.querySelector('#soil-plan-progress').textContent = soilStudy.planApplied ? 'Ready for field preparation' : 'John is applying soil amendments';
+  const ingredients = soilPlanIngredients(soilStudy.report, soilStudy.plan);
+  const missing = ingredients.filter((item) => inventory[item.key] < item.quantity);
+  document.querySelector('#soil-plan-ingredients').innerHTML = ingredients.length
+    ? ingredients.map((item) => `<span class="${inventory[item.key] < item.quantity && !soilStudy.planStarted ? 'is-missing' : ''}">${item.label}<b>${soilStudy.planStarted || soilStudy.planApplied ? 'used' : `${inventory[item.key]}/${item.quantity}`}</b></span>`).join('')
+    : '<span>No amendments needed.</span>';
+  document.querySelector('#soil-plan-ingredients').classList.add('soil-plan-ingredients');
+  document.querySelector('#soil-plan-progress').textContent = soilStudy.planApplied ? 'Ready for field preparation' : soilStudy.planStarted ? 'John is applying amendments' : missing.length ? 'Buy the missing materials in the shop.' : 'Materials ready. Start when you choose.';
+  document.querySelector('#soil-plan-shop').hidden = soilStudy.planStarted || soilStudy.planApplied || !missing.length;
+  document.querySelector('#soil-plan-start').hidden = soilStudy.planStarted || soilStudy.planApplied;
+  document.querySelector('#soil-plan-start').disabled = Boolean(missing.length);
+  document.querySelector('#soil-plan-start').textContent = soilStudy.plan === 'as_is' ? 'Start field preparation' : 'Start correction';
 }
 
 function soilReportTableHtml() {
@@ -1264,17 +1298,40 @@ function soilReportTableHtml() {
 }
 
 let charlieDialogueDismissed = false;
+let charlieLineIndex = 0;
+let charlieLines = [];
 function showCharliePlans() {
   if (soilStudy.charlieStage !== 'review' || !soilStudy.report) return;
   charlieDialogueDismissed = false;
   const issues = soilIssues(soilStudy.report);
-  document.querySelector('#charlie-issues').textContent = issues.length
-    ? `I read the lab sheet. ${issues.join('; ')}. As your farm accountant, I've priced three ways to handle this before John prepares the seedbed.`
-    : 'The lab sheet looks healthy for winter wheat. As your farm accountant, I can still price a longer-lasting soil improvement.';
-  document.querySelector('#charlie-plans').innerHTML = soilPlanOptions(soilStudy.report).map((plan) => `<button class="charlie-plan" type="button" data-plan="${plan.id}" ${!plan.workable || coins < plan.cost ? 'disabled' : ''}><strong>${plan.name}</strong><span>${plan.description}</span><small>${plan.cost} coins · ${plan.duration ? `${Math.ceil(plan.duration / 1000)}s work` : 'Start now'}${!plan.workable ? ' · field still outside workable limits' : coins < plan.cost ? ' · need more coins' : ''}</small></button>`).join('');
+  charlieLines = [
+    'I came over as soon as I heard you had the lab report. Let me take a look.',
+    issues.length ? `Here's what stands out: ${issues.join('; ')}.` : 'These readings look sound for winter wheat.',
+    'I keep the farm accounts. We can use this soil as it is, fix the low readings, or do the full set of corrections. Each choice needs different supplies.',
+  ];
+  charlieLineIndex = 0;
+  document.querySelector('#charlie-issues').textContent = charlieLines[0];
+  document.querySelector('#charlie-plans').hidden = true;
+  document.querySelector('#charlie-next').hidden = false;
+  document.querySelector('#charlie-plans').innerHTML = soilPlanOptions(soilStudy.report).map((plan) => `<button class="charlie-plan" type="button" data-plan="${plan.id}" ${!plan.workable ? 'disabled' : ''}><strong>${plan.name}</strong><span>${plan.description}</span><small>${plan.cost} coins in supplies · ${plan.duration ? `${Math.ceil(plan.duration / 1000)}s work` : 'No amendment work'}${!plan.workable ? ' · outside workable limits' : ''}</small></button>`).join('');
   charlieModal.hidden = false;
-  charlieModal.querySelector('.charlie-plan:not([disabled])')?.focus({ preventScroll: true });
+  charlie.rotation.y = Math.atan2(farmerJohn.position.x-charlie.position.x,farmerJohn.position.z-charlie.position.z);
+  transitionCamera(new THREE.Vector3(-4.6,groundHeight(-4.6,-3.2)+1,-3.2),new THREE.Vector3(1.8,5.2,5.5));
+  document.querySelector('#charlie-next')?.focus({ preventScroll: true });
 }
+
+document.querySelector('#charlie-next')?.addEventListener('click', () => {
+  charlieLineIndex += 1;
+  if (charlieLineIndex < charlieLines.length) {
+    document.querySelector('#charlie-issues').textContent = charlieLines[charlieLineIndex];
+    playSound('book');
+    return;
+  }
+  document.querySelector('#charlie-issues').textContent = 'Which approach should we take? I will write down the supplies John needs.';
+  document.querySelector('#charlie-plans').hidden = false;
+  document.querySelector('#charlie-next').hidden = true;
+  charlieModal.querySelector('.charlie-plan:not([disabled])')?.focus({ preventScroll: true });
+});
 
 function charlieRoute(progress) {
   const points = [
@@ -1322,7 +1379,8 @@ function updateCharlie(now,deltaSeconds) {
 }
 
 function updateSoilPlanWork() {
-  if (!soilStudy.plan || soilStudy.planApplied || !fieldBounds) return;
+  if (!soilStudy.plan || !soilStudy.planStarted || soilStudy.planApplied || !fieldBounds) return;
+  if (johnSleeping || carTrip) return;
   const plan = soilPlanOptions(soilStudy.report).find((entry) => entry.id === soilStudy.plan);
   if (!plan) return;
   const centerX = (fieldBounds.minX + fieldBounds.maxX) / 2;
@@ -1330,7 +1388,8 @@ function updateSoilPlanWork() {
   if (!soilStudy.planEndsAt) {
     if (johnSleeping || johnTravel || cleanupWork || activeWork.size) return;
     sendJohnToPoint(centerX,centerZ,2600,'soil-amendment');
-    soilStudy.planEndsAt = Date.now() + plan.duration;
+    soilStudy.planEndsAt = Date.now() + (soilStudy.planRemainingMs ?? plan.duration);
+    soilStudy.planRemainingMs = null;
     soilPlanWork = { plan: plan.id };
     status.textContent = `John is applying the ${plan.name.toLowerCase()} across the field.`;
     saveGameProgress();
@@ -1340,6 +1399,7 @@ function updateSoilPlanWork() {
   if (remaining) return;
   soilStudy.planApplied = true;
   soilStudy.planEndsAt = null;
+  soilStudy.planRemainingMs = null;
   soilPlanWork = null;
   energy = Math.max(0,energy - (soilStudy.plan === 'full' ? 14 : 8));
   updateEnergy();
@@ -1353,18 +1413,35 @@ charlieModal?.addEventListener('click', (event) => {
   const button = event.target.closest('[data-plan]');
   if (!button || button.disabled || soilStudy.charlieStage !== 'review') return;
   const plan = soilPlanOptions(soilStudy.report).find((entry) => entry.id === button.dataset.plan);
-  if (!plan || !plan.workable || coins < plan.cost) return;
-  coins -= plan.cost;
-  updateCoins();
+  if (!plan || !plan.workable) return;
   soilStudy.plan = plan.id;
-  soilStudy.planApplied = plan.duration === 0;
+  soilStudy.planStarted = false;
+  soilStudy.planApplied = false;
   soilStudy.planEndsAt = null;
+  soilStudy.planRemainingMs = null;
   soilStudy.charlieStage = 'leaving';
   soilStudy.charlieProgress = 1;
   charlieModal.hidden = true;
-  status.textContent = plan.duration ? `Charlie is heading home. John will apply the ${plan.name.toLowerCase()} for ${plan.cost} coins.` : 'Charlie is heading home. Turn under the grass to begin preparing the field.';
+  status.textContent = `${plan.name} chosen. Gather the listed supplies, then start the plan from the HUD.`;
   playSound('success');
   refreshSoilStudyHud(); saveGameProgress();
+});
+
+document.querySelector('#soil-plan-shop')?.addEventListener('click', () => {
+  window.FarmCalendar?.openFarmhouseMenu?.();
+  document.querySelector('#tab-shop')?.click();
+});
+document.querySelector('#soil-plan-start')?.addEventListener('click', () => {
+  if (!soilStudy.plan || soilStudy.planStarted || soilStudy.planApplied) return;
+  const plan = soilPlanOptions(soilStudy.report).find((entry) => entry.id === soilStudy.plan);
+  const ingredients = soilPlanIngredients(soilStudy.report, soilStudy.plan);
+  if (!plan || ingredients.some((item) => inventory[item.key] < item.quantity)) return;
+  for (const item of ingredients) inventory[item.key] -= item.quantity;
+  soilStudy.planStarted = true;
+  if (!plan.duration) soilStudy.planApplied = true;
+  status.textContent = plan.duration ? `John has the materials. He is starting the ${plan.name.toLowerCase()}.` : 'Plant as-is chosen. Turn under the grass to prepare the field.';
+  playSound('work');
+  updateInventory(); refreshSoilStudyHud(); saveGameProgress();
 });
 
 function refreshSoilStudyHud() {
@@ -1373,9 +1450,9 @@ function refreshSoilStudyHud() {
   updateCleanupHUD();
   refreshSoilPlanHud();
   mailAlert.hidden = !soilStudy.guideMailReady && soilStudy.phase !== 'mail-ready';
-  carToggle.textContent = carTrip?.direction === 'free' || soilStudy.freeDriving ? 'Leave car' : 'Drive car';
-  carToggle.setAttribute('aria-label',carTrip?.direction === 'free' || soilStudy.freeDriving ? 'Leave car' : 'Get in car');
-  carToggle.disabled = ['driving-out','driving-back'].includes(soilStudy.phase);
+  mailboxWorldAlert.hidden = mailAlert.hidden;
+  mailboxFlag.rotation.z = !mailAlert.hidden ? -0.65 : 0;
+  carToggle.hidden = carTrip?.direction !== 'free' && !soilStudy.freeDriving;
   drivePhone.hidden = !carTrip && !['driving-out', 'driving-back'].includes(soilStudy.phase);
   soilJourneyHud.hidden = !fieldBounds || !cleanupReady() || (soilStudy.phase === 'received' && !soilWorkBlocked() && soilStudy.charlieStage !== 'arriving' && soilStudy.charlieStage !== 'review');
   if (soilJourneyHud.hidden) return;
@@ -1391,9 +1468,9 @@ function refreshSoilStudyHud() {
     'driving-back': 'Drive home. The lab is already testing the soil.',
     processing: soilStudy.guideMailReady ? 'Charlie has mailed a winter wheat guide. Read it while the lab works.' : 'The science center is testing the soil. Results arrive by mail after one game day.',
     'mail-ready': 'The soil report has arrived. Read it in the farmhouse mailbox.',
-    received: soilStudy.charlieStage === 'arriving' ? 'Charlie is walking over to explain the soil report.' : soilStudy.charlieStage === 'review' ? 'Charlie is here to discuss a soil plan.' : 'A reading is outside the workable range. Choose a correction with Charlie.',
+    received: soilStudy.charlieStage === 'arriving' ? 'Charlie is walking over to explain the soil report.' : soilStudy.charlieStage === 'review' ? 'Charlie is here to discuss a soil plan.' : soilStudy.plan ? soilStudy.planApplied ? 'The soil plan is complete. Prepare the field when the season allows.' : soilStudy.planStarted ? 'John is applying the chosen soil correction.' : 'Gather the listed supplies, then start the soil plan.' : 'A reading is outside the workable range. Choose a correction with Charlie.',
   };
-  soilJourneyTitle.textContent = phase === 'received' ? 'Charlie is visiting' : phase === 'mail-ready' || soilStudy.guideMailReady ? 'You have mail' : 'Soil study';
+  soilJourneyTitle.textContent = phase === 'received' ? soilStudy.charlieStage === 'arriving' || soilStudy.charlieStage === 'review' ? 'Charlie is visiting' : 'Soil plan' : phase === 'mail-ready' || soilStudy.guideMailReady ? 'You have mail' : 'Soil study';
   soilJourneyStatus.textContent = messages[phase] ?? 'Preparing to collect soil samples.';
   const actions = { 'not-started': 'Plan sample points', planning: 'Begin sampling', 'lab-arrived': `Send sample · ${SOIL_LAB_COST} coins`, 'ready-to-return': 'Drive home', processing: soilStudy.guideMailReady ? 'Open mailbox' : null, 'mail-ready': 'Open mailbox', received: soilStudy.charlieStage === 'review' ? 'Speak with Charlie' : null };
   soilJourneyAction.hidden = !actions[phase];
@@ -1415,7 +1492,17 @@ function refreshSoilStudyHud() {
     document.querySelector('#lab-progress-label').textContent = `Science center test · ${progress}%`;
     document.querySelector('#lab-progress-fill').style.width = `${progress}%`;
   }
-  mailboxFlag.rotation.z = phase === 'mail-ready' ? -0.65 : 0;
+}
+
+function positionMailboxAlert() {
+  if (mailboxWorldAlert.hidden) return;
+  const projected = new THREE.Vector3(MAILBOX_X,groundHeight(MAILBOX_X,MAILBOX_Z)+1.65,MAILBOX_Z).project(camera);
+  const rect = canvas.getBoundingClientRect();
+  const visible = projected.z < 1 && projected.x > -1 && projected.x < 1 && projected.y > -1 && projected.y < 1;
+  mailboxWorldAlert.style.visibility = visible ? 'visible' : 'hidden';
+  if (!visible) return;
+  mailboxWorldAlert.style.left = `${(projected.x + 1) * rect.width / 2}px`;
+  mailboxWorldAlert.style.top = `${(1 - projected.y) * rect.height / 2}px`;
 }
 
 function showCropBook() {
@@ -1613,6 +1700,23 @@ function carRoutePoint(progress) {
   return { x: roadCenter(TOWN_Z) + 3.2 * branch, z: TOWN_Z - 3.4, turn: true };
 }
 
+function roadRoute(pose,direction) {
+  if (direction === 'free') return [];
+  const endZ = direction === 'out' ? TOWN_Z - 3.4 : -1.8;
+  const startZ = THREE.MathUtils.clamp(pose.z,-1.8,TOWN_Z - 3.4);
+  const route = [{ x:pose.x,z:pose.z },{ x:roadCenter(startZ),z:startZ }];
+  const step = direction === 'out' ? 1 : -1;
+  for (let z = startZ + step; step > 0 ? z < endZ : z > endZ; z += step) route.push({ x:roadCenter(z),z });
+  route.push({ x:roadCenter(endZ),z:endZ });
+  route.push(direction === 'out' ? LAB_PARK : PARKED_CAR);
+  return route;
+}
+
+function driveRouteDistance(pose,direction) {
+  const route = roadRoute(pose,direction);
+  return route.slice(1).reduce((total,point,index) => total + Math.hypot(point.x-route[index].x,point.z-route[index].z),0);
+}
+
 function drawDriveMap(pose) {
   const ctx = driveMap?.getContext('2d');
   if (!ctx) return;
@@ -1634,7 +1738,21 @@ function drawDriveMap(pose) {
   roadPoints.push(project(roadCenter(TOWN_Z),TOWN_Z));
   const driveway = [project(PARKED_CAR.x,PARKED_CAR.z), project(roadCenter(-1.8),-1.8)];
   const spur = [project(roadCenter(TOWN_Z - 3.4),TOWN_Z - 3.4),project(LAB_PARK.x,LAB_PARK.z)];
-  for (const points of [roadPoints,driveway,spur]) { strokePath(points,10,'#bca47e'); strokePath(points,6,'#efe4c9'); }
+  const cottageLane = [project(roadCenter(CHARLIE_LANE_Z),CHARLIE_LANE_Z),project(CHARLIE_HOME.x,CHARLIE_LANE_Z)];
+  for (const points of [roadPoints,driveway,spur,cottageLane]) { strokePath(points,10,'#bca47e'); strokePath(points,6,'#efe4c9'); }
+  const route = roadRoute(pose,carTrip?.direction).map((point) => project(point.x,point.z));
+  if (route.length) strokePath(route,3,'#3389be');
+  const building = (x,z,color,label) => {
+    const point = project(x,z);
+    ctx.fillStyle = color; ctx.strokeStyle = '#445045'; ctx.lineWidth = 1;
+    ctx.fillRect(point.x-7,point.y-6,14,12); ctx.strokeRect(point.x-7,point.y-6,14,12);
+    ctx.fillStyle = '#243c3b'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(label,point.x,point.y+19);
+  };
+  building(-5.8,-5.1,'#a45d41','FARM');
+  building(roadCenter(TOWN_Z)-4.8,TOWN_Z,'#ba9a69','TOWN HALL');
+  building(roadCenter(TOWN_Z)+5.2,TOWN_Z,'#5b8789','SCIENCE');
+  building(CHARLIE_HOME.x,CHARLIE_HOME.z,'#ad8060','CHARLIE');
   const destination = carTrip?.direction === 'free' ? null : carTrip?.direction === 'back' ? PARKED_CAR : LAB_PARK;
   if (destination) {
     const marker = project(destination.x,destination.z);
@@ -1645,8 +1763,8 @@ function drawDriveMap(pose) {
   ctx.save(); ctx.translate(carPoint.x,carPoint.y); ctx.rotate(pose.heading);
   ctx.fillStyle = '#246d91'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(0,-10); ctx.lineTo(-7,7); ctx.lineTo(0,4); ctx.lineTo(7,7); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
-  ctx.fillStyle = '#38554c'; ctx.font = 'bold 10px sans-serif';
-  ctx.fillText('FARM',12,231); ctx.fillText('TOWN HALL',8,19); ctx.fillText('LAB',155,19);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#38554c'; ctx.font = 'bold 10px sans-serif';
+  ctx.fillText('N ↑',185,232);
 }
 
 function updateDriving(now, deltaSeconds) {
@@ -1658,7 +1776,8 @@ function updateDriving(now, deltaSeconds) {
     carTrip = { direction, x: initial.x, z: initial.z, heading: direction === 'out' ? 0.6 : Math.PI / 2, speed: 0, steer: 0, ...soilStudy.carPose };
   }
   const held = (key) => driveKeys.has(key) || touchDriveKeys.has(key);
-  const onRoad = distanceToRoad(carTrip.x,carTrip.z,roadCenter,TOWN_Z,PARKED_CAR) < 1.1;
+  const cottageRoadDistance = (x,z) => Math.hypot(Math.max(roadCenter(CHARLIE_LANE_Z)-x,0,x-CHARLIE_HOME.x),z-CHARLIE_LANE_Z);
+  const onRoad = Math.min(distanceToRoad(carTrip.x,carTrip.z,roadCenter,TOWN_Z,PARKED_CAR),cottageRoadDistance(carTrip.x,carTrip.z)) < 1.1;
   const previous = carTrip;
   let next = advanceCar(carTrip,{ gas: held('gas'), brake: held('brake'), left: held('left'), right: held('right') },deltaSeconds,onRoad);
   next.x = THREE.MathUtils.clamp(next.x,-43,18);
@@ -1681,8 +1800,8 @@ function updateDriving(now, deltaSeconds) {
   controls.update();
   const destination = next.direction === 'free' ? null : next.direction === 'out' ? LAB_PARK : PARKED_CAR;
   const remaining = destination ? Math.hypot(destination.x-next.x,destination.z-next.z) : Infinity;
-  const roadDistance = distanceToRoad(next.x,next.z,roadCenter,TOWN_Z,PARKED_CAR);
-  document.querySelector('#drive-distance').textContent = destination ? `${Math.ceil(remaining*12)} m` : 'Free drive';
+  const roadDistance = Math.min(distanceToRoad(next.x,next.z,roadCenter,TOWN_Z,PARKED_CAR),cottageRoadDistance(next.x,next.z));
+  document.querySelector('#drive-distance').textContent = destination ? `${Math.ceil(driveRouteDistance(next,next.direction)*12)} m` : 'Free drive';
   document.querySelector('#drive-speed').textContent = `${Math.round(Math.abs(next.speed)*2.2)} mph`;
   document.querySelector('#drive-direction').textContent = next.direction === 'free' ? (roadDistance > 2 ? 'Explore the countryside' : 'Follow Willow Creek Road') : remaining < 2.2 ? 'Stop at the marker' : roadDistance > 2 ? 'Return to the road' : next.direction === 'out' ? (next.z > TOWN_Z-7 ? 'Turn right to the lab' : 'Follow road to town') : (next.z < 1 ? 'Park beside farmhouse' : next.z > TOWN_Z-6 ? (next.x > roadCenter(TOWN_Z)+1.2 ? 'Reverse to main road' : 'Turn toward farmhouse') : 'Follow road home');
   drawDriveMap(next);
@@ -1702,24 +1821,39 @@ function updateDriving(now, deltaSeconds) {
   }
 }
 
-function toggleFreeDriving() {
-  if (['driving-out','driving-back'].includes(soilStudy.phase)) return;
-  if (carTrip?.direction === 'free' || soilStudy.freeDriving) {
-    carTrip = null;
-    soilStudy.freeDriving = false;
-    if (soilStudy.carPose) { soilStudy.carPose.speed = 0; soilStudy.carPose.steer = 0; }
-    driveKeys.clear(); touchDriveKeys.clear();
-    status.textContent = 'You parked the car. Click it or use Drive car whenever you want to go out.';
-  } else {
-    carTrip = { direction: 'free', x: car.position.x, z: car.position.z, heading: car.rotation.y, speed: 0, steer: 0 };
-    soilStudy.freeDriving = true;
-    heldKeys.clear();
-    status.textContent = 'Free drive. W accelerates, S brakes or reverses, and A/D steer. Use Leave car to park.';
-    playSound('engine');
-  }
+function startFreeDrive() {
+  if (carTrip || ['to-car','driving-out','lab-arrived','ready-to-return','driving-back'].includes(soilStudy.phase)) return;
+  carTrip = { direction: 'free', x: car.position.x, z: car.position.z, heading: car.rotation.y, speed: 0, steer: 0 };
+  soilStudy.freeDriving = true;
+  farmerJohn.visible = false;
+  heldKeys.clear();
+  status.textContent = 'John is in the car. W accelerates, S brakes or reverses, and A/D steer. Use Leave car to park.';
+  playSound('engine');
   refreshSoilStudyHud(); saveGameProgress();
 }
-carToggle?.addEventListener('click', toggleFreeDriving);
+function boardFreeCar() {
+  if (johnSleeping || carTrip || johnTravel || cleanupWork || soilPlanWork || (soilStudy.planStarted && !soilStudy.planApplied) || activeWork.size || ['sampling','to-car','driving-out','lab-arrived','ready-to-return','driving-back'].includes(soilStudy.phase)) {
+    status.textContent = 'John needs to finish his current job before he can get in the car.';
+    return;
+  }
+  const x = car.position.x + 0.95, z = car.position.z;
+  const distance = Math.hypot(x-farmerJohn.position.x,z-farmerJohn.position.z);
+  sendJohnToPoint(x,z,THREE.MathUtils.clamp(distance*450,850,9000),'board-free-car');
+  status.textContent = 'John is walking to the car.';
+  playSound('work');
+}
+function leaveFreeDrive() {
+  if (carTrip?.direction !== 'free') return;
+  carTrip = null;
+  soilStudy.freeDriving = false;
+  if (soilStudy.carPose) { soilStudy.carPose.speed = 0; soilStudy.carPose.steer = 0; }
+  driveKeys.clear(); touchDriveKeys.clear();
+  farmerJohn.visible = true;
+  farmerJohn.position.set(car.position.x + 1.15,groundHeight(car.position.x + 1.15,car.position.z),car.position.z);
+  status.textContent = 'John got out of the car. Right click the car to drive again.';
+  refreshSoilStudyHud(); saveGameProgress();
+}
+carToggle?.addEventListener('click', leaveFreeDrive);
 
 function updateSoilStudy(now, deltaSeconds) {
   if (!fieldBounds || !cleanupReady()) return;
@@ -2240,15 +2374,26 @@ function updateCleanupHUD() {
   const effortDone = cleanup.dug.length + cleanup.filled.length;
   document.querySelector('#ground-cleanliness').textContent = `${rockTotal ? Math.round(100 * removed / rockTotal) : 100}%`;
   document.querySelector('#ground-flatness').textContent = `${effortTotal ? Math.round(35 + 53 * effortDone / effortTotal) : 88}%`;
+  document.querySelector('#ground-quality').textContent = soilStudy.mailRead && soilStudy.report ? `${soilQualityIndex(soilStudy.report,soilStudy.plan,soilStudy.planApplied)}/100` : '?';
   document.querySelector('#ground-dirt').textContent = `${cleanup.dirt}`;
   const instruction = document.querySelector('#cleanup-instruction');
   const remainingLows = cleanup.low.length - cleanup.filled.length;
   if (instruction) instruction.textContent = cleanupReady()
-    ? `${remainingLows ? `${remainingLows} shallow spots remain without enough dirt.` : 'Ground prepared by hand.'} ${soilStudy.phase === 'mail-ready' ? 'The soil report is in the mailbox.' : soilStudy.phase === 'received' ? soilPlanReady() ? 'Turn under grass, then break up the soil.' : 'Choose a soil plan with Charlie.' : soilStudy.phase === 'not-started' || soilStudy.phase === 'planning' ? 'Plan five sampling points on the field edges.' : 'Soil study in progress.'}`
+    ? `${remainingLows ? `${remainingLows} shallow spots remain without enough dirt.` : 'Ground prepared by hand.'} ${soilStudy.phase === 'mail-ready' ? 'The soil report is in the mailbox.' : soilStudy.phase === 'received' ? soilPlanReady() ? 'Turn under grass, then break up the soil.' : soilStudy.plan ? soilStudy.planStarted ? 'John is applying the soil plan.' : 'Gather supplies and start the chosen soil plan.' : 'Choose a soil plan with Charlie.' : soilStudy.phase === 'not-started' || soilStudy.phase === 'planning' ? 'Plan five sampling points on the field edges.' : 'Soil study in progress.'}`
     : rockTotal > removed ? 'Click highlighted stones: 2 coins and energy each.'
     : cleanup.high.length > cleanup.dug.length ? 'Click orange high ground. John will fetch a shovel, then dig: 2 coins each.'
       : cleanup.dirt > 0 && cleanup.low.length > cleanup.filled.length ? 'Click blue low ground to fill it with dug soil: 2 coins each.'
         : 'No more usable soil. Remaining low spots will stay shallow.';
+}
+
+let hoveringField = false;
+function nearField(x,z,margin = 1.4) {
+  return fieldBounds && x >= fieldBounds.minX-margin && x <= fieldBounds.maxX+margin && z >= fieldBounds.minZ-margin && z <= fieldBounds.maxZ+margin;
+}
+function updateFieldMetricsVisibility() {
+  const hud = document.querySelector('#cleanup-hud');
+  if (!hud) return;
+  hud.hidden = !fieldBounds || !(hoveringField || nearField(farmerJohn.position.x,farmerJohn.position.z) || nearField(controls.target.x,controls.target.z,2.6));
 }
 
 function placeField(bounds, savedCleanup = null) {
@@ -2459,7 +2604,7 @@ const STORAGE_FARM_KEY = 'farm-hands-seasonal-farm-v3';
 function saveGameProgress() {
   if (window.__farmHandsResetting) return;
   try {
-    localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ layoutVersion: 6, fieldBounds, cleanup, terrainEdits, plotStates, plotCare, inventory, coins, energy, soilStudy, johnPosition: { x: farmerJohn.position.x, z: farmerJohn.position.z, facing: farmerJohn.rotation.y }, johnSleeping, sleepMorningAt, pendingJobs }));
+    localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ layoutVersion: 7, fieldBounds, cleanup, terrainEdits, plotStates, plotCare, inventory, coins, energy, soilStudy, johnPosition: { x: farmerJohn.position.x, z: farmerJohn.position.z, facing: farmerJohn.rotation.y }, johnSleeping, sleepMorningAt, pendingJobs }));
   } catch {
     // Storage unavailable (e.g. private browsing); the game keeps running.
   }
@@ -2508,6 +2653,7 @@ function restoreGameProgress() {
         bookOpened: saved.soilStudy.bookOpened === true,
         guideMailReady: saved.soilStudy.guideMailReady === true || (['ready-to-return','driving-back','processing','mail-ready'].includes(saved.soilStudy.phase) && saved.soilStudy.bookOpened !== true),
         plan: ['as_is','targeted','full'].includes(saved.soilStudy.plan) ? saved.soilStudy.plan : null,
+        planStarted: saved.soilStudy.planStarted === true || saved.soilStudy.planApplied === true || Number.isFinite(saved.soilStudy.planEndsAt),
         planApplied: saved.soilStudy.planApplied === true,
         planEndsAt: Number.isFinite(saved.soilStudy.planEndsAt) ? saved.soilStudy.planEndsAt : null,
         charlieStage: ['home','arriving','review','leaving'].includes(saved.soilStudy.charlieStage) ? saved.soilStudy.charlieStage : saved.soilStudy.mailRead === true ? 'arriving' : 'home',
@@ -2551,6 +2697,7 @@ function restoreGameProgress() {
       }
       if (soilStudy.freeDriving && !['driving-out','driving-back'].includes(soilStudy.phase)) {
         carTrip = { direction:'free', ...(soilStudy.carPose || { x:car.position.x,z:car.position.z,heading:car.rotation.y }), speed:0, steer:0 };
+        farmerJohn.visible = false;
       }
       if (soilStudy.plan && !soilStudy.planApplied && soilStudy.planEndsAt) soilPlanWork = { plan:soilStudy.plan };
       if (Array.isArray(saved?.pendingJobs)) pendingJobs = saved.pendingJobs.filter((job) => job && ['plot', 'cleanup'].includes(job.kind)).slice(0, 4);
@@ -2771,11 +2918,8 @@ function animateScene(now) {
   if (now - lastLabHudDraw > 1000 && Number.isFinite(soilStudy.submittedAt) && !soilStudy.mailRead) { lastLabHudDraw = now; refreshSoilStudyHud(); }
   if (!johnSleeping) { updatePlotWork(now); updateCleanupWork(now); }
   updateDirtMound();
-  if (energy < 100 && !johnSleeping && !cleanupWork && !activeWork.size && getGameDate().getUTCHours() < 22) {
-    const before = Math.floor(energy);
-    energy = Math.min(100, energy + deltaSeconds * 0.55);
-    if (Math.floor(energy) !== before) updateEnergy();
-  }
+  updateFieldMetricsVisibility();
+  positionMailboxAlert();
   positionPlotActionMenu();
   updateDaylight();
   const gameDay = getGameDate().toISOString().slice(0, 10);
@@ -3038,15 +3182,31 @@ function beginFieldPlacement() {
   canvas.style.cursor = 'crosshair';
 }
 
+const johnIntroduction = [
+  "Hello there. I'm John. People around here have started calling me Farmer John.",
+  "Truth is, I haven't run a farm before. I know where the house and the old car are, but that's about it.",
+  "Will you help me pick a patch of land? We can learn how to grow winter wheat together, one job at a time.",
+];
+let johnIntroductionIndex = 0;
 function showOnboarding() {
   if (fieldBounds) return;
   setGamePaused(true);
   onboarding.hidden = false;
   placementPanel.hidden = true;
+  johnIntroductionIndex = 0;
+  document.querySelector('#onboarding-line').textContent = johnIntroduction[0];
+  document.querySelector('#onboarding-start').textContent = 'Continue';
+  transitionCamera(new THREE.Vector3(-5.15,groundHeight(-5.15,-3.05)+1,-3.05),new THREE.Vector3(0.5,4.8,5.2));
   document.querySelector('#onboarding-start')?.focus();
 }
 
-document.querySelector('#onboarding-start')?.addEventListener('click', beginFieldPlacement);
+document.querySelector('#onboarding-start')?.addEventListener('click', () => {
+  johnIntroductionIndex += 1;
+  if (johnIntroductionIndex >= johnIntroduction.length) { beginFieldPlacement(); return; }
+  document.querySelector('#onboarding-line').textContent = johnIntroduction[johnIntroductionIndex];
+  document.querySelector('#onboarding-start').textContent = johnIntroductionIndex === johnIntroduction.length - 1 ? 'Choose our field' : 'Continue';
+  playSound('book');
+});
 canvas.addEventListener('pointerdown', (event) => {
   if (!placementMode || event.button !== 0) return;
   event.stopImmediatePropagation();
@@ -3106,7 +3266,6 @@ const plotActions = [
   ['treat', 'Treat crop'],
   ['harvest', 'Harvest'],
 ];
-const actionSeason = { turn_grass: 'Jul–Aug', break_soil: 'Jul–Aug', drill: 'Sep–Oct', protect: 'Oct–Nov', fertilize: 'Feb–Mar', treat: 'May–Jun', harvest: 'From Jul 20' };
 const actionSupply = { drill: 'seed', fertilize: 'fertiliser', treat: 'treatment' };
 const actionDurations = { turn_grass: 3400, break_soil: 4300, drill: 3200, protect: 2500, fertilize: 2800, treat: 2800, harvest: 4000 };
 const activeWork = new Map();
@@ -3122,6 +3281,11 @@ function putJohnToBed(now) {
     cleanupWork = null;
     temporaryTerrainEdit = null;
     refreshRanchTerrain();
+  }
+  if (soilPlanWork && soilStudy.planEndsAt) {
+    soilStudy.planRemainingMs = Math.max(0,soilStudy.planEndsAt - Date.now());
+    soilStudy.planEndsAt = null;
+    soilPlanWork = null;
   }
   for (const [index, work] of activeWork) {
     pendingJobs.push({ kind: 'plot', index, action: work.action });
@@ -3159,8 +3323,9 @@ function updateNightRoutine(now, date, deltaSeconds) {
     return;
   }
   if (['driving-out', 'lab-arrived', 'ready-to-return', 'driving-back'].includes(soilStudy.phase)) return;
+  if (carTrip?.direction === 'free' && (date.getUTCHours() >= 22 || energy <= 0)) leaveFreeDrive();
   const hour = date.getUTCHours();
-  const hasWork = Boolean(cleanupWork || activeWork.size || ['sampling', 'to-car'].includes(soilStudy.phase));
+  const hasWork = Boolean(johnTravel || cleanupWork || activeWork.size || soilPlanWork || ['sampling', 'to-car'].includes(soilStudy.phase));
   if (hour >= 22 && hasWork) {
     const day = date.toISOString().slice(0, 10);
     if (lastLateNoticeDay !== day) { status.textContent = 'It is past 10 PM. John is tiring quickly and needs sleep.'; lastLateNoticeDay = day; }
@@ -3187,7 +3352,7 @@ function startCleanupWork(kind, id) {
   if (kind === 'low' && cleanup.dirt < 1) { status.textContent = 'John needs soil from a high patch before filling this hollow.'; return; }
   const cost = 2;
   if (coins < cost) { status.textContent = `This cleanup job needs ${cost} coins.`; return; }
-  if (energy < 8) { status.textContent = 'John needs to rest before doing more cleanup. His energy recovers over time.'; return; }
+  if (energy < 8) { status.textContent = 'John needs to sleep before doing more cleanup.'; return; }
   const [x, z] = kind === 'rock' ? ROCK_POSITIONS[id] : [plotPositions[id].x, plotPositions[id].z];
   const fetchShovel = kind !== 'rock' && !cleanup.shovel;
   cleanupWork = { kind, id, x, z, started: performance.now(), duration: fetchShovel ? 6200 : 3900, fetchShovel, fetched: false, cost };
@@ -3331,14 +3496,14 @@ function openPlotActionMenu(index) {
     plotActionMenu.querySelector('.plot-action-close')?.focus({ preventScroll: true });
     return;
   }
-  const rawAvailable = allowedAction(getGameDate(), plotStates[index], plotCare[index]);
-  const available = soilPlanReady() ? rawAvailable : null;
+  const available = soilPlanReady() ? allowedAction(getGameDate(), plotStates[index], plotCare[index]) : null;
   const missionBusy = ['sampling', 'to-car', 'driving-out', 'lab-arrived', 'ready-to-return', 'driving-back'].includes(soilStudy.phase);
   const supply = actionSupply[available];
   const needsStock = supply && inventory[supply] < 1;
   const work = activeWork.get(index);
   const cooldown = Math.max(0, plotCooldownUntil[index] - performance.now());
-  const note = soilStudy.plan && !soilStudy.planApplied ? 'John is applying the chosen soil correction. Wait for the amendment work to finish.'
+  const note = soilStudy.plan && !soilStudy.planStarted ? 'Gather the plan materials and start the correction from the HUD.'
+    : soilStudy.plan && !soilStudy.planApplied ? 'John is applying the chosen soil correction. Wait for the amendment work to finish.'
     : soilStudy.mailRead && !soilStudy.plan ? 'Charlie will visit to discuss the report. Choose a soil plan before field work.'
     : !soilStudy.mailRead ? 'Finish the field soil study and read the mailed report before field work.'
     : soilWorkBlocked() ? 'A soil reading is outside the workable range. The field cannot be worked.'
@@ -3348,24 +3513,12 @@ function openPlotActionMenu(index) {
     : cooldown ? 'Farmer John is getting ready for the next task.'
       : needsStock ? 'Buy supplies in the farmhouse shop before doing this work.'
         : available ? 'Choose the available field action.' : phaseMessage(getGameDate());
-  const state = plotStates[index];
-  const care = plotCare[index];
-  const completed = new Set();
-  if ([PLOT_STATE.CLEARED,PLOT_STATE.TESTED,PLOT_STATE.CULTIVATED,PLOT_STATE.PLANTED].includes(state)) completed.add('turn_grass');
-  if ([PLOT_STATE.CULTIVATED,PLOT_STATE.PLANTED].includes(state)) completed.add('break_soil');
-  if (state === PLOT_STATE.PLANTED) completed.add('drill');
-  if (care.protected) completed.add('protect');
-  if (care.fertilized) completed.add('fertilize');
-  if (care.treated) completed.add('treat');
-  if (state === PLOT_STATE.HARVESTED) completed.add('harvest');
   plotActionMenu.setAttribute('aria-label', `Plot ${index + 1} actions`);
-  plotActionMenu.innerHTML = `<div class="plot-action-header"><strong>Plot ${index + 1}</strong><button type="button" class="plot-action-close" aria-label="Close plot actions">×</button></div><p class="plot-action-state">${describePlotState(index)}</p><div class="plot-action-grid">${plotActions.map(([action, label]) => {
-    const done = completed.has(action);
-    const ready = action === available && !missionBusy && !johnSleeping && !work && !cooldown && !needsStock;
-    const className = done ? 'is-complete' : ready ? 'is-available' : action === available && needsStock ? 'needs-supply' : 'is-future';
-    const hint = done ? 'Done' : !soilPlanReady() ? 'Await soil plan' : ready ? 'Do now' : action === available && needsStock ? 'Need supplies' : actionSeason[action];
-    return `<button type="button" class="${className}" data-action="${action}" title="${hint}" ${ready ? '' : 'disabled'}><span class="action-label">${label}</span><small>${hint}</small></button>`;
-  }).join('')}</div><p class="plot-action-note">${note}</p>`;
+  const ready = Boolean(available) && !missionBusy && !johnSleeping && !work && !cooldown && !needsStock;
+  const actionLabel = plotActions.find(([key]) => key === available)?.[1];
+  const hint = ready ? 'Do now' : needsStock ? 'Need supplies' : work ? 'In progress' : !soilPlanReady() ? 'Await soil plan' : 'Unavailable';
+  const actionButton = available ? `<div class="plot-action-grid"><button type="button" class="${ready ? 'is-available' : needsStock ? 'needs-supply' : 'is-future'}" data-action="${available}" title="${hint}" ${ready ? '' : 'disabled'}><span class="action-label">${actionLabel}</span><small>${hint}</small></button></div>` : '';
+  plotActionMenu.innerHTML = `<div class="plot-action-header"><strong>Plot ${index + 1}</strong><button type="button" class="plot-action-close" aria-label="Close plot actions">×</button></div><p class="plot-action-state">${describePlotState(index)}</p>${actionButton}<p class="plot-action-note">${note}</p>`;
   plotActionMenu.hidden = false;
   positionPlotActionMenu();
   (plotActionMenu.querySelector('button[data-action]:not([disabled])') || plotActionMenu.querySelector('.plot-action-close'))?.focus({ preventScroll: true });
@@ -3505,7 +3658,7 @@ function updateCanvasLabel() {
     `3D wheat field. Plot ${selectedIndex + 1} of ${PLOT_COUNT} is ${state}. `
     + `Use ${movementKeys} to move camera, ${bindingSummary('selectUp')}/${bindingSummary('selectDown')}/`
     + `${bindingSummary('selectLeft')}/${bindingSummary('selectRight')} to select a plot, `
-    + `${bindingSummary('plant')} to open plot actions. Click bare ground to send Farmer John there. Click the farmhouse or press ${bindingSummary('calendar')} `
+    + `${bindingSummary('plant')} to open the current plot action. Click bare ground to send Farmer John there, or right click the car to board. Click the farmhouse or press ${bindingSummary('calendar')} `
     + `to view the journal, and press ${bindingSummary('openMenu')} for the menu, credits, and keybind settings.`
   );
 }
@@ -3518,10 +3671,10 @@ function updateHelpText() {
     return;
   }
   const movementKeys = MOVE_ACTIONS.map((action) => bindingLabel(action)).join('');
-  helpEl.textContent = `After site cleanup, plan five points on alternating field edges, then send John to collect samples. Drive to the science center with W/S to accelerate and brake, and A/D to steer. Drag on the phone map for touch driving. Read the mailed report in the separate mailbox. Click or tap a plot for its seasonal field action. Click bare ground to send Farmer John there. Drag to rotate. Scroll or pinch to zoom. `
+  helpEl.textContent = `After site cleanup, plan five points on alternating field edges, then send John to collect samples. Right click the car to have John board, then drive with W/S to accelerate and brake, and A/D to steer. Use Leave car to get out. Drag on the phone map for touch driving. Read the mailed report in the separate mailbox. Click or tap a plot for its current seasonal field action. Click bare ground to send Farmer John there. Drag to rotate. Scroll or pinch to zoom. `
     + `Use ${movementKeys} to move the camera across the farm, `
     + `${bindingSummary('selectLeft')}/${bindingSummary('selectRight')}/${bindingSummary('selectUp')}/${bindingSummary('selectDown')} `
-    + `to select a plot, and ${bindingSummary('plant')} to open plot actions. `
+    + `to select a plot, and ${bindingSummary('plant')} to open its current action. `
     + `Click the farmhouse or press ${bindingSummary('calendar')} to open the farming journal. `
     + `Press ${bindingSummary('openMenu')} for the menu, credits, and keybind settings.`;
 }
@@ -3654,7 +3807,8 @@ function itemIcon(key) {
     grain: '<path d="M18 38h44l-6 28H24z" fill="#bd9057" stroke="#6b472b" stroke-width="3"/><path d="M23 45h34" stroke="#e7c386" stroke-width="3"/><path d="M33 34V15m7 19V10m8 24V17" stroke="#78944a" stroke-width="3"/><path d="M30 19l-4-5m8 3 4-6m1 8-5-5m8 1 4-5m1 12 5-5" stroke="#e4bd64" stroke-width="5" stroke-linecap="round"/>',
     straw: '<rect x="13" y="31" width="54" height="32" rx="5" fill="#d7aa57" stroke="#805c32" stroke-width="3"/><path d="M18 38h43M17 50h46M25 32v30m30-30v30" stroke="#f1d080" stroke-width="3"/><path d="M29 31v32m22-32v32" stroke="#6d4c2e" stroke-width="3"/>',
   };
-  return `${start}${art[key] || ''}${end}`;
+  const amendment = '<path d="M20 20h40l5 43H15z" fill="#d6bd86" stroke="#785638" stroke-width="3"/><path d="M20 34h40M18 54h44" stroke="#9e8051" stroke-width="3"/><circle cx="40" cy="44" r="9" fill="#74905b"/>';
+  return `${start}${art[key] || amendment}${end}`;
 }
 
 function updateInventory() {
@@ -3670,6 +3824,7 @@ function updateInventory() {
     const sellRows = sellableGoods.map(({ key, label, price }) => `<div class="shop-row"><span class="shop-item-label"><span class="shop-item-art">${itemIcon(key)}</span>${label}</span><div class="shop-buttons"><button type="button" data-sell="${key}" data-count="1" ${inventory[key] < 1 ? 'disabled' : ''}>Sell 1 · +${price} coins</button><button type="button" data-sell="${key}" data-count="9" ${inventory[key] < 9 ? 'disabled' : ''}>Sell 9 · +${price * 9} coins</button></div></div>`);
     shop.innerHTML = [...buyRows, ...sellRows].join('');
   }
+  refreshSoilPlanHud();
 }
 
 function updateCoins() {
@@ -3725,6 +3880,7 @@ canvas.addEventListener('pointermove', (event) => {
     dragged = true;
   }
   if (dragged) {
+    hoveringField = false;
     canvas.style.cursor = 'grabbing';
     if (hoveredPlotIndex !== -1) {
       hoveredPlotIndex = -1;
@@ -3734,6 +3890,7 @@ canvas.addEventListener('pointermove', (event) => {
   }
 
   const target = pickTarget(event);
+  hoveringField = target?.type === 'plot' || (target?.type === 'ground' && nearField(target.point.x,target.point.z,0));
   if (target?.type === 'farmhouse') {
     canvas.style.cursor = 'pointer';
     if (hoveredPlotIndex !== -1) {
@@ -3762,6 +3919,7 @@ canvas.addEventListener('pointermove', (event) => {
 });
 
 canvas.addEventListener('pointerleave', () => {
+  hoveringField = false;
   hoveredPlotIndex = -1;
   canvas.style.cursor = 'grab';
   updateHighlights();
@@ -3810,7 +3968,7 @@ canvas.addEventListener('click', (event) => {
   }
 
   if (target.type === 'car') {
-    toggleFreeDriving();
+    status.textContent = 'Right click the car to have John get in and drive.';
     return;
   }
 
@@ -3830,6 +3988,13 @@ canvas.addEventListener('click', (event) => {
     openPlotActionMenu(target.index);
     focusPlot(target.index);
   }
+});
+
+canvas.addEventListener('contextmenu', (event) => {
+  const target = pickTarget(event);
+  if (target?.type !== 'car') return;
+  event.preventDefault();
+  boardFreeCar();
 });
 
 canvas.addEventListener('focus', () => {
@@ -3952,6 +4117,8 @@ function updateFarmMap() {
   ctx.beginPath();
   ctx.moveTo(sx(roadCenter(TOWN_Z)), sy(TOWN_Z - 1.4));
   ctx.lineTo(sx(roadCenter(TOWN_Z) + 5.2), sy(TOWN_Z - 1.4));
+  ctx.moveTo(sx(roadCenter(CHARLIE_LANE_Z)), sy(CHARLIE_LANE_Z));
+  ctx.lineTo(sx(CHARLIE_HOME.x), sy(CHARLIE_LANE_Z));
   ctx.stroke();
   square(roadCenter(TOWN_Z) - 4.7, TOWN_Z, Math.max(12, mapView.zoom * 3), '#bcb08f');
   square(roadCenter(TOWN_Z) + 5.2, TOWN_Z, Math.max(12, mapView.zoom * 3), '#587b83');

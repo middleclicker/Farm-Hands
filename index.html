@@ -9,11 +9,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600;700;800&family=Alegreya+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=charlie-11" />
+    <link rel="stylesheet" href="./styles.css?v=field-12" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=charlie-11"></script>
+    <script type="module" src="./game.js?v=field-12"></script>
   </head>
   <body>
     <main class="game-shell">
@@ -25,12 +25,10 @@
         <div id="sample-cue" class="sample-cue" role="status" hidden><span class="sample-cue-bag" aria-hidden="true"><i></i></span><strong id="sample-cue-text">Scooping soil</strong></div>
 
         <div id="farm-onboarding" class="farm-onboarding" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" hidden>
-          <div class="onboarding-card">
-            <span class="onboarding-kicker">A new beginning at Willow Creek</span>
-            <h2 id="onboarding-title">Meet Farmer John</h2>
-            <p>“Hello there! I’m John. They call me Farmer John, though I’ve never actually farmed before.”</p>
-            <p>“We have a farmhouse, an old car, and a road into town, but no field yet. Help me choose a patch of land, prepare it, and grow our first winter wheat crop.”</p>
-            <button id="onboarding-start" class="cozy-btn primary-btn" type="button">Choose our first field</button>
+          <div class="onboarding-card dialogue-card">
+            <div class="dialogue-portrait john-portrait" aria-hidden="true">J</div>
+            <div class="dialogue-copy"><span class="onboarding-kicker">A new beginning at Willow Creek</span><h2 id="onboarding-title">Farmer John</h2><p id="onboarding-line">Hello there. I'm John.</p></div>
+            <button id="onboarding-start" class="cozy-btn primary-btn" type="button">Continue</button>
           </div>
         </div>
         <div id="field-placement" class="field-placement" hidden>
@@ -53,14 +51,15 @@
             <span>Time</span> <strong id="speed-btn-label">120×</strong>
           </button>
         </aside>
-        <aside id="cleanup-hud" class="cleanup-hud" aria-live="polite" hidden><strong>Prepare the ground</strong><span id="cleanup-instruction">Click each stone to have John remove it.</span><div>Cleanliness <b id="ground-cleanliness">100%</b></div><div>Flatness <b id="ground-flatness">90%</b></div><div>Soil nearby <b id="ground-dirt">0</b></div></aside>
+        <aside id="cleanup-hud" class="cleanup-hud" aria-live="polite" hidden><strong>Field condition</strong><span id="cleanup-instruction">Click each stone to have John remove it.</span><div>Cleanliness <b id="ground-cleanliness">100%</b></div><div>Flatness <b id="ground-flatness">90%</b></div><div>Soil quality <b id="ground-quality">?</b></div><div>Soil nearby <b id="ground-dirt">0</b></div></aside>
         <aside id="soil-journey-hud" class="soil-journey-hud" aria-live="polite" hidden><strong id="soil-journey-title">Soil study</strong><span id="soil-journey-status"></span><div id="soil-coverage" class="mission-meter" hidden><span id="soil-coverage-label">0% represented</span><div><i id="soil-coverage-fill"></i></div></div><div id="lab-progress" class="mission-meter" hidden><span id="lab-progress-label">Lab testing · 0%</span><div><i id="lab-progress-fill"></i></div></div><div class="mission-buttons"><button id="soil-journey-action" type="button" hidden></button><button id="soil-plan-undo" type="button" hidden>Undo point</button></div></aside>
         <button id="mail-alert" class="mail-alert" type="button" hidden>✉ New mail</button>
-        <button id="car-toggle" class="car-toggle" type="button" aria-label="Get in car">Drive car</button>
-        <aside id="soil-plan-hud" class="soil-plan-hud" aria-live="polite" hidden><strong>Charlie's soil plan</strong><span id="soil-plan-name"></span><small id="soil-plan-progress"></small></aside>
+        <div id="mailbox-world-alert" class="mailbox-world-alert" aria-label="New mail at the farmhouse mailbox" hidden>✉ New mail</div>
+        <button id="leave-car" class="car-toggle" type="button" hidden>Leave car</button>
+        <aside id="soil-plan-hud" class="soil-plan-hud" aria-live="polite" hidden><strong>Charlie's soil plan</strong><span id="soil-plan-name"></span><div id="soil-plan-ingredients"></div><small id="soil-plan-progress"></small><div class="soil-plan-buttons"><button id="soil-plan-shop" type="button" hidden>Open shop</button><button id="soil-plan-start" type="button" hidden>Start correction</button></div></aside>
         <aside id="drive-phone" class="drive-phone" aria-label="Driving navigation" hidden><div class="phone-speaker" aria-hidden="true"></div><div class="phone-screen"><div class="drive-phone-status"><span>Willow Creek Maps</span><span>◖◖ ▰</span></div><div class="drive-phone-top"><span class="nav-arrow" aria-hidden="true">↗</span><div><small>YOUR ROUTE</small><strong id="drive-direction">Science center</strong></div></div><canvas id="drive-map" width="220" height="236" aria-label="Map showing the real farm road, car position, and destination"></canvas><div class="drive-phone-bottom"><div><small>REMAINING</small><strong id="drive-distance">0 m</strong></div><div><small>SPEED</small><strong id="drive-speed">0 mph</strong></div></div></div><p>W accelerate · S brake/reverse · A/D steer<br>Touch: drag map up and sideways</p><div class="phone-home-bar" aria-hidden="true"></div></aside>
         <div id="mailbox-modal" class="mailbox-overlay" role="dialog" aria-modal="true" aria-labelledby="mailbox-title" hidden><div class="mailbox-card"><button id="mailbox-close" class="mailbox-close" type="button" aria-label="Close mailbox">×</button><span class="mailbox-kicker">Willow Creek · Post</span><h2 id="mailbox-title">Farmhouse Mailbox</h2><div id="mailbox-content"></div></div></div>
-        <div id="charlie-modal" class="charlie-overlay" role="dialog" aria-modal="true" aria-labelledby="charlie-title" hidden><div class="charlie-card"><button id="charlie-close" class="mailbox-close" type="button" aria-label="Close Charlie's visit">×</button><span class="mailbox-kicker">A visit from Charlie</span><h2 id="charlie-title">Let's talk about your soil</h2><p id="charlie-issues"></p><div id="charlie-plans" class="charlie-plans"></div><p class="charlie-tip">Need more coins? Close this conversation, use the farmhouse shop, then speak with Charlie again.</p></div></div>
+        <div id="charlie-modal" class="charlie-overlay" role="dialog" aria-modal="true" aria-labelledby="charlie-title" hidden><div class="charlie-card dialogue-card"><div class="dialogue-portrait charlie-portrait" aria-hidden="true">C</div><div class="dialogue-copy"><span class="mailbox-kicker">A visit from Charlie</span><h2 id="charlie-title">Charlie</h2><p id="charlie-issues"></p><div id="charlie-plans" class="charlie-plans" hidden></div></div><div class="dialogue-controls"><button id="charlie-next" type="button">Continue</button><button id="charlie-close" type="button" aria-label="Close Charlie's visit">Later</button></div></div></div>
 
         <div id="crop-book" class="crop-book-overlay" role="dialog" aria-modal="true" aria-labelledby="crop-book-title" hidden>
           <div class="crop-book">

@@ -2205,6 +2205,42 @@ html, body {
 .farm-hud-left .home-icon-btn { display: grid; place-items: center; width: 48px; min-width: 48px; height: 48px; padding: 8px; }
 .home-icon-btn svg { display: block; width: 26px; height: 26px; }
 
+/* Conversations stay at the bottom of the world like a farm story scene. */
+.farm-onboarding,.charlie-overlay { align-items: end; justify-items: center; padding: 24px; background: linear-gradient(transparent 25%,#172015bb); backdrop-filter: none; }
+.onboarding-card.dialogue-card,.charlie-card.dialogue-card { position: relative; display: grid; grid-template-columns: 90px minmax(0,1fr) auto; align-items: end; gap: 18px; width: min(900px,100%); max-height: min(64dvh,490px); overflow: auto; margin: 0; padding: 17px 21px; border: 6px solid #6e482a; border-radius: 4px; outline: 3px solid #c1945c; color: #422e1d; background: repeating-linear-gradient(0deg,#f7e6bd,#f7e6bd 28px,#edd8aa 29px); box-shadow: 10px 12px 0 #19130b99,inset 0 0 0 3px #d4ae70; font: 17px var(--font-serif); }
+.dialogue-portrait { display: grid; place-items: center; width: 78px; height: 88px; align-self: center; border: 4px solid #7b5639; border-radius: 5px; box-shadow: 4px 4px 0 #5a3b27; color: #f6e2b4; font: 800 48px var(--font-serif); text-shadow: 2px 3px #382717; }
+.john-portrait { background: linear-gradient(#9e7542 24%,#d8ac79 24% 58%,#55776b 58%); }
+.charlie-portrait { background: linear-gradient(#715238 20%,#d7b08a 20% 58%,#6d627c 58%); }
+.dialogue-copy { min-width: 0; }
+.dialogue-copy h2,.onboarding-card.dialogue-card h2,.charlie-card.dialogue-card h2 { margin: 2px 0 5px; font: 800 23px var(--font-serif); }
+.dialogue-copy p,.onboarding-card.dialogue-card p,.charlie-card.dialogue-card p { margin: 0; line-height: 1.38; font-size: 18px; }
+.dialogue-card button { margin: 0; padding: 8px 14px; border: 2px solid #5a743d; border-radius: 3px; color: #fff3d5; background: #6e874b; font: 800 15px var(--font-serif); cursor: pointer; }
+.dialogue-card button:hover,.dialogue-card button:focus-visible { background: #8aa45f; transform: translateY(-2px); }
+.dialogue-controls { display: flex; flex-direction: column; gap: 6px; align-self: end; }
+.dialogue-controls button:last-child { border-color: #8c6942; background: #9b7850; }
+.charlie-plans[hidden] { display: none; }
+.charlie-plans { margin-top: 13px; }
+.charlie-plan { min-height: 125px; padding: 10px; }
+.charlie-card.dialogue-card .charlie-plan { display: grid; align-content: start; gap: 7px; min-height: 125px; padding: 11px; border: 3px solid #aa8052; color: #4b301c; background: #fff0cb; box-shadow: 3px 4px 0 #8f683d; text-align: left; font: 14px var(--font-serif); }
+.charlie-card.dialogue-card .charlie-plan strong { font-size: 19px; }
+.charlie-card.dialogue-card .charlie-plan small { color: #536b37; font-weight: 800; }
+.charlie-card.dialogue-card .charlie-plan:hover,.charlie-card.dialogue-card .charlie-plan:focus-visible { background: #f2dca7; border-color: #617642; transform: translateY(-3px); }
+.charlie-card.dialogue-card .charlie-plan:disabled { opacity: .62; color: #614c3b; background: #dfd0ab; cursor: not-allowed; transform: none; }
+.mailbox-world-alert { position: absolute; z-index: 26; padding: 5px 9px; color: #4b2f1a; background: #ffebbb; border: 2px solid #84552e; border-radius: 4px; box-shadow: 0 3px 0 #5b3b25; font: 800 13px var(--font-serif); pointer-events: none; animation: mail-world-bob 1.8s ease-in-out infinite; }
+@keyframes mail-world-bob { 0%,100% { transform: translate(-50%,-100%); } 50% { transform: translate(-50%,calc(-100% - 5px)); } }
+.mailbox-world-alert[hidden],.car-toggle[hidden] { display: none; }
+.car-toggle { left: 83px; }
+.soil-plan-hud { width: min(285px,calc(100vw - 36px)); }
+.soil-plan-ingredients { display: grid; gap: 3px; padding: 5px 0; border-top: 1px solid #b69868; }
+.soil-plan-ingredients span { display: flex; justify-content: space-between; gap: 8px; }
+.soil-plan-ingredients .is-missing { color: #9c452c; font-weight: 800; }
+.soil-plan-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
+.soil-plan-buttons button { padding: 5px 8px; border: 2px solid #536b37; color: #f9efcd; background: #6d874c; font: 800 13px var(--font-serif); cursor: pointer; }
+.soil-plan-buttons button:disabled { opacity: .5; cursor: not-allowed; }
+.plot-action-menu .plot-action-grid { grid-template-columns: 1fr; }
+.plot-action-menu .plot-action-grid button { min-height: 48px; font-size: 16px; }
+@media(max-width:650px) { .onboarding-card.dialogue-card,.charlie-card.dialogue-card { grid-template-columns: 52px 1fr; gap: 10px; padding: 11px; } .dialogue-portrait { width: 48px; height: 58px; font-size: 31px; } .dialogue-card > button,.dialogue-controls { grid-column: 2; } .charlie-plans { grid-template-columns: 1fr; } .dialogue-copy p { font-size: 15px; } }
+
 /* Settings rows respond as complete items, including their descriptive text. */
 #pause-view-settings .settings-toggle,
 #pause-view-settings .keybind-row,
@@ -2276,3 +2312,4 @@ html, body {
   .placement-controls { flex-direction: column; align-items: stretch; text-align: center; }
   .onboarding-card { padding: 20px; }
 }
+.farm-onboarding,.charlie-overlay { place-items: end center; backdrop-filter: none; }
