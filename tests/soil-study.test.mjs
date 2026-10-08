@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { soilSampleRoute, soilReportDue, soilReportForField, nextSoilSamplePoint, soilCoveragePercent, SOIL_LAB_DAY_MS } from '../soil-study.mjs';
+import { soilSampleRoute, soilReportDue, soilReportForField, soilReportStatus, nextSoilSamplePoint, soilCoveragePercent, SOIL_LAB_DAY_MS, SOIL_LAB_COST } from '../soil-study.mjs';
 
 test('John samples a W across the chosen field', () => {
   const route = soilSampleRoute({ minX: 0, maxX: 5, minZ: 1, maxZ: 6 });
@@ -30,4 +30,18 @@ test('player chooses alternating edge points and a complete W represents the fie
   }
   assert.equal(soilCoveragePercent(bounds, points), 100);
   assert.equal(nextSoilSamplePoint(bounds, points, { x: 3, z: -3 }), null);
+});
+
+test('paid lab report shows workable boundaries and winter wheat targets', () => {
+  assert.equal(SOIL_LAB_COST, 12);
+  const normal = soilReportStatus({ ph: 6.4, phosphorus: 40, potassium: 130, magnesium: 90 });
+  assert.equal(normal.workable,true);
+  assert.ok(normal.results.every((result) => result.ideal));
+  const boundary = soilReportStatus({ ph: 5.5, phosphorus: 10, potassium: 60, magnesium: 45 });
+  assert.equal(boundary.workable,true);
+  assert.equal(boundary.results[0].ideal,false);
+  const failed = soilReportStatus({ ph: 5.49, phosphorus: 40, potassium: 130, magnesium: 90 });
+  assert.equal(failed.workable,false);
+  assert.equal(failed.results[0].workable,false);
+  assert.equal(failed.results[0].ideal,false);
 });

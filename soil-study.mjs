@@ -1,4 +1,22 @@
 export const SOIL_LAB_DAY_MS = 24 * 60 * 60 * 1000;
+export const SOIL_LAB_COST = 12;
+
+// These are Willow Creek gameplay limits for its simulated soil test.
+// The ideal intervals are informed by extension guidance but are not field advice.
+export const SOIL_METRICS = Object.freeze([
+  { key: 'ph', label: 'pH', unit: '', min: 5.5, max: 8.0, idealMin: 6.0, idealMax: 6.8, optimum: 6.4 },
+  { key: 'phosphorus', label: 'Phosphorus', unit: 'mg/kg', min: 10, max: 90, idealMin: 30, idealMax: 50, optimum: 40 },
+  { key: 'potassium', label: 'Potassium', unit: 'mg/kg', min: 60, max: 300, idealMin: 100, idealMax: 150, optimum: 125 },
+  { key: 'magnesium', label: 'Magnesium', unit: 'mg/kg', min: 45, max: 230, idealMin: 60, idealMax: 150, optimum: 100 },
+]);
+
+export function soilReportStatus(report) {
+  const results = SOIL_METRICS.map((metric) => {
+    const value = Number(report?.[metric.key]);
+    return { ...metric, value, workable: Number.isFinite(value) && value >= metric.min && value <= metric.max, ideal: Number.isFinite(value) && value >= metric.idealMin && value <= metric.idealMax };
+  });
+  return { workable: results.every((metric) => metric.workable), results };
+}
 
 export function soilSampleRoute(bounds) {
   const inset = 0.38;

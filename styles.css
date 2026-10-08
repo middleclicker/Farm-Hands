@@ -1308,17 +1308,32 @@ html, body {
 .mailbox-card button:not(.mailbox-close) { padding: 8px 15px; color: #f8ebc8; background: #6a7748; border: 2px solid #435232; font: 700 16px var(--font-serif); cursor: pointer; }
 .mailbox-report dl { display: grid; grid-template-columns: 1fr auto; gap: 5px 20px; padding: 14px; background: #fff4d9; border: 1px solid #a78354; }
 .mailbox-report dd { margin: 0; font-weight: 700; }
-.drive-phone { position: absolute; right: 17px; bottom: 18px; z-index: 35; width: 228px; padding: 9px; color: #222f28; background: #303b36; border: 5px solid #202a26; border-radius: 23px; box-shadow: 0 9px 28px #111b19aa, inset 0 0 0 2px #69766b; font-family: var(--font-sans); }
+.soil-verdict { padding: 8px 10px; border: 2px solid #688550; background: #e3edca; font-weight: 800; }
+.soil-verdict.is-blocked { border-color: #a7583e; background: #f6d8b9; color: #763321; }
+.soil-report-scroll { overflow-x: auto; max-width: 100%; }
+.soil-report-table { width: 100%; min-width: 420px; border-collapse: collapse; font: 13px var(--font-serif); }
+.soil-report-table th,.soil-report-table td { padding: 7px 6px; border-bottom: 1px solid #bca178; text-align: left; vertical-align: middle; }
+.soil-report-table thead th { background: #d4bb8d; font-size: 11px; line-height: 1.15; }
+.soil-report-table tbody th { white-space: nowrap; }
+.soil-report-table .soil-blocked { background: #f5c9ac; color: #7c321e; font-weight: 800; }
+.soil-report-table .soil-ideal { background: #e5eed4; }
+.soil-report-note { font-size: 12px; line-height: 1.3; }
+.drive-phone { position: absolute; right: 17px; bottom: 15px; z-index: 35; width: 232px; padding: 9px 8px 7px; color: #e9efe9; background: linear-gradient(125deg,#343c40,#0d151b 45%,#303b43); border: 3px solid #071015; border-radius: 29px; box-shadow: 0 13px 35px #08110eaa, inset 0 0 0 2px #637178; font-family: var(--font-sans); }
 .drive-phone[hidden] { display: none; }
-.drive-phone-top,.drive-phone-bottom { display: flex; justify-content: space-between; align-items: center; gap: 7px; padding: 7px; background: #edf2d9; font-size: 12px; }
-.drive-phone-top { border-radius: 11px 11px 0 0; }
-.drive-phone-top span { font-size: 9px; letter-spacing: .1em; }
-.drive-phone-bottom { border-radius: 0 0 6px 6px; }
-.drive-phone canvas { display: block; width: 100%; height: 190px; background: #d8e8c7; }
-.drive-phone p { color: #f2eac9; text-align: center; margin: 5px 0; font-size: 10px; }
-.drive-controls { display: grid; grid-template-columns: repeat(4,1fr); gap: 3px; }
-.drive-controls button { min-height: 37px; border: 1px solid #263029; border-radius: 5px; color: #1d2c23; background: #d5dfbf; font-weight: 800; touch-action: none; cursor: pointer; }
-.drive-controls button:active,.drive-controls button.is-held { background: #a8c478; }
+.phone-speaker { width: 47px; height: 5px; margin: 1px auto 7px; border-radius: 6px; background: #11181c; box-shadow: 0 1px 1px #75818a77; }
+.phone-screen { overflow: hidden; border-radius: 15px 15px 9px 9px; background: #e4ecde; color: #283a37; }
+.drive-phone-status { display: flex; justify-content: space-between; padding: 5px 9px 3px; background: #f1f4ee; color: #5a6870; font: 700 9px var(--font-sans); }
+.drive-phone-top { display: flex; align-items: center; gap: 10px; padding: 9px 10px; background: #294d73; color: #fff; }
+.drive-phone-top div { display: grid; gap: 2px; }
+.drive-phone-top small,.drive-phone-bottom small { font-size: 9px; letter-spacing: .09em; opacity: .78; }
+.drive-phone-top strong { font-size: 13px; line-height: 1.15; }
+.nav-arrow { font: 700 28px var(--font-sans); }
+.drive-phone canvas { display: block; width: 100%; height: 236px; background: #dce9cf; touch-action: none; cursor: crosshair; }
+.drive-phone-bottom { display: flex; justify-content: space-between; padding: 8px 10px; background: #fbfbf4; }
+.drive-phone-bottom div { display: grid; gap: 2px; }
+.drive-phone-bottom strong { font-size: 14px; }
+.drive-phone p { color: #dde4e2; text-align: center; margin: 6px 0 4px; font-size: 9px; line-height: 1.25; }
+.phone-home-bar { width: 65px; height: 4px; margin: 7px auto 0; border-radius: 5px; background: #abb4b5; }
 .crop-book { border: 12px solid #704628; border-radius: 12px; background: #704628; box-shadow: 0 0 0 3px #c49557, 0 0 0 8px #4c2c1a, 15px 22px 0 #120d08aa; }
 .crop-book:before,.crop-book:after { content: ''; position: absolute; width: 30px; height: 16px; left: 10px; z-index: 4; background: #bf914b; border: 2px solid #684021; }
 .crop-book:before { top: 12px; } .crop-book:after { bottom: 12px; }
@@ -1330,7 +1345,7 @@ html, body {
 .crop-book-kicker { color: #82552d; }
 .crop-book-close-top { position: absolute; z-index: 6; right: 12px; top: 6px; width: 32px; height: 32px; border: 2px solid #82572d; border-radius: 50%; color: #58371d; background: #ebce91; font: 700 23px var(--font-serif); line-height: 1; cursor: pointer; box-shadow: 2px 2px 0 #5e3b23; }
 .crop-book-close-top:hover,.crop-book-close-top:focus-visible { background: #fff1c9; }
-@media(max-width:650px) { .drive-phone { width: 196px; right: 8px; bottom: 8px; } .drive-phone canvas { height: 140px; } .crop-book { overflow: auto; } .soil-journey-hud { top: 74px; max-width: 210px; font-size: 13px; } }
+@media(max-width:650px) { .drive-phone { width: 188px; right: 8px; bottom: 8px; } .drive-phone canvas { height: 155px; } .crop-book { overflow: auto; } .soil-journey-hud { top: 74px; max-width: 210px; font-size: 13px; } }
 .farm-journal .modal-tabs {
   gap: 22px;
   padding: 0;
