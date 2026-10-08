@@ -9,31 +9,46 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600;700;800&family=Alegreya+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=field-craft-1" />
+    <link rel="stylesheet" href="./styles.css?v=farmer-john-1" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=field-craft-1"></script>
+    <script type="module" src="./game.js?v=farmer-john-1"></script>
   </head>
   <body>
     <main class="game-shell">
-      <section class="farm" aria-label="3D wheat planting field">
-        <canvas id="field" tabindex="0" aria-label="3D wheat field. Select a plot and work it during the appropriate season. Press Escape for the menu." aria-describedby="field-help field-status"></canvas>
+      <section class="farm" aria-label="3D Willow Creek Homestead">
+        <canvas id="field" tabindex="0" aria-label="3D Willow Creek Homestead. Meet Farmer John and choose a place for the first field." aria-describedby="field-help field-status"></canvas>
         <div id="plot-action-menu" class="plot-action-menu" role="dialog" aria-label="Plot actions" hidden></div>
+        <div id="plot-stopwatch" class="plot-stopwatch" role="timer" hidden><span class="stopwatch-face" aria-hidden="true"></span><span id="plot-stopwatch-time">0.0s</span></div>
+
+        <div id="farm-onboarding" class="farm-onboarding" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" hidden>
+          <div class="onboarding-card">
+            <span class="onboarding-kicker">A new beginning at Willow Creek</span>
+            <h2 id="onboarding-title">Meet Farmer John</h2>
+            <p>“Hello there! I’m John. They call me Farmer John, though I’ve never actually farmed before.”</p>
+            <p>“There’s only a farmhouse here so far. Help me choose a patch of land, prepare it, and grow our first winter wheat crop.”</p>
+            <button id="onboarding-start" class="cozy-btn primary-btn" type="button">Choose our first field</button>
+          </div>
+        </div>
+        <div id="field-placement" class="field-placement" hidden>
+          <div class="placement-instructions"><strong>Draw our first field</strong><span>Drag across the open meadow to mark a rectangular area. Keep clear of the farmhouse and trees.</span></div>
+          <div class="placement-controls"><span id="placement-status" role="status">Choose an open patch of land.</span><button id="placement-confirm" class="cozy-btn primary-btn" type="button" disabled>Build field</button></div>
+        </div>
 
         <!-- Farm controls -->
         <header class="farm-hud farm-hud-left" aria-label="Farm overview">
-          <button id="home-btn" class="cozy-hud-btn" type="button" title="Return the camera to the farmhouse">Back to home</button>
+          <button id="home-btn" class="cozy-hud-btn home-icon-btn" type="button" aria-label="Back to home" title="Return the camera to the farmhouse"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5M6 10v10h12V10M10 20v-6h4v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </header>
 
         <aside class="farm-hud farm-hud-right" aria-label="Farm time and coins">
-          <div class="farm-hud-value coin-display" aria-label="Coin balance"><span>Coins</span><strong id="hud-coins">100</strong></div>
+          <div class="farm-hud-dashboard" aria-label="Farm time and coin balance"><div class="farm-hud-value coin-display" aria-label="Coin balance"><span>Coins</span><strong id="hud-coins">100</strong></div>
           <div class="clock-display" aria-label="Farm clock and date">
             <div class="clock-face" aria-hidden="true"><span class="clock-hand clock-hour" id="clock-hour-hand"></span><span class="clock-hand clock-minute" id="clock-minute-hand"></span><span class="clock-pivot"></span></div>
             <div class="clock-copy"><span class="clock-caption">Farm time</span><time id="hud-clock" datetime="06:00">6:00 AM</time><time id="hud-date" datetime="2001-07-01">July 1, 2001</time></div>
-          </div>
+          </div></div>
           <button id="speed-btn" class="cozy-hud-btn time-control" type="button" title="Cycle game time speed" aria-label="Game time speed">
-            <span>Time</span> <strong id="speed-btn-label">3× Speed</strong>
+            <span>Time</span> <strong id="speed-btn-label">120×</strong>
           </button>
         </aside>
 
@@ -63,12 +78,13 @@
                 <div class="event-calendar-card">
                   <div class="event-calendar-header"><span class="event-calendar-month" id="event-calendar-month">July 2001</span><div class="calendar-time-tools" id="calendar-time-tools" hidden><button id="calendar-prev-month" type="button" aria-label="Previous month">‹</button><button id="calendar-next-month" type="button" aria-label="Next month">›</button></div></div>
                   <div class="event-calendar-grid" id="event-calendar-grid" aria-label="Calendar for the current month"></div>
+                  <div id="calendar-day-detail" class="calendar-day-detail" aria-live="polite"></div>
                   <div id="time-skip-prompt" class="time-skip-prompt" hidden><span id="time-skip-selection"></span><button id="time-skip-confirm" type="button">Fast-forward to this date</button></div>
                 </div>
               </div>
 
               <div id="tab-map-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-map" hidden>
-                <div class="farm-map-card"><div id="farm-map" class="farm-map" aria-label="Top-down map of the farm"></div></div>
+                <div class="farm-map-card"><div id="farm-map" class="farm-map"><canvas id="farm-map-canvas" width="380" height="200" aria-label="Interactive top-down map of the farm. Drag to pan and scroll to zoom."></canvas><div class="map-controls"><button id="map-zoom-in" type="button" aria-label="Zoom in on farm map">+</button><button id="map-zoom-out" type="button" aria-label="Zoom out on farm map">−</button><button id="map-recenter" type="button">Center</button></div></div></div>
               </div>
 
               <div id="tab-inventory-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-inventory" hidden>
@@ -106,7 +122,7 @@
                   <button id="pause-resume-btn" class="cozy-btn pause-menu-btn" type="button">
                     <span class="pause-menu-text">
                       <strong>Resume Farming</strong>
-                      <small>Back to the wheat field</small>
+                      <small>Back to the homestead</small>
                     </span>
                   </button>
                   <button id="pause-credits-btn" class="cozy-btn pause-menu-btn" type="button">
@@ -187,7 +203,7 @@
                 <div class="settings-block developer-settings">
                   <div class="section-heading-row"><h3 class="section-title">Developer</h3></div>
                   <label class="settings-toggle" for="developer-time-toggle"><input type="checkbox" id="developer-time-toggle" /><span class="settings-toggle-text"><strong>Enable calendar time skip</strong><small>Choose a future date in the calendar to fast-forward.</small></span></label>
-                  <p class="settings-hint">Start a fresh farm with the original date, field, coins, inventory, camera, and keybinds.</p>
+                  <p class="settings-hint">Return to July 1 with Farmer John, an empty homestead, 100 coins, and no supplies.</p>
                   <button id="developer-reset-btn" class="cozy-btn reset-everything-btn" type="button">Reset everything</button>
                   <p id="developer-reset-status" class="settings-status" role="status" aria-live="polite"></p>
                 </div>
@@ -222,7 +238,7 @@
 
         <div class="sr-only">
           <h1>Farm Hands</h1>
-          <p id="field-help">Click or tap a plot to choose an action for that season. Click the farmhouse or press C / H to open the journal. Press Esc for settings and credits.</p>
+          <p id="field-help">Meet Farmer John and draw your first field. Then click a plot to choose an action for that season. Click the farmhouse or press C / H to open the journal. Press Esc for settings and credits.</p>
           <p class="field-status" id="field-status" role="status">Choose a plot to see its seasonal actions.</p>
         </div>
       </section>

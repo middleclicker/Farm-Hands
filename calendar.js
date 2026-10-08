@@ -1,7 +1,8 @@
-import { eventMatches } from './keybinds.js?v=field-craft-1';
+import { eventMatches } from './keybinds.js?v=farmer-john-1';
+import { farmPhase, phaseMessage } from './farming.mjs?v=farmer-john-1';
 
-const DEFAULT_SPEED = 3;
-const SPEED_LEVELS = [3, 300, 1000, 10000];
+const DEFAULT_SPEED = 120;
+const SPEED_LEVELS = [120, 300, 1000, 10000];
 const GAME_START = Date.UTC(2001, 6, 1, 6); // July 1, Year 1, 06:00:00 UTC
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STORAGE_TIME_KEY = 'farm-hands-calendar-time-v3';
@@ -63,6 +64,7 @@ const clockMinuteHand = document.querySelector('#clock-minute-hand');
 // Events calendar elements
 const eventCalendarMonth = document.querySelector('#event-calendar-month');
 const eventCalendarGrid = document.querySelector('#event-calendar-grid');
+const calendarDayDetail = document.querySelector('#calendar-day-detail');
 const calendarTimeTools = document.querySelector('#calendar-time-tools');
 const calendarPrevMonth = document.querySelector('#calendar-prev-month');
 const calendarNextMonth = document.querySelector('#calendar-next-month');
@@ -96,9 +98,9 @@ function initGameTime() {
     }
 
     if (Number.isFinite(savedTime) && savedTime >= 0 && Number.isFinite(savedLastReal) && savedLastReal > 0) {
-      // Offline time advances at standard 3x baseline up to 14 days maximum
+      // Offline progress uses the normal pace, capped to two game weeks.
       const offlineRealMs = Math.max(0, now - savedLastReal);
-      const offlineGameMs = Math.min(offlineRealMs, 14 * DAY_MS) * DEFAULT_SPEED;
+      const offlineGameMs = Math.min(offlineRealMs * DEFAULT_SPEED, 14 * DAY_MS);
       accumulatedGameMs = savedTime + offlineGameMs;
       lastRealTick = now;
       return;
@@ -158,7 +160,7 @@ function updateSpeedUI() {
   if (speedBtnLabel) speedBtnLabel.textContent = speedStr;
   if (speedBtn) {
     speedBtn.setAttribute('aria-label', `Game time: ${speedStr}. Click to cycle speed.`);
-    if (gameSpeed > 3) {
+    if (gameSpeed > DEFAULT_SPEED) {
       speedBtn.classList.add('active-speedup');
     } else {
       speedBtn.classList.remove('active-speedup');
@@ -191,6 +193,7 @@ export function openFarmhouseMenu() {
   farmhouseModal.removeAttribute('hidden');
   viewedMonth = null;
   selectedSkipDate = null;
+  selectedCalendarDate = null;
   lastRenderedDayKey = '';
   updateCalendar();
   setActiveTab('events');
@@ -239,6 +242,7 @@ export function toggleFarmhouseMenu() {
 let lastRenderedDayKey = '';
 let viewedMonth = null;
 let selectedSkipDate = null;
+let selectedCalendarDate = null;
 let developerTimeEnabled = false;
 try { developerTimeEnabled = localStorage.getItem(STORAGE_DEV_TIME_KEY) === 'on'; } catch {}
 
@@ -263,10 +267,11 @@ function renderEventCalendar(date) {
   const month = shown.getUTCMonth();
   const year = shown.getUTCFullYear();
   const todayKey = date.toISOString().slice(0, 10);
+  const detailKey = selectedCalendarDate ?? (shownMonth === currentMonth ? todayKey : new Date(shownMonth).toISOString().slice(0, 10));
 
   if (eventCalendarMonth) eventCalendarMonth.textContent = `${months[month]} ${year}`;
-  if (calendarTimeTools) calendarTimeTools.hidden = !developerTimeEnabled;
-  if (calendarPrevMonth) calendarPrevMonth.disabled = shownMonth <= currentMonth;
+  if (calendarTimeTools) calendarTimeTools.hidden = false;
+  if (calendarPrevMonth) calendarPrevMonth.disabled = shownMonth <= Date.UTC(date.getUTCFullYear(), date.getUTCMonth() - 12, 1);
   if (calendarNextMonth) calendarNextMonth.disabled = shownMonth >= Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 12, 1);
   if (timeSkipPrompt) timeSkipPrompt.hidden = !developerTimeEnabled || !selectedSkipDate;
   if (timeSkipSelection && selectedSkipDate) {
@@ -280,24 +285,33 @@ function renderEventCalendar(date) {
     const cells = WEEKDAY_LABELS.map((label) => `<span class="event-cal-weekday">${label}</span>`);
     for (let i = 0; i < firstWeekday; i += 1) cells.push('<span class="event-cal-day is-empty"></span>');
     for (let day = 1; day <= daysInMonth; day += 1) {
-      const event = eventByDate.get(`${month}-${day}`);
+      const event = year === 2001 && month === 6 && day === 20 ? null : eventByDate.get(`${month}-${day}`);
       const classes = ['event-cal-day'];
       const dateKey = new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
       if (dateKey === todayKey) classes.push('is-today');
-      if (dateKey === selectedSkipDate) classes.push('is-selected');
+      if (dateKey === detailKey) classes.push('is-selected');
       if (event) classes.push('has-event');
-      const marker = event ? `<span class="event-cal-dot">${event.emoji}</span>` : '';
+      const marker = event ? '<span class="event-cal-dot" aria-hidden="true">✦</span>' : '';
       const description = event ? ` title="${event.title}: ${event.description}"` : '';
       const canSkip = developerTimeEnabled && Date.UTC(year, month, day, 6) > date.getTime();
-      cells.push(canSkip
-        ? `<button type="button" class="${classes.join(' ')} is-skippable" data-skip-date="${dateKey}" aria-label="Select ${months[month]} ${day}, ${year} for time skip"${description}>${day}${marker}</button>`
-        : `<span class="${classes.join(' ')}"${description}>${day}${marker}</span>`);
+      cells.push(`<button type="button" class="${classes.join(' ')} is-skippable" data-calendar-date="${dateKey}" ${canSkip ? `data-skip-date="${dateKey}"` : ''} aria-label="Show ${months[month]} ${day}, ${year} details"${description}>${day}${marker}</button>`);
     }
     // Pad the trailing cells so the last week is complete.
     const totalCells = firstWeekday + daysInMonth;
     const trailingBlanks = (7 - (totalCells % 7)) % 7;
     for (let i = 0; i < trailingBlanks; i += 1) cells.push('<span class="event-cal-day is-empty"></span>');
     eventCalendarGrid.innerHTML = cells.join('');
+  }
+  if (calendarDayDetail) {
+    const selected = new Date(`${detailKey}T12:00:00Z`);
+    const firstFieldSummer = selected.getUTCFullYear() === 2001 && [6, 7].includes(selected.getUTCMonth());
+    const event = firstFieldSummer && selected.getUTCMonth() === 6 && selected.getUTCDate() === 20 ? null : eventByDate.get(`${selected.getUTCMonth()}-${selected.getUTCDate()}`);
+    const phase = farmPhase(selected);
+    const heading = `${WEEKDAY_LABELS[selected.getUTCDay()]}, ${months[selected.getUTCMonth()]} ${selected.getUTCDate()}`;
+    const phaseName = ({ 'harvest-prep': 'Harvest and field preparation', ripening: 'Ripening', drilling: 'Autumn sowing', establishing: 'Seedling care', dormant: 'Winter rest', tillering: 'Tillering', 'stem-extension': 'Stem growth', flowering: 'Flowering and grain formation' })[phase];
+    const title = firstFieldSummer ? 'Preparing the first field' : event?.title ?? phaseName;
+    const description = firstFieldSummer ? 'There is no wheat to harvest yet. Help Farmer John clear, test, and cultivate the new field. Drilling begins September 1.' : event?.description ?? phaseMessage(selected);
+    calendarDayDetail.innerHTML = `<span class="calendar-detail-kicker">Field note · ${selected.getUTCFullYear()}</span><h3>${heading}</h3><strong>${title}</strong><p>${description}</p>`;
   }
 }
 
@@ -384,28 +398,29 @@ tabMapBtn?.addEventListener('click', () => setActiveTab('map'));
 tabInventoryBtn?.addEventListener('click', () => setActiveTab('inventory'));
 tabShopBtn?.addEventListener('click', () => setActiveTab('shop'));
 calendarPrevMonth?.addEventListener('click', () => {
-  if (!developerTimeEnabled) return;
   const now = getGameDate();
   const currentMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
   const shown = new Date(viewedMonth ?? currentMonth);
-  viewedMonth = Math.max(currentMonth, Date.UTC(shown.getUTCFullYear(), shown.getUTCMonth() - 1, 1));
+  viewedMonth = Math.max(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 12, 1), Date.UTC(shown.getUTCFullYear(), shown.getUTCMonth() - 1, 1));
   selectedSkipDate = null;
+  selectedCalendarDate = null;
   renderEventCalendar(now);
 });
 calendarNextMonth?.addEventListener('click', () => {
-  if (!developerTimeEnabled) return;
   const now = getGameDate();
   const shown = new Date(viewedMonth ?? Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   viewedMonth = Math.min(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 12, 1), Date.UTC(shown.getUTCFullYear(), shown.getUTCMonth() + 1, 1));
   selectedSkipDate = null;
+  selectedCalendarDate = null;
   renderEventCalendar(now);
 });
 eventCalendarGrid?.addEventListener('click', (event) => {
-  const day = event.target.closest('button[data-skip-date]');
-  if (!developerTimeEnabled || !day) return;
-  selectedSkipDate = day.dataset.skipDate;
+  const day = event.target.closest('button[data-calendar-date]');
+  if (!day) return;
+  selectedCalendarDate = day.dataset.calendarDate;
+  selectedSkipDate = developerTimeEnabled ? day.dataset.skipDate ?? null : null;
   renderEventCalendar(getGameDate());
-  timeSkipConfirm?.focus();
+  (selectedSkipDate ? timeSkipConfirm : calendarDayDetail)?.focus?.();
 });
 timeSkipConfirm?.addEventListener('click', () => {
   if (!developerTimeEnabled || !selectedSkipDate) return;
@@ -415,6 +430,7 @@ timeSkipConfirm?.addEventListener('click', () => {
   accumulatedGameMs = target - GAME_START;
   lastRealTick = Date.now();
   selectedSkipDate = null;
+  selectedCalendarDate = null;
   viewedMonth = null;
   lastRenderedDayKey = '';
   updateCalendar();
@@ -437,6 +453,7 @@ window.addEventListener('keydown', (event) => {
     return;
   }
   if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
+  if (!document.querySelector('#farm-onboarding')?.hidden || !document.querySelector('#field-placement')?.hidden) return;
   // The Escape menu owns the keyboard while it is open (Escape itself is
   // handled in menu.js so the two modals never close each other).
   if (pauseMenuIsOpen()) return;

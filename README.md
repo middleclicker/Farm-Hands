@@ -1,14 +1,14 @@
 # Farm Hands
 
-A small, singleplayer 3D farm centered on one winter wheat field. The game opens on July 1 of Year 1 with nine overgrown plots, no crops already planted, and a farmhouse beside the field.
+A small, singleplayer 3D farm about helping Farmer John grow winter wheat. A fresh game opens on July 1 of Year 1 with only a farmhouse, no field, and an empty inventory. John introduces himself, then the player draws a rectangular site for the first nine-plot field from an overhead view. Existing saves keep their field and progress.
 
 ## Play
 
-- Click or tap a plot to open its raised action menu above the plot, then choose the available seasonal task. Field work plays a short animation and shows its remaining time before the next task is available. In July and August, clear the field, test the soil, and cultivate it. Drill winter wheat from September 1 through October 10. The later stages follow the schedule below.
+- Click or tap a plot to open its raised action menu above the plot, then choose the available seasonal task. Completed actions are crossed out; future work displays its season. Farmer John walks to the plot during a short work animation, with a floating stopwatch showing the remaining time. In July and August, clear the field, test the soil, and cultivate it. Drill winter wheat from September 1 through October 10. The later stages follow the schedule below.
 - Drag to orbit, scroll or pinch to zoom, and use WASD to move the camera. Clicking a plot gently centers the view on it; this can be switched off in Settings. **Back to home** smoothly focuses the farmhouse. Click the farmhouse or press `C` / `H` to open the farmhouse journal.
-- The journal has calendar, map, inventory, and shop pages. The inventory starts empty and shows owned goods as icon tiles; hover over or focus a tile to see its name. The farm starts with 100 coins; buy supplies and sell harvested goods in the shop. Supplies, coins, and plot work are saved locally in the browser.
-- The top-right clock face shows the in-game time and date. The hand-painted, timber-framed interface uses Alegreya and Alegreya Sans.
-- Use the **Time** control to cycle through 3×, 300×, 1000×, and 10000× game time. At night, the sky and fields darken while the farmhouse and path lamps illuminate their surroundings. Press `Esc` for settings, credits, and keybindings. The Developer section has a two-step reset that clears saved farm data in this browser. It also has an optional calendar time skip: enable it, open the calendar, choose a future date, and confirm the jump.
+- The journal has calendar, map, inventory, and shop pages. Click a calendar date to read its field note. The pixel map redraws from the current terrain, field, plot states, and Farmer John's location; drag to pan and scroll or use the controls to zoom. The inventory starts empty and shows owned goods as icon tiles; hover over or focus a tile to see its name. The farm starts with 100 coins; buy supplies and sell harvested goods in the shop. Supplies, coins, field placement, and plot work are saved locally in the browser.
+- The top-right signboard combines coins with the in-game clock and date. The hand-painted, timber-framed interface uses Alegreya and Alegreya Sans.
+- Use the **Time** control to cycle through 120×, 300×, 1000×, and 10000× game time. At night, the sky and fields darken while the farmhouse illuminates its surroundings. Press `Esc` for settings, credits, and keybindings. The Developer section has a two-step reset that clears saved farm data in this browser. It also has an optional calendar time skip: enable it, open the calendar, choose a future date, and confirm the jump.
 
 ## Winter wheat year
 
