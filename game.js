@@ -390,18 +390,23 @@ const GARDEN_PATH_STEPS = [
 
 function groundHeight(x, z) {
   const distance = Math.hypot(x, z);
-  const hills = THREE.MathUtils.smoothstep(distance, 7, 28);
-  let height = -0.18 + hills * (
-    0.32 * Math.sin(x * 0.09) * Math.cos(z * 0.075) +
-    0.19 * Math.sin(x * 0.19 + z * 0.14) +
-    0.12 * Math.cos(z * 0.16)
+  const foothills = THREE.MathUtils.smoothstep(distance, 8, 32) * (
+    0.75 * Math.sin(x * 0.085) * Math.cos(z * 0.07) +
+    0.48 * Math.sin(x * 0.17 + z * 0.11) +
+    0.34 * Math.cos(z * 0.14)
   );
-
-  // Broad, rolling hill rising to the north.
   const hillDist = Math.hypot(x - HILL.x, z - HILL.z);
-  height += HILL.height * Math.exp(-(hillDist * hillDist) / (2 * HILL.spread * HILL.spread));
+  const northernHill = HILL.height * Math.exp(-(hillDist * hillDist) / (2 * HILL.spread * HILL.spread));
+  // Preserve a level clearing around the field while the northern hill rises beyond it.
+  const farmClearing = THREE.MathUtils.smoothstep(distance, 5, 12);
 
-  return height;
+  const angle = Math.atan2(z, x);
+  const ridgeDistance = 72 + 11 * Math.sin(angle * 3 + 0.7) + 6 * Math.cos(angle * 7 - 0.4);
+  const ridge = Math.exp(-(((distance - ridgeDistance) / 27) ** 2));
+  const sharpPeaks = 8 * Math.max(0, Math.sin(angle * 10 + Math.sin(angle * 3))) ** 4;
+  const peaks = 13 + 5 * Math.sin(x * 0.13 + z * 0.04) + 4 * Math.cos(z * 0.11 - x * 0.08) + sharpPeaks;
+  const mountains = THREE.MathUtils.smoothstep(distance, 38, 60) * ridge * peaks;
+  return -0.18 + farmClearing * (foothills + northernHill) + mountains;
 }
 
 function grassTexture() {
@@ -432,18 +437,24 @@ function grassTexture() {
   return texture;
 }
 
-const terrainGeometry = new THREE.PlaneGeometry(600, 600, 180, 180);
+const terrainGeometry = new THREE.PlaneGeometry(600, 600, 240, 240);
 terrainGeometry.rotateX(-Math.PI / 2);
 const terrainPositions = terrainGeometry.attributes.position;
 const terrainColors = [];
 const grassLight = new THREE.Color(0x94c47b);
 const grassShade = new THREE.Color(0x73a869);
+const rockLight = new THREE.Color(0xa4aaa0);
+const rockShade = new THREE.Color(0x737e78);
+const snow = new THREE.Color(0xd5ddd5);
 for (let index = 0; index < terrainPositions.count; index += 1) {
   const x = terrainPositions.getX(index);
   const z = terrainPositions.getZ(index);
-  terrainPositions.setY(index, groundHeight(x, z));
+  const height = groundHeight(x, z);
+  terrainPositions.setY(index, height);
   const variation = (Math.sin(x * 0.12 + z * 0.035) * Math.cos(z * 0.11) + 1) / 2;
   const color = grassShade.clone().lerp(grassLight, variation);
+  color.lerp(rockShade.clone().lerp(rockLight, variation), THREE.MathUtils.smoothstep(height, 3, 11));
+  color.lerp(snow, THREE.MathUtils.smoothstep(height, 17, 24) * 0.8);
   terrainColors.push(color.r, color.g, color.b);
 }
 terrainGeometry.setAttribute('color', new THREE.Float32BufferAttribute(terrainColors, 3));
@@ -490,7 +501,7 @@ for (let index = 0; index < tuftCount; index += 1) {
   let z;
   do {
     const angle = randomGrass() * Math.PI * 2;
-    const radius = index < 1900 ? 5.5 + randomGrass() * 26 : 26 + Math.sqrt(randomGrass()) * 105;
+    const radius = index < 1900 ? 5.5 + randomGrass() * 26 : 26 + Math.sqrt(randomGrass()) * 36;
     x = Math.cos(angle) * radius;
     z = Math.sin(angle) * radius;
   } while (
@@ -1238,9 +1249,9 @@ const daylightKeyframes = [
   { hour:  5,   sky: 0x1a2438, fog: 0x1a2438, fogFar: 60,  ambient: 0.4,  sunColor: 0x99aabb, sunIntensity: 0.05, sunPos: [-8,  0,  7] },
   { hour:  6,   sky: 0x5e4a5e, fog: 0x5e4a5e, fogFar: 75,  ambient: 0.85, sunColor: 0xffb87a, sunIntensity: 0.9,  sunPos: [-9,  2,  7] },
   { hour:  7,   sky: 0xe8a87a, fog: 0xdaa07a, fogFar: 90,  ambient: 1.4,  sunColor: 0xffc88e, sunIntensity: 1.8,  sunPos: [-8,  5,  7] },
-  { hour:  8.5, sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 120, ambient: 2.4,  sunColor: 0xfff1cd, sunIntensity: 3.2,  sunPos: [-5, 11,  7] },
-  { hour: 12,   sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 120, ambient: 2.4,  sunColor: 0xfff8e0, sunIntensity: 3.4,  sunPos: [ 0, 14,  2] },
-  { hour: 16,   sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 120, ambient: 2.3,  sunColor: 0xfff1cd, sunIntensity: 3.0,  sunPos: [ 5, 11, -5] },
+  { hour:  8.5, sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 150, ambient: 2.4,  sunColor: 0xfff1cd, sunIntensity: 3.2,  sunPos: [-5, 11,  7] },
+  { hour: 12,   sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 150, ambient: 2.4,  sunColor: 0xfff8e0, sunIntensity: 3.4,  sunPos: [ 0, 14,  2] },
+  { hour: 16,   sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 150, ambient: 2.3,  sunColor: 0xfff1cd, sunIntensity: 3.0,  sunPos: [ 5, 11, -5] },
   { hour: 18,   sky: 0xe8a87a, fog: 0xdaa07a, fogFar: 90,  ambient: 1.4,  sunColor: 0xffad6e, sunIntensity: 1.6,  sunPos: [ 8,  4, -7] },
   { hour: 19.5, sky: 0x6e4a5e, fog: 0x6e4a5e, fogFar: 75,  ambient: 0.7,  sunColor: 0xe08855, sunIntensity: 0.5,  sunPos: [ 9,  1, -7] },
   { hour: 20.5, sky: 0x1a2438, fog: 0x1a2438, fogFar: 60,  ambient: 0.4,  sunColor: 0x8899bb, sunIntensity: 0.05, sunPos: [ 8, -1, -7] },
