@@ -9,11 +9,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600;700;800&family=Alegreya+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=town-7" />
+    <link rel="stylesheet" href="./styles.css?v=soil-8" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=town-7"></script>
+    <script type="module" src="./game.js?v=soil-8"></script>
   </head>
   <body>
     <main class="game-shell">
@@ -22,6 +22,7 @@
         <div id="plot-action-menu" class="plot-action-menu" role="dialog" aria-label="Plot actions" hidden></div>
         <div id="plot-stopwatch" class="plot-stopwatch" role="timer" hidden><span class="stopwatch-face" aria-hidden="true"></span><span id="plot-stopwatch-time">0.0s</span></div>
         <div id="dirt-mound-label" class="dirt-mound-label" aria-hidden="true" hidden>Soil nearby: 0</div>
+        <div id="sample-cue" class="sample-cue" role="status" hidden><span class="sample-cue-bag" aria-hidden="true"><i></i></span><strong id="sample-cue-text">Scooping soil</strong></div>
 
         <div id="farm-onboarding" class="farm-onboarding" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" hidden>
           <div class="onboarding-card">
@@ -53,21 +54,24 @@
           </button>
         </aside>
         <aside id="cleanup-hud" class="cleanup-hud" aria-live="polite" hidden><strong>Prepare the ground</strong><span id="cleanup-instruction">Click each stone to have John remove it.</span><div>Cleanliness <b id="ground-cleanliness">100%</b></div><div>Flatness <b id="ground-flatness">90%</b></div><div>Soil nearby <b id="ground-dirt">0</b></div></aside>
-        <aside id="soil-journey-hud" class="soil-journey-hud" aria-live="polite" hidden><strong id="soil-journey-title">Soil study</strong><span id="soil-journey-status"></span><button id="soil-journey-action" type="button" hidden></button></aside>
+        <aside id="soil-journey-hud" class="soil-journey-hud" aria-live="polite" hidden><strong id="soil-journey-title">Soil study</strong><span id="soil-journey-status"></span><div id="soil-coverage" class="mission-meter" hidden><span id="soil-coverage-label">0% represented</span><div><i id="soil-coverage-fill"></i></div></div><div id="lab-progress" class="mission-meter" hidden><span id="lab-progress-label">Lab testing · 0%</span><div><i id="lab-progress-fill"></i></div></div><div class="mission-buttons"><button id="soil-journey-action" type="button" hidden></button><button id="soil-plan-undo" type="button" hidden>Undo point</button></div></aside>
+        <button id="mail-alert" class="mail-alert" type="button" hidden>✉ New mail</button>
+        <div id="drive-phone" class="drive-phone" aria-label="Driving navigation" hidden><div class="drive-phone-top"><span>ROAD GUIDE</span><strong id="drive-direction">Science center</strong></div><canvas id="drive-map" width="210" height="190" aria-label="Map of the road and your car"></canvas><div class="drive-phone-bottom"><strong id="drive-distance">0 m left</strong><span id="drive-speed">0 mph</span></div><p>W / ↑ gas · S / ↓ brake · A/D steer at turns</p><div class="drive-controls"><button type="button" data-drive="left" aria-label="Steer left">◀</button><button type="button" data-drive="brake">Brake</button><button type="button" data-drive="gas">Gas</button><button type="button" data-drive="right" aria-label="Steer right">▶</button></div></div>
+        <div id="mailbox-modal" class="mailbox-overlay" role="dialog" aria-modal="true" aria-labelledby="mailbox-title" hidden><div class="mailbox-card"><button id="mailbox-close" class="mailbox-close" type="button" aria-label="Close mailbox">×</button><span class="mailbox-kicker">Willow Creek · Post</span><h2 id="mailbox-title">Farmhouse Mailbox</h2><div id="mailbox-content"></div></div></div>
 
         <div id="crop-book" class="crop-book-overlay" role="dialog" aria-modal="true" aria-labelledby="crop-book-title" hidden>
           <div class="crop-book">
+            <button id="crop-book-close-top" class="crop-book-close-top" type="button" aria-label="Close field guide">×</button>
             <div class="crop-book-spine" aria-hidden="true"></div>
             <div class="crop-book-page">
               <span class="crop-book-kicker">Farmer John's field guide · Volume 1</span>
               <h2 id="crop-book-title">Winter Wheat</h2>
-              <div class="crop-book-art" aria-hidden="true"><span>🌱</span><span>🌾</span></div>
+              <div class="crop-book-art" aria-hidden="true"><svg viewBox="0 0 120 120"><path d="M59 109V25M59 80 38 59M59 69 81 45M59 50 45 30M59 40 73 20" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M40 48q-15-8-15-20 14 1 18 17M79 41q15-9 16-21-16 3-19 19M44 28q-10-8-8-19 12 4 13 16M73 21q11-10 9-19-14 5-13 18" fill="currentColor"/></svg></div>
               <p>Winter wheat is sown in autumn, survives the cold as a young plant, then grows again in spring.</p>
             </div>
             <div class="crop-book-page crop-book-page-right">
               <h3>Our first growing year</h3>
               <ol><li><strong>July–August</strong> · Clear and prepare the field.</li><li><strong>September–early October</strong> · Drill seed.</li><li><strong>Autumn</strong> · Seedlings establish.</li><li><strong>Winter</strong> · Growth slows.</li><li><strong>Spring</strong> · Tillering, stems, and ears develop.</li><li><strong>Summer</strong> · Grain ripens for harvest.</li></ol>
-              <p class="crop-book-footnote">The soil report will arrive at the farmhouse mailbox after one game day. This guide stays in Journal → Knowledge.</p>
               <button id="crop-book-close" class="cozy-btn primary-btn" type="button">Back to the farm</button>
             </div>
           </div>
@@ -204,6 +208,7 @@
 
               <!-- Settings -->
               <section id="pause-view-settings" class="pause-view" tabindex="-1" hidden aria-label="Settings">
+                <div class="settings-block"><div class="section-heading-row"><h3 class="section-title">Sound</h3></div><div class="settings-row"><label class="settings-toggle" for="sound-toggle"><input type="checkbox" id="sound-toggle" checked /><span class="settings-toggle-text"><strong>Sound effects</strong><small>Fieldwork, driving, mail, and menus.</small></span></label></div></div>
                 <div class="settings-block">
                   <div class="section-heading-row">
                     <h3 class="section-title">Camera</h3>
