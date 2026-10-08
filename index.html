@@ -9,11 +9,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,600&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=cozy-farm-winter-wheat-4" />
+    <link rel="stylesheet" href="./styles.css?v=farm-map-1" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=cozy-farm-winter-wheat-4"></script>
+    <script type="module" src="./game.js?v=farm-map-1"></script>
   </head>
   <body>
     <main class="game-shell">
@@ -161,8 +161,10 @@
                     <span class="section-note">Your homestead at a glance</span>
                   </div>
                   <div class="farm-map-card">
+                    <div class="farm-map-meta"><span>WILLOW CREEK · FIELD GUIDE</span><span>FIELD 01 / 9 PLOTS</span></div>
                     <div id="farm-map" class="farm-map" aria-label="Top-down map of the farm"></div>
                     <div class="map-legend" aria-label="Field plot legend">
+                      <strong class="map-legend-title">Field stages</strong>
                       <span class="legend-item"><span class="legend-swatch swatch-weedy" aria-hidden="true"></span> Weeds</span>
                       <span class="legend-item"><span class="legend-swatch swatch-cleared" aria-hidden="true"></span> Cleared</span>
                       <span class="legend-item"><span class="legend-swatch swatch-cultivated" aria-hidden="true"></span> Cultivated</span>

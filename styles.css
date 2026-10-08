@@ -859,11 +859,23 @@ html, body {
 
 /* Farm Map */
 .farm-map-card {
-  background: linear-gradient(180deg, #fdf7e9 0%, #f3e7cb 100%);
+  background: #f3e9d1;
   border: 2px solid var(--parchment-border);
   border-radius: 12px;
-  padding: 8px;
-  box-shadow: inset 0 2px 6px rgba(80, 50, 20, 0.12), 0 2px 5px rgba(50, 30, 10, 0.06);
+  padding: 9px;
+  box-shadow: inset 0 1px 0 #fff8e7, 0 3px 8px rgba(50, 30, 10, 0.09);
+}
+
+.farm-map-meta {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 3px 12px;
+  padding: 0 3px 7px;
+  color: #6d674e;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
 }
 
 .farm-map {
@@ -872,89 +884,100 @@ html, body {
 
 .farm-map-svg {
   display: block;
-  height: 280px;
-  width: auto;
-  max-width: 100%;
-  margin: 0 auto;
-  background: linear-gradient(180deg, #eef5d6 0%, #cfe6a6 55%, #a9c97e 100%);
-  border-radius: 8px;
-  box-shadow: inset 0 0 0 1px rgba(80, 50, 20, 0.15);
+  width: 100%;
+  height: auto;
+  border: 1px solid #9da981;
+  border-radius: 9px;
+  box-shadow: 0 2px 5px rgba(53, 75, 42, 0.15);
+  font-family: var(--font-sans);
+}
+
+.map-ground { fill: url(#map-ground-gradient); }
+.map-meadow { fill: #a7c88c; opacity: 0.44; }
+.map-north-slope { fill: #9fbd88; opacity: 0.43; }
+.map-inner-border { fill: none; stroke: #f8f5df; stroke-width: 2; opacity: 0.75; }
+.map-meadow-flower { opacity: 0.65; }
+.map-meadow-flower-0 { fill: #f5e4a4; }
+.map-meadow-flower-1 { fill: #f5f0db; }
+.map-meadow-flower-2 { fill: #d6a7a6; }
+.map-landmark-shadow { fill: #3e6a44; opacity: 0.16; }
+
+.map-location-label rect {
+  fill: #fffaf0;
+  stroke: #a7a182;
+  stroke-width: 1;
+}
+.map-location-label text {
+  fill: #34492e;
+  font-family: var(--font-serif);
+  font-size: 12px;
+  font-weight: 700;
+  text-anchor: middle;
 }
 
 .map-hill {
   fill: none;
-  stroke: #b8cf9e;
+  stroke: #738f61;
   stroke-width: 2;
-  opacity: 0.7;
+  opacity: 0.56;
 }
 
-.map-pond {
-  fill: #6fb0d8;
-  stroke: #3f7ba3;
+.map-pond-bank { fill: #ddcf9d; stroke: #ad9c6f; stroke-width: 2; }
+.map-pond { fill: url(#map-water-gradient); stroke: #4b8191; stroke-width: 2; }
+.map-pond-shine, .map-pond-ripple {
+  fill: none;
+  stroke: #d8f4ec;
   stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.8;
 }
+.map-pond-ripple { opacity: 0.58; }
+.map-reeds { fill: none; stroke: #537e51; stroke-width: 2; stroke-linecap: round; }
 
-.map-pond-shine {
-  fill: #bde0f0;
-  opacity: 0.7;
-}
+.map-pine-trunk { fill: #73513a; }
+.map-pine-crown { fill: #315e43; stroke: #294d39; stroke-width: 1.2; }
+.map-pine-highlight { fill: none; stroke: #76a479; stroke-width: 1.5; stroke-linecap: round; opacity: 0.72; }
+.map-tree-trunk { fill: #73513a; }
+.map-tree-canopy { fill: #54834a; stroke: #3e693e; stroke-width: 1.4; }
+.map-tree-canopy-light { fill: #75a35b; stroke: #467349; stroke-width: 1.4; }
+.map-tree-fruit { fill: #c9503c; }
 
-.map-pine {
-  fill: #2f6b34;
-  stroke: #214f27;
-  stroke-width: 1;
-}
-
-.map-rock {
-  fill: #9a9387;
-  stroke: #6f6a5f;
-  stroke-width: 1;
-}
+.map-rock path { fill: #898b80; stroke: #626c63; stroke-width: 1.2; }
 
 .map-fence {
   fill: none;
-  stroke: #8a5a2c;
-  stroke-width: 2.5;
-  stroke-dasharray: 6 3;
+  stroke: #7a5433;
+  stroke-width: 5;
+  stroke-dasharray: 12 4;
 }
 
+.map-field-shadow { fill: #426c3e; opacity: 0.22; }
 .map-field {
-  fill: #714831;
-  stroke: #4f2e1b;
+  fill: #694a32;
+  stroke: #4f3729;
   stroke-width: 2;
 }
 
-.map-plot {
-  fill: #945f3c;
-  stroke: #5d3a24;
-  stroke-width: 1;
-  transition: fill 0.15s ease;
+.map-plot-surface {
+  fill: #6f8b4d;
+  stroke: #395b36;
+  stroke-width: 1.6;
+  transition: fill 0.15s ease, stroke 0.15s ease;
 }
-
-.map-plot.state-weedy {
-  fill: #6f9d4f;
-  stroke: #3f6b38;
-}
-
-.map-plot.state-cleared {
-  fill: #b08055;
-  stroke: #70452c;
-}
-
-.map-plot.state-cultivated {
-  fill: #8a5a33;
-  stroke: #5d3a24;
-}
-
-.map-plot.is-planted {
-  fill: #6fae63;
-  stroke: #3f6b38;
-}
-
+.map-plot.state-cleared .map-plot-surface { fill: #b7895f; stroke: #7c573b; }
+.map-plot.state-cultivated .map-plot-surface { fill: #875838; stroke: #5c3b2b; }
+.map-plot.state-planted .map-plot-surface { fill: #76503a; stroke: #4e3b2c; }
+.map-plot-furrows, .map-plot-weeds, .map-plot-crop { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.map-plot-furrows { display: none; stroke: #b77b4e; stroke-width: 1.6; }
+.map-plot-weeds { stroke: #b4d17d; stroke-width: 2; }
+.map-plot-crop { display: none; stroke: #7fc87d; stroke-width: 2.2; }
+.map-plot.state-cleared .map-plot-weeds, .map-plot.state-cultivated .map-plot-weeds, .map-plot.state-planted .map-plot-weeds { display: none; }
+.map-plot.state-cultivated .map-plot-furrows, .map-plot.state-planted .map-plot-furrows, .map-plot.state-planted .map-plot-crop { display: block; }
+.map-plot-number-bg { fill: #fff7dd; opacity: 0.92; }
 .map-plot-num {
-  font-size: 6.5px;
+  font-size: 9px;
   font-weight: 800;
-  fill: rgba(255, 255, 255, 0.9);
+  fill: #382d21;
   text-anchor: middle;
   pointer-events: none;
 }
@@ -963,12 +986,17 @@ html, body {
 .map-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 16px;
+  align-items: center;
+  gap: 6px 14px;
   margin-top: 8px;
-  padding: 8px 10px;
-  background: rgba(255, 252, 240, 0.72);
-  border: 1.5px solid var(--parchment-border);
-  border-radius: 8px;
+  padding: 4px 3px 1px;
+}
+.map-legend-title {
+  margin-right: 4px;
+  color: #554734;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .legend-item {
@@ -983,60 +1011,44 @@ html, body {
 .legend-swatch {
   width: 14px;
   height: 14px;
-  border-radius: 4px;
-  box-shadow: inset 0 1px 2px rgba(40, 20, 8, 0.3);
+  border: 1px solid rgba(45, 41, 26, 0.35);
+  border-radius: 3px;
+  box-shadow: inset 0 1px 2px rgba(40, 20, 8, 0.15);
 }
-.swatch-weedy { background: #6f9d4f; }
-.swatch-cleared { background: #b08055; }
-.swatch-cultivated { background: #8a5a33; }
-.swatch-planted { background: #6fae63; }
+.swatch-weedy { background: #6f8b4d; }
+.swatch-cleared { background: #b7895f; }
+.swatch-cultivated { background: #875838; }
+.swatch-planted { background: linear-gradient(135deg, #76503a 45%, #7fc87d 46%); }
 
-.map-path {
+.map-path-base, .map-path-stones {
   fill: none;
-  stroke: #b7ad9b;
-  stroke-width: 3;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-dasharray: 1 7;
 }
+.map-path-base { stroke: #a49470; stroke-width: 13; opacity: 0.72; }
+.map-path-stones { stroke: #e8dcc0; stroke-width: 7; stroke-dasharray: 2 5; }
 
-.map-house {
-  fill: #7a4b2a;
-  stroke: #4f2e1b;
-  stroke-width: 1.5;
-}
-
-.map-house-roof {
-  fill: #a24d38;
-  stroke: #5e2a1d;
-  stroke-width: 1.5;
-}
+.map-house-walls { fill: #f7e8c8; stroke: #6b563f; stroke-width: 1.7; }
+.map-house-roof { fill: #a75342; stroke: #693d32; stroke-width: 1.7; }
+.map-house-door { fill: #694632; }
+.map-house-window { fill: #8cb7b0; stroke: #5a5545; stroke-width: 0.8; }
 
 .map-hay {
-  fill: #d6a347;
-  stroke: #9c7227;
-  stroke-width: 1;
+  fill: #e4bd64;
+  stroke: #a47532;
+  stroke-width: 1.3;
 }
 
-.map-sign {
-  fill: #6e4324;
-}
+.map-sign { fill: #704d30; stroke: #f3db9e; stroke-width: 1; }
 
-.map-tree {
-  fill: #4a7c36;
-  stroke: #2f5522;
-  stroke-width: 1.5;
-}
-
-.map-compass path {
-  fill: #8a5a2c;
-}
-
+.map-compass circle { fill: #fffaf0; stroke: #8b825f; stroke-width: 1.5; opacity: 0.94; }
+.map-compass path { fill: #9d5d42; }
+.map-compass .map-compass-south { fill: #d0bd96; }
 .map-compass text {
   font-family: var(--font-serif);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
-  fill: #6c4424;
+  fill: #574a32;
   text-anchor: middle;
 }
 

@@ -185,6 +185,175 @@ sunlight.shadow.camera.bottom = -11;
 sunlight.shadow.normalBias = 0.025;
 scene.add(sunlight);
 
+// ==========================================================================
+// SKY: SUN, SUNRISE/SUNSET, AND STARS
+// --------------------------------------------------------------------------
+// The directional light above lights the scene, but it has no visible disc.
+// These billboarded sprites and points draw the sun itself, a warm horizon
+// glow at dawn/dusk, and a starfield that fades in at night. They are unlit
+// (SpriteMaterial/PointsMaterial) and ignore fog so they stay bright against
+// the sky no matter the weather.
+// ==========================================================================
+
+function radialGlowTexture(innerColor, outerColor) {
+  const size = 128;
+  const tile = document.createElement('canvas');
+  tile.width = size;
+  tile.height = size;
+  const context = tile.getContext('2d');
+  const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, innerColor);
+  gradient.addColorStop(0.28, innerColor);
+  gradient.addColorStop(1, outerColor);
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
+  const texture = new THREE.CanvasTexture(tile);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+const SUN_DISTANCE = 400;
+const SKY_RADIUS = 380;
+
+// Sun: a bright core wrapped in a warm halo.
+const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: radialGlowTexture('rgba(255, 246, 210, 0.95)', 'rgba(255, 190, 90, 0)'),
+  color: 0xfff2c2,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+  fog: false,
+}));
+sunGlow.scale.setScalar(96);
+sunGlow.renderOrder = -10;
+scene.add(sunGlow);
+
+const sunCore = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: radialGlowTexture('rgba(255, 255, 255, 1)', 'rgba(255, 244, 200, 0)'),
+  color: 0xffffff,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+  fog: false,
+}));
+sunCore.scale.setScalar(24);
+sunCore.renderOrder = -10;
+scene.add(sunCore);
+
+// A wide, soft warm band that hugs the horizon at sunrise and sunset.
+const horizonGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: radialGlowTexture('rgba(255, 160, 80, 0.9)', 'rgba(255, 120, 60, 0)'),
+  color: 0xff9d5c,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+  fog: false,
+}));
+horizonGlow.scale.set(230, 70, 1);
+horizonGlow.renderOrder = -10;
+scene.add(horizonGlow);
+
+// Stars: a fixed dome of points above the horizon, revealed at night.
+function makeStarTexture() {
+  const size = 32;
+  const tile = document.createElement('canvas');
+  tile.width = size;
+  tile.height = size;
+  const context = tile.getContext('2d');
+  const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+  gradient.addColorStop(0.4, 'rgba(255, 255, 255, 0.9)');
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
+  const texture = new THREE.CanvasTexture(tile);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+const STAR_COUNT = 700;
+const starPositions = new Float32Array(STAR_COUNT * 3);
+const starColors = new Float32Array(STAR_COUNT * 3);
+for (let i = 0; i < STAR_COUNT; i += 1) {
+  const azimuth = Math.random() * Math.PI * 2;
+  const elevation = Math.random() * Math.PI * 0.5 * 0.95;
+  const y = Math.sin(elevation);
+  const radius = Math.cos(elevation);
+  starPositions[i * 3] = Math.cos(azimuth) * radius * SKY_RADIUS;
+  starPositions[i * 3 + 1] = y * SKY_RADIUS + 6;
+  starPositions[i * 3 + 2] = Math.sin(azimuth) * radius * SKY_RADIUS;
+  const color = new THREE.Color();
+  if (Math.random() < 0.8) {
+    color.setHSL(0.58 + Math.random() * 0.1, 0.2 + Math.random() * 0.25, 0.62 + Math.random() * 0.38);
+  } else {
+    color.setHSL(0.08 + Math.random() * 0.05, 0.35, 0.7 + Math.random() * 0.3);
+  }
+  starColors[i * 3] = color.r;
+  starColors[i * 3 + 1] = color.g;
+  starColors[i * 3 + 2] = color.b;
+}
+const starGeometry = new THREE.BufferGeometry();
+starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+starGeometry.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+const starMaterial = new THREE.PointsMaterial({
+  map: makeStarTexture(),
+  size: 2.6 * Math.min(window.devicePixelRatio || 1, 2),
+  sizeAttenuation: false,
+  transparent: true,
+  opacity: 0,
+  vertexColors: true,
+  depthWrite: false,
+  fog: false,
+});
+const stars = new THREE.Points(starGeometry, starMaterial);
+stars.renderOrder = -10;
+scene.add(stars);
+
+const SUN_HORIZON_COLOR = new THREE.Color(0xff8a3d);
+const SUN_DAY_COLOR = new THREE.Color(0xfff4d2);
+const SUN_CORE_LOW = new THREE.Color(0xffd9a0);
+const SUN_CORE_DAY = new THREE.Color(0xfffef2);
+const _sunGlowColor = new THREE.Color();
+const _sunCoreColor = new THREE.Color();
+
+function updateSkyObjects(sunX, sunY, sunZ) {
+  const length = Math.hypot(sunX, sunY, sunZ) || 1;
+  const dirX = sunX / length;
+  const dirY = sunY / length;
+  const dirZ = sunZ / length;
+
+  // Sun disc — visible only above the horizon.
+  const sunVisible = dirY > 0.03;
+  sunGlow.visible = sunVisible;
+  sunCore.visible = sunVisible;
+  if (sunVisible) {
+    sunGlow.position.set(dirX * SUN_DISTANCE, dirY * SUN_DISTANCE, dirZ * SUN_DISTANCE);
+    sunCore.position.copy(sunGlow.position);
+
+    const altitude = THREE.MathUtils.clamp(dirY, 0, 1);
+    const opacity = THREE.MathUtils.clamp(altitude / 0.24, 0, 1);
+    const warmth = THREE.MathUtils.clamp(1 - altitude / 0.55, 0, 1);
+    sunGlow.material.opacity = opacity * 0.92;
+    sunCore.material.opacity = opacity;
+    _sunGlowColor.copy(SUN_HORIZON_COLOR).lerp(SUN_DAY_COLOR, 1 - warmth);
+    _sunCoreColor.copy(SUN_CORE_LOW).lerp(SUN_CORE_DAY, 1 - warmth);
+    sunGlow.material.color.copy(_sunGlowColor);
+    sunCore.material.color.copy(_sunCoreColor);
+  }
+
+  // Warm horizon band — strongest right around sunrise and sunset.
+  const horizon = THREE.MathUtils.clamp(1 - Math.abs(dirY) / 0.3, 0, 1);
+  horizonGlow.visible = horizon > 0.02 && dirY > -0.4;
+  if (horizonGlow.visible) {
+    const horizonLength = Math.hypot(sunX, sunZ) || 1;
+    horizonGlow.position.set((sunX / horizonLength) * SUN_DISTANCE, 0, (sunZ / horizonLength) * SUN_DISTANCE);
+    horizonGlow.material.opacity = horizon * 0.55;
+  }
+
+  // Stars fade in once the sun has sunk below the horizon.
+  starMaterial.opacity = THREE.MathUtils.clamp((-dirY - 0.03) / 0.22, 0, 1) * 0.95;
+}
+
 const material = (color, roughness = 1, metalness = 0) =>
   new THREE.MeshStandardMaterial({ color, roughness, metalness, flatShading: true });
 
@@ -1152,6 +1321,7 @@ function updateDaylight() {
   sunlight.color.copy(_sunA);
   sunlight.intensity = baseSunInt * wm.sun;
   sunlight.position.set(sunX, sunY, sunZ);
+  updateSkyObjects(sunX, sunY, sunZ);
 }
 
 // ==========================================================================
@@ -1654,81 +1824,133 @@ document.addEventListener('visibilitychange', () => {
 // FARM MAP (top-down map shown in the farmhouse modal)
 // ==========================================================================
 
-const MAP_SCALE = 13;
-const MAP_CX = 190;
-const MAP_CY = 150;
+const MAP_SCALE = 16.6;
+const MAP_CX = 380;
+const MAP_CY = 190;
 const mapX = (x) => MAP_CX + x * MAP_SCALE;
-const mapY = (z) => MAP_CY + z * MAP_SCALE;
+const mapY = (z) => MAP_CY + z * 15.5;
 
 function pineGlyph(cx, cy) {
-  return `M ${cx} ${cy - 5} L ${cx - 3.5} ${cy + 2} L ${cx + 3.5} ${cy + 2} Z`;
+  return `<g class="map-pine" transform="translate(${cx} ${cy})">
+    <ellipse class="map-landmark-shadow" cy="5" rx="10" ry="4" />
+    <path class="map-pine-trunk" d="M -2 0 H 2 V 7 H -2 Z" />
+    <path class="map-pine-crown" d="M 0 -19 L -8 -6 H -5 L -11 2 H 11 L 5 -6 H 8 Z" />
+    <path class="map-pine-highlight" d="M 0 -16 L -4 -7 M 0 -8 L -5 0" />
+  </g>`;
+}
+
+function orchardGlyph(cx, cy) {
+  return `<g class="map-tree" transform="translate(${cx} ${cy})">
+    <ellipse class="map-landmark-shadow" cy="9" rx="15" ry="6" />
+    <path class="map-tree-trunk" d="M -2 1 H 3 V 11 H -2 Z" />
+    <circle class="map-tree-canopy" cx="-6" cy="-2" r="10" />
+    <circle class="map-tree-canopy" cx="6" cy="-3" r="10" />
+    <circle class="map-tree-canopy-light" cy="-8" r="11" />
+    <circle class="map-tree-fruit" cx="-7" cy="-5" r="2" />
+    <circle class="map-tree-fruit" cx="6" cy="-7" r="2" />
+  </g>`;
+}
+
+function mapLabel(text, x, y, width) {
+  return `<g class="map-location-label" transform="translate(${x} ${y})">
+    <rect width="${width}" height="22" rx="6" />
+    <text x="${width / 2}" y="14.5">${text}</text>
+  </g>`;
 }
 
 function buildFarmMap() {
   const container = document.querySelector('#farm-map');
   if (!container) return;
 
-  const parts = [];
+  const parts = [
+    `<defs>
+      <linearGradient id="map-ground-gradient" x2="0" y2="1"><stop stop-color="#dce9c3"/><stop offset="1" stop-color="#b5cf91"/></linearGradient>
+      <linearGradient id="map-water-gradient" x2="0" y2="1"><stop stop-color="#9ed8dc"/><stop offset="1" stop-color="#498eaa"/></linearGradient>
+      <pattern id="map-grass-pattern" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M 7 10 l 2 -4 m 0 4 l 2 -3 M 24 27 l 2 -5 m 0 5 l 2 -3" stroke="#6f9d64" stroke-width="1.2" opacity=".35" fill="none"/></pattern>
+    </defs>`,
+    `<rect class="map-ground" width="760" height="360" />`,
+    `<path class="map-meadow" d="M 0 250 C 128 196 185 296 292 253 S 520 197 760 271 V 360 H 0 Z" />`,
+    `<path class="map-north-slope" d="M 165 0 H 620 Q 578 78 487 105 Q 343 48 245 118 L 130 85 Z" />`,
+    `<rect width="760" height="400" fill="url(#map-grass-pattern)" />`,
+  ];
 
-  // Distant hill contours (north)
-  for (const radius of [30, 55, 80]) {
-    parts.push(`<ellipse class="map-hill" cx="${mapX(HILL.x)}" cy="${mapY(HILL.z)}" rx="${radius}" ry="${Math.round(radius * 0.4)}" />`);
+  for (const radius of [55, 82, 110]) {
+    parts.push(`<ellipse class="map-hill" cx="${mapX(HILL.x)}" cy="${mapY(HILL.z)}" rx="${radius}" ry="${Math.round(radius * 0.42)}" />`);
   }
 
-  // Pond (south-east)
-  parts.push(`<ellipse class="map-pond" cx="${mapX(POND.x)}" cy="${mapY(POND.z)}" rx="${Math.round(POND.radius * MAP_SCALE * 1.15)}" ry="${Math.round(POND.radius * MAP_SCALE * 0.85)}" />`);
-  parts.push(`<ellipse class="map-pond-shine" cx="${mapX(POND.x) - 4}" cy="${mapY(POND.z) - 3}" rx="7" ry="4" />`);
-
-  // Pine forest (north-west)
-  for (const [x, z] of PINE_POSITIONS) {
-    parts.push(`<path class="map-pine" d="${pineGlyph(mapX(x), mapY(z))}" />`);
+  // Small, fixed meadow marks add texture without changing between map updates.
+  let markSeed = 239;
+  const randomMark = () => ((markSeed = (markSeed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  for (let index = 0; index < 90; index += 1) {
+    const x = 22 + randomMark() * 716;
+    const y = 25 + randomMark() * 310;
+    parts.push(`<circle class="map-meadow-flower map-meadow-flower-${index % 3}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${index % 4 === 0 ? 2 : 1.3}" />`);
   }
 
-  // Boulders
+  for (const [x, z] of PINE_POSITIONS) parts.push(pineGlyph(mapX(x), mapY(z)));
   for (const [x, z] of ROCK_POSITIONS) {
-    parts.push(`<ellipse class="map-rock" cx="${mapX(x)}" cy="${mapY(z)}" rx="3.4" ry="2.6" />`);
+    parts.push(`<g class="map-rock" transform="translate(${mapX(x)} ${mapY(z)})"><ellipse class="map-landmark-shadow" cy="3" rx="7" ry="3"/><path d="M -7 2 L -4 -4 L 3 -5 L 8 1 L 4 5 H -5 Z"/></g>`);
   }
 
-  // Fence around the field
-  parts.push(`<rect class="map-fence" x="${mapX(-2.35)}" y="${mapY(-2.35)}" width="${2.35 * MAP_SCALE * 2}" height="${2.35 * MAP_SCALE * 2}" rx="7" />`);
+  const pathPoints = GARDEN_PATH_STEPS.map(([x, z]) => `${mapX(x)},${mapY(z)}`).join(' ');
+  parts.push(`<polyline class="map-path-base" points="${pathPoints}" /><polyline class="map-path-stones" points="${pathPoints}" />`);
 
-  // Soil field
-  parts.push(`<rect class="map-field" x="${mapX(-1.9)}" y="${mapY(-1.9)}" width="${1.9 * MAP_SCALE * 2}" height="${1.9 * MAP_SCALE * 2}" rx="5" />`);
+  const pondX = mapX(POND.x);
+  const pondY = mapY(POND.z);
+  parts.push(`<g transform="translate(${pondX} ${pondY})">
+    <path class="map-pond-bank" d="M -47 -8 C -44 -29 -18 -37 2 -34 C 24 -36 47 -21 50 -1 C 55 20 31 37 7 38 C -14 42 -47 27 -50 8 Z" />
+    <path class="map-pond" d="M -39 -7 C -36 -24 -14 -29 4 -27 C 25 -28 39 -17 42 0 C 43 17 23 29 5 30 C -17 32 -39 18 -41 5 Z" />
+    <path class="map-pond-shine" d="M -24 -9 C -14 -20 2 -21 14 -18" />
+    <path class="map-pond-ripple" d="M -12 13 q 8 -5 16 0 m 8 -8 q 6 -4 13 0" />
+    <path class="map-reeds" d="M -38 13 l -3 -13 m 3 13 l 3 -10 M 31 23 l 2 -13 m -2 13 l -4 -10" />
+  </g>`);
 
-  // Nine plantable plots
+  for (const [x, z] of [[-8.5, -6.6], [3.8, -5.6]]) parts.push(orchardGlyph(mapX(x), mapY(z)));
+
+  // Slightly enlarged field symbols keep the nine plot stages readable.
+  parts.push(`<rect class="map-field-shadow" x="319" y="129" width="122" height="122" rx="12" />`);
+  parts.push(`<rect class="map-fence" x="318" y="128" width="124" height="124" rx="11" />`);
+  parts.push(`<rect class="map-field" x="327" y="137" width="106" height="106" rx="7" />`);
   for (let index = 0; index < PLOT_COUNT; index += 1) {
-    const px = ((index % COLUMNS) - 1) * 1.22;
-    const pz = (Math.floor(index / COLUMNS) - 1) * 1.22;
-    parts.push(`<rect class="map-plot" data-index="${index}" x="${mapX(px) - 5.5}" y="${mapY(pz) - 5.5}" width="11" height="11" rx="2" />`);
-    parts.push(`<text class="map-plot-num" x="${mapX(px)}" y="${mapY(pz) + 3.5}">${index + 1}</text>`);
+    const px = MAP_CX + ((index % COLUMNS) - 1) * 30;
+    const py = MAP_CY + (Math.floor(index / COLUMNS) - 1) * 30;
+    parts.push(`<g class="map-plot" data-index="${index}" transform="translate(${px} ${py})">
+      <title>Plot ${index + 1}</title>
+      <rect class="map-plot-surface" x="-13" y="-13" width="26" height="26" rx="3" />
+      <path class="map-plot-furrows" d="M -9 -7 H 9 M -9 0 H 9 M -9 7 H 9" />
+      <path class="map-plot-weeds" d="M -6 7 V -5 m 0 7 l -4 -5 m 4 3 l 4 -5 M 5 7 V -7 m 0 8 l -3 -4 m 3 2 l 4 -5" />
+      <path class="map-plot-crop" d="M -6 7 V -7 m 0 5 l -3 -3 m 3 2 l 3 -4 M 5 7 V -7 m 0 5 l -3 -3 m 3 2 l 3 -4" />
+      <rect class="map-plot-number-bg" x="3" y="3" width="10" height="10" rx="2" />
+      <text class="map-plot-num" x="8" y="11">${index + 1}</text>
+    </g>`);
   }
 
-  // Garden path
-  parts.push(`<polyline class="map-path" points="${GARDEN_PATH_STEPS.map(([x, z]) => `${mapX(x)},${mapY(z)}`).join(' ')}" />`);
+  for (const [x, z] of [[2.6, -1.8], [2.8, -1.2], [2.7, -1.5]]) {
+    parts.push(`<circle class="map-hay" cx="${mapX(x)}" cy="${mapY(z)}" r="5" />`);
+  }
+  parts.push(`<circle class="map-sign" cx="${mapX(-2.1)}" cy="${mapY(-1.9)}" r="4" />`);
 
-  // Farmhouse
   const hx = mapX(-5.8);
   const hy = mapY(-5.1);
-  parts.push(`<rect class="map-house" x="${hx - 7}" y="${hy - 5}" width="14" height="14" rx="2" />`);
-  parts.push(`<path class="map-house-roof" d="M ${hx - 9} ${hy - 5} L ${hx} ${hy - 12} L ${hx + 9} ${hy - 5} Z" />`);
+  parts.push(`<g class="map-house" transform="translate(${hx} ${hy})">
+    <ellipse class="map-landmark-shadow" cy="14" rx="21" ry="8" />
+    <rect class="map-house-walls" x="-14" y="-9" width="28" height="25" rx="2" />
+    <path class="map-house-roof" d="M -19 -8 L 0 -22 L 19 -8 Z" />
+    <rect class="map-house-door" x="-3" y="5" width="6" height="11" />
+    <rect class="map-house-window" x="-11" y="-3" width="5" height="6" />
+    <rect class="map-house-window" x="6" y="-3" width="5" height="6" />
+  </g>`);
 
-  // Hay bales
-  for (const [x, z] of [[2.6, -1.8], [2.8, -1.2], [2.7, -1.5]]) {
-    parts.push(`<circle class="map-hay" cx="${mapX(x)}" cy="${mapY(z)}" r="3" />`);
-  }
+  parts.push(mapLabel('Pine grove', 78, 120, 98));
+  parts.push(mapLabel('North ridge', 464, 26, 105));
+  parts.push(mapLabel('Farmhouse', 197, 143, 98));
+  parts.push(mapLabel('Apple trees', 467, 93, 100));
+  parts.push(mapLabel('Wheat field', 448, 225, 100));
+  parts.push(mapLabel('Pond', 560, 330, 63));
+  parts.push(`<g class="map-compass" transform="translate(704 55)"><circle r="29"/><path d="M 0 -21 L 5 0 L 0 -4 L -5 0 Z"/><path class="map-compass-south" d="M 0 21 L 5 0 L 0 4 L -5 0 Z"/><text y="-33">N</text></g>`);
+  parts.push(`<rect class="map-inner-border" x="8" y="8" width="744" height="344" rx="10" />`);
 
-  // Signpost
-  parts.push(`<circle class="map-sign" cx="${mapX(-2.1)}" cy="${mapY(-1.9)}" r="2.5" />`);
-
-  // Orchard trees
-  for (const [x, z] of [[-8.5, -6.6], [3.8, -5.6]]) {
-    parts.push(`<circle class="map-tree" cx="${mapX(x)}" cy="${mapY(z)}" r="5.5" />`);
-  }
-
-  // Compass
-  parts.push(`<g class="map-compass"><path d="M ${MAP_CX + 158} 18 L ${MAP_CX + 162} 30 L ${MAP_CX + 166} 18 Z" /><text x="${MAP_CX + 164}" y="40">N</text></g>`);
-
-  container.innerHTML = `<svg class="farm-map-svg" viewBox="0 0 380 300" role="img" aria-label="Map of the farm">${parts.join('')}</svg>`;
+  container.innerHTML = `<svg class="farm-map-svg" viewBox="0 0 760 360" role="img" aria-label="Illustrated map of Willow Creek Homestead">${parts.join('')}</svg>`;
   updateMapPlots();
 }
 
@@ -1738,9 +1960,9 @@ function updateMapPlots() {
     const state = plotStates[index];
     cell.classList.remove('state-weedy', 'state-cleared', 'state-cultivated', 'state-planted');
     cell.classList.add(`state-${state}`);
-    cell.classList.toggle('is-planted', state === PLOT_STATE.PLANTED);
-    cell.setAttribute('aria-label', `Plot ${index + 1}: ${describePlotState(index)}`);
+    cell.querySelector('title').textContent = `Plot ${index + 1}: ${describePlotState(index)}`;
   });
+  document.querySelector('.farm-map-svg')?.setAttribute('aria-label', `Illustrated map of Willow Creek Homestead. ${fieldSummary()}.`);
 }
 
 function updateFarmMap() {
@@ -1771,6 +1993,11 @@ window.FarmGame = {
   pickTarget,
   weatherSettings,
   setWeather,
+  sunGlow,
+  sunCore,
+  horizonGlow,
+  stars,
+  starMaterial,
   heldKeys,
   readSavedCameraState,
   saveCameraState,
