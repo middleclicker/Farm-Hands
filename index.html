@@ -32,8 +32,8 @@
           <button id="farmhouse-btn" class="cozy-hud-btn farmhouse-trigger-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Click to open Farmhouse Calendar (or click Farmhouse in 3D)">
             <span class="btn-icon" aria-hidden="true">🏡</span>
             <span class="btn-content">
-              <strong id="hud-season">Spring · Year 1</strong>
-              <span class="hud-time-sub" id="hud-date-time">March 1 · 06:00:00</span>
+              <strong id="hud-season">Summer · Year 1</strong>
+              <span class="hud-time-sub" id="hud-date-time">July 1 · 06:00:00</span>
             </span>
             <span class="hud-btn-tag" aria-hidden="true">Calendar 📖</span>
           </button>
@@ -84,103 +84,120 @@
             </header>
 
             <div class="modal-body">
-              <!-- Live Calendar Card -->
-              <section class="almanac-section live-date-section" aria-label="Current date and time">
-                <div class="date-hero-card">
-                  <div class="date-top-bar">
-                    <span class="season-badge" id="calendar-season">Summer · Year 1</span>
-                    <span class="speed-badge" id="calendar-speed-badge">3× real time</span>
-                  </div>
-                  <div class="date-primary-row">
-                    <div class="calendar-date" id="calendar-date">July 1</div>
-                    <div class="calendar-clock-box">
-                      <span class="clock-label">Game Clock</span>
-                      <span class="calendar-clock" id="calendar-clock">06:00:00</span>
+              <div class="modal-tabs" role="tablist" aria-label="Farmhouse menu sections">
+                <button id="tab-events" class="modal-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="tab-events-panel">📅 Event Calendar</button>
+                <button id="tab-map" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-map-panel">🗺️ Farm Map</button>
+              </div>
+
+              <!-- Tab 1: Event Calendar -->
+              <div id="tab-events-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-events">
+                <!-- Live Calendar Card -->
+                <section class="almanac-section live-date-section" aria-label="Current date and time">
+                  <div class="date-hero-card">
+                    <div class="date-top-bar">
+                      <span class="season-badge" id="calendar-season">Summer · Year 1</span>
+                      <span class="speed-badge" id="calendar-speed-badge">3× real time</span>
+                    </div>
+                    <div class="date-primary-row">
+                      <div class="calendar-date" id="calendar-date">July 1</div>
+                      <div class="calendar-clock-box">
+                        <span class="clock-label">Game Clock</span>
+                        <span class="calendar-clock" id="calendar-clock">06:00:00</span>
+                      </div>
+                    </div>
+                    <div class="calendar-progress-wrap">
+                      <div class="progress-info-row">
+                        <span class="calendar-day" id="calendar-day">Day 182 of 365</span>
+                        <span class="year-label" id="calendar-year-label">Year 1</span>
+                      </div>
+                      <div class="calendar-year-track" id="calendar-year-track" role="progressbar" aria-label="Progress through the year" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-valuetext="Day 182 of 365, Year 1">
+                        <span id="calendar-year-fill"></span>
+                      </div>
                     </div>
                   </div>
-                  <div class="calendar-progress-wrap">
-                    <div class="progress-info-row">
-                      <span class="calendar-day" id="calendar-day">Day 182 of 365</span>
-                      <span class="year-label" id="calendar-year-label">Year 1</span>
+
+                  <!-- Dev Speedup Option in Menu -->
+                  <div class="modal-dev-box">
+                    <div class="dev-box-header">
+                      <span class="dev-badge">⚡ Developer Controls</span>
+                      <span class="dev-hint">Speed up calendar progression for testing</span>
                     </div>
-                    <div class="calendar-year-track" id="calendar-year-track" role="progressbar" aria-label="Progress through the year" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-valuetext="Day 182 of 365, Year 1">
-                      <span id="calendar-year-fill"></span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Dev Speedup Option in Menu -->
-                <div class="modal-dev-box">
-                  <div class="dev-box-header">
-                    <span class="dev-badge">⚡ Developer Controls</span>
-                    <span class="dev-hint">Speed up calendar progression for testing</span>
-                  </div>
-                  <div class="dev-box-actions">
-                    <button id="modal-speed-btn" class="cozy-btn dev-speed-btn" type="button" title="Cycle game speed">
-                      ⏩ Dev Speed: <span id="modal-speed-text">3×</span>
-                    </button>
-                    <span class="dev-cycle-info" id="dev-cycle-info">Click to cycle: 3× · 15× · 60× · 300× · 1200×</span>
-                  </div>
-                </div>
-              </section>
-
-              <!-- Farm Map -->
-              <section class="almanac-section" aria-label="Farm map">
-                <div class="section-heading-row">
-                  <h3 class="section-title">🗺️ Farm Map</h3>
-                  <span class="section-note">Your homestead at a glance</span>
-                </div>
-                <div class="farm-map-card">
-                  <div id="farm-map" class="farm-map" aria-label="Top-down map of the farm"></div>
-                </div>
-              </section>
-
-              <!-- Events Calendar -->
-              <section class="almanac-section" aria-label="Events calendar">
-                <div class="section-heading-row">
-                  <h3 class="section-title">📅 Event Calendar</h3>
-                  <span class="section-note">Upcoming farm events</span>
-                </div>
-
-                <div class="event-calendar-card">
-                  <div class="event-calendar-header">
-                    <span class="event-calendar-month" id="event-calendar-month">March 2001</span>
-                  </div>
-                  <div class="event-calendar-grid" id="event-calendar-grid" aria-label="Calendar for the current month"></div>
-                </div>
-
-                <div class="upcoming-events-box">
-                  <div class="upcoming-events-title">📌 Upcoming events</div>
-                  <ul class="upcoming-events-list" id="upcoming-events-list"></ul>
-                </div>
-              </section>
-
-              <!-- Live Farm Ledger & Field Status -->
-              <section class="almanac-section farm-ledger-section" aria-label="Farm status ledger">
-                <div class="ledger-box">
-                  <div class="ledger-item">
-                    <span class="ledger-icon" aria-hidden="true">🌾</span>
-                    <div class="ledger-details">
-                      <span class="ledger-label">Wheat Field Status</span>
-                      <strong class="ledger-value" id="farm-planted-count">9 weedy · 0 cleared · 0 ready · 0 drilled</strong>
+                    <div class="dev-box-actions">
+                      <button id="modal-speed-btn" class="cozy-btn dev-speed-btn" type="button" title="Cycle game speed">
+                        ⏩ Dev Speed: <span id="modal-speed-text">3×</span>
+                      </button>
+                      <span class="dev-cycle-info" id="dev-cycle-info">Click to cycle: 3× · 15× · 60× · 300× · 1200×</span>
                     </div>
                   </div>
-                  <div class="ledger-item">
-                    <span class="ledger-icon" aria-hidden="true">🌤️</span>
-                    <div class="ledger-details">
-                      <span class="ledger-label">Current Weather</span>
-                      <strong class="ledger-value" id="farm-modal-weather">Clear skies and warm sunlight</strong>
+                </section>
+
+                <!-- Events Calendar -->
+                <section class="almanac-section" aria-label="Events calendar">
+                  <div class="section-heading-row">
+                    <h3 class="section-title">📅 Event Calendar</h3>
+                    <span class="section-note">Upcoming farm events</span>
+                  </div>
+
+                  <div class="event-calendar-card">
+                    <div class="event-calendar-header">
+                      <span class="event-calendar-month" id="event-calendar-month">July 2001</span>
+                    </div>
+                    <div class="event-calendar-grid" id="event-calendar-grid" aria-label="Calendar for the current month"></div>
+                  </div>
+
+                  <div class="upcoming-events-box">
+                    <div class="upcoming-events-title">📌 Upcoming events</div>
+                    <ul class="upcoming-events-list" id="upcoming-events-list"></ul>
+                  </div>
+                </section>
+              </div>
+
+              <!-- Tab 2: Farm Map -->
+              <div id="tab-map-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-map" hidden>
+                <!-- Farm Map -->
+                <section class="almanac-section" aria-label="Farm map">
+                  <div class="section-heading-row">
+                    <h3 class="section-title">🗺️ Farm Map</h3>
+                    <span class="section-note">Your homestead at a glance</span>
+                  </div>
+                  <div class="farm-map-card">
+                    <div id="farm-map" class="farm-map" aria-label="Top-down map of the farm"></div>
+                    <div class="map-legend" aria-label="Field plot legend">
+                      <span class="legend-item"><span class="legend-swatch swatch-weedy" aria-hidden="true"></span> Weeds</span>
+                      <span class="legend-item"><span class="legend-swatch swatch-cleared" aria-hidden="true"></span> Cleared</span>
+                      <span class="legend-item"><span class="legend-swatch swatch-cultivated" aria-hidden="true"></span> Cultivated</span>
+                      <span class="legend-item"><span class="legend-swatch swatch-planted" aria-hidden="true"></span> Drilled</span>
                     </div>
                   </div>
-                  <div class="ledger-item">
-                    <span class="ledger-icon" aria-hidden="true">🏡</span>
-                    <div class="ledger-details">
-                      <span class="ledger-label">Homestead</span>
-                      <strong class="ledger-value">Willow Creek Farmhouse</strong>
+                </section>
+
+                <!-- Live Farm Ledger & Field Status -->
+                <section class="almanac-section farm-ledger-section" aria-label="Farm status ledger">
+                  <div class="ledger-box">
+                    <div class="ledger-item">
+                      <span class="ledger-icon" aria-hidden="true">🌾</span>
+                      <div class="ledger-details">
+                        <span class="ledger-label">Wheat Field Status</span>
+                        <strong class="ledger-value" id="farm-planted-count">9 weedy · 0 cleared · 0 ready · 0 drilled</strong>
+                      </div>
+                    </div>
+                    <div class="ledger-item">
+                      <span class="ledger-icon" aria-hidden="true">🌤️</span>
+                      <div class="ledger-details">
+                        <span class="ledger-label">Current Weather</span>
+                        <strong class="ledger-value" id="farm-modal-weather">Clear skies and warm sunlight</strong>
+                      </div>
+                    </div>
+                    <div class="ledger-item">
+                      <span class="ledger-icon" aria-hidden="true">🏡</span>
+                      <div class="ledger-details">
+                        <span class="ledger-label">Homestead</span>
+                        <strong class="ledger-value">Willow Creek Farmhouse</strong>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </section>
+                </section>
+              </div>
             </div>
 
             <footer class="modal-footer">

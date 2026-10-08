@@ -1700,6 +1700,7 @@ function buildFarmMap() {
     const px = ((index % COLUMNS) - 1) * 1.22;
     const pz = (Math.floor(index / COLUMNS) - 1) * 1.22;
     parts.push(`<rect class="map-plot" data-index="${index}" x="${mapX(px) - 5.5}" y="${mapY(pz) - 5.5}" width="11" height="11" rx="2" />`);
+    parts.push(`<text class="map-plot-num" x="${mapX(px)}" y="${mapY(pz) + 3.5}">${index + 1}</text>`);
   }
 
   // Garden path
