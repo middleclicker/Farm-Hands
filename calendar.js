@@ -1,3 +1,5 @@
+import { eventMatches } from './keybinds.js';
+
 const DEFAULT_SPEED = 3;
 const SPEED_LEVELS = [3, 15, 60, 300, 1200];
 const GAME_START = Date.UTC(2001, 2, 1, 6); // March 1, Year 1, 06:00:00 UTC
@@ -26,6 +28,9 @@ let currentSpeedIndex = 0;
 let gameSpeed = SPEED_LEVELS[0];
 let accumulatedGameMs = 0;
 let lastRealTick = Date.now();
+// While the Escape menu is open the farm clock holds still, so reading the
+// credits or rebinding keys never costs the player in-game time.
+let isPaused = false;
 
 // DOM elements
 const dateLabel = document.querySelector('#calendar-date');
@@ -105,9 +110,20 @@ function advanceGameTime() {
   const now = Date.now();
   const delta = now - lastRealTick;
   lastRealTick = now;
-  if (delta > 0) {
+  if (delta > 0 && !isPaused) {
     accumulatedGameMs += delta * gameSpeed;
   }
+}
+
+/** Freeze/resume the farm clock (used by the Escape menu). */
+export function setGamePaused(paused) {
+  advanceGameTime();
+  isPaused = Boolean(paused);
+  lastRealTick = Date.now();
+}
+
+export function isGamePaused() {
+  return isPaused;
 }
 
 export function getGameDate() {
@@ -250,6 +266,10 @@ function renderUpcomingEvents(date) {
   }).join('');
 }
 
+export function isFarmhouseMenuOpen() {
+  return Boolean(farmhouseModal) && !farmhouseModal.hasAttribute('hidden');
+}
+
 export function updateCalendar() {
   advanceGameTime();
   const date = new Date(GAME_START + accumulatedGameMs);
@@ -307,39 +327,43 @@ modalCloseBtn?.addEventListener('click', () => closeFarmhouseMenu());
 modalFooterCloseBtn?.addEventListener('click', () => closeFarmhouseMenu());
 modalBackdrop?.addEventListener('click', () => closeFarmhouseMenu());
 
+export function slowGameSpeed() {
+  advanceGameTime();
+  currentSpeedIndex = (currentSpeedIndex - 1 + SPEED_LEVELS.length) % SPEED_LEVELS.length;
+  gameSpeed = SPEED_LEVELS[currentSpeedIndex];
+  updateSpeedUI();
+  updateCalendar();
+  saveGameTime();
+  return gameSpeed;
+}
+
+function pauseMenuIsOpen() {
+  return document.querySelector('#pause-modal')?.hasAttribute('hidden') === false;
+}
+
 window.addEventListener('keydown', (event) => {
   if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable]')) {
     return;
   }
+  if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
+  // The Escape menu owns the keyboard while it is open (Escape itself is
+  // handled in menu.js so the two modals never close each other).
+  if (pauseMenuIsOpen()) return;
 
-  // Toggle calendar modal with 'c' or 'h'
-  if ((event.key === 'c' || event.key === 'C' || event.key === 'h' || event.key === 'H') && !event.ctrlKey && !event.metaKey && !event.altKey) {
+  // Keys are read from the rebindable keybind store (see keybinds.js).
+  if (eventMatches(event, 'calendar')) {
     event.preventDefault();
     toggleFarmhouseMenu();
     return;
   }
-
-  // Close modal with Escape
-  if (event.key === 'Escape' && farmhouseModal && !farmhouseModal.hasAttribute('hidden')) {
-    event.preventDefault();
-    closeFarmhouseMenu();
-    return;
-  }
-
-  // Dev speedup hotkeys: 'T' or ']' to cycle/speed up, '[' to slow down
-  if ((event.key === 't' || event.key === 'T' || event.key === ']') && !event.ctrlKey && !event.metaKey && !event.altKey) {
+  if (eventMatches(event, 'speedUp')) {
     event.preventDefault();
     cycleGameSpeed();
     return;
   }
-  if (event.key === '[' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+  if (eventMatches(event, 'speedDown')) {
     event.preventDefault();
-    advanceGameTime();
-    currentSpeedIndex = (currentSpeedIndex - 1 + SPEED_LEVELS.length) % SPEED_LEVELS.length;
-    gameSpeed = SPEED_LEVELS[currentSpeedIndex];
-    updateSpeedUI();
-    updateCalendar();
-    saveGameTime();
+    slowGameSpeed();
   }
 });
 
@@ -358,8 +382,12 @@ window.FarmCalendar = {
   getSpeed: () => gameSpeed,
   setSpeed: setGameSpeed,
   cycleSpeed: cycleGameSpeed,
+  slowSpeed: slowGameSpeed,
+  isPaused: isGamePaused,
+  setPaused: setGamePaused,
   openFarmhouseMenu,
   closeFarmhouseMenu,
   toggleFarmhouseMenu,
+  isFarmhouseMenuOpen,
   updateCalendar,
 };

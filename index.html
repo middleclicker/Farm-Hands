@@ -9,16 +9,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,600&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=cozy-farm-events-1" />
+    <link rel="stylesheet" href="./styles.css?v=esc-menu-1" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=cozy-farm-events-1"></script>
+    <script type="module" src="./game.js?v=esc-menu-1"></script>
   </head>
   <body>
     <main class="game-shell">
       <section class="farm" aria-label="3D wheat planting field">
-        <canvas id="field" tabindex="0" aria-label="3D wheat field. Drag to rotate, scroll or pinch to zoom. Use WASD to move the camera, arrow keys to select a plot, and Enter to plant wheat. Click the farmhouse to view the farming calendar." aria-describedby="field-help field-status"></canvas>
+        <canvas id="field" tabindex="0" aria-label="3D wheat field. Drag to rotate, scroll or pinch to zoom. Use WASD to move the camera, arrow keys to select a plot, and Enter to plant wheat. Press Escape for the menu, credits, and keybind settings." aria-describedby="field-help field-status"></canvas>
 
         <!-- Cozy Top-Left HUD: Farm Crest & Farmhouse Calendar Button -->
         <header class="farm-hud farm-hud-left" aria-label="Farm overview">
@@ -190,9 +190,134 @@
           </div>
         </div>
 
+        <!-- Escape Menu: Resume, Credits, and Keybind Settings -->
+        <div id="pause-modal" class="farmhouse-modal pause-modal" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
+          <div class="modal-backdrop" id="pause-backdrop" aria-hidden="true"></div>
+          <div class="modal-card pause-card">
+            <header class="modal-header">
+              <div class="modal-title-group">
+                <div class="modal-house-icon" aria-hidden="true">🌾</div>
+                <div>
+                  <h2 id="pause-title">Farm Hands</h2>
+                  <p class="modal-subtitle">Willow Creek Homestead · Menu</p>
+                </div>
+              </div>
+              <button id="pause-close-btn" class="cozy-icon-btn modal-close-btn" type="button" aria-label="Close menu and resume farming">✕</button>
+            </header>
+
+            <div class="modal-body">
+              <!-- Root menu -->
+              <div id="pause-view-root" class="pause-view">
+                <nav class="pause-menu" aria-label="Menu options">
+                  <button id="pause-resume-btn" class="cozy-btn pause-menu-btn" type="button">
+                    <span class="pause-menu-icon" aria-hidden="true">▶️</span>
+                    <span class="pause-menu-text">
+                      <strong>Resume Farming</strong>
+                      <small>Back to the wheat field</small>
+                    </span>
+                  </button>
+                  <button id="pause-credits-btn" class="cozy-btn pause-menu-btn" type="button">
+                    <span class="pause-menu-icon" aria-hidden="true">🌟</span>
+                    <span class="pause-menu-text">
+                      <strong>Credits</strong>
+                      <small>Who grew this little farm</small>
+                    </span>
+                  </button>
+                  <button id="pause-settings-btn" class="cozy-btn pause-menu-btn" type="button">
+                    <span class="pause-menu-icon" aria-hidden="true">⚙️</span>
+                    <span class="pause-menu-text">
+                      <strong>Settings</strong>
+                      <small>Change keybinds &amp; camera memory</small>
+                    </span>
+                  </button>
+                </nav>
+              </div>
+
+              <!-- Credits -->
+              <section id="pause-view-credits" class="pause-view" tabindex="-1" hidden aria-label="Credits">
+                <div class="credits-hero">
+                  <span class="credits-crest" aria-hidden="true">🌾</span>
+                  <h3 class="credits-title">Farm Hands</h3>
+                  <p class="credits-tagline">A cozy 3D farming game set at Willow Creek Homestead.</p>
+                </div>
+                <ul class="credits-list">
+                  <li class="credits-item">
+                    <span class="credits-role">Design &amp; code</span>
+                    <span class="credits-name">Middleclicker</span>
+                  </li>
+                  <li class="credits-item">
+                    <span class="credits-role">3D engine</span>
+                    <span class="credits-name">three.js r186 · MIT License · © 2010–2026 three.js authors</span>
+                  </li>
+                  <li class="credits-item">
+                    <span class="credits-role">Camera controls</span>
+                    <span class="credits-name">three.js OrbitControls example (MIT)</span>
+                  </li>
+                  <li class="credits-item">
+                    <span class="credits-role">Typefaces</span>
+                    <span class="credits-name">Fraunces &amp; Nunito via Google Fonts (SIL Open Font License)</span>
+                  </li>
+                  <li class="credits-item">
+                    <span class="credits-role">Weather, calendar &amp; wheat</span>
+                    <span class="credits-name">Handmade with plain JavaScript, HTML, and CSS</span>
+                  </li>
+                </ul>
+                <p class="credits-note">Thanks for tending the homestead. The full three.js license text lives in <code>vendor/three/LICENSE</code>.</p>
+                <div class="pause-view-actions">
+                  <button id="credits-back-btn" class="cozy-btn primary-btn" type="button">← Back</button>
+                </div>
+              </section>
+
+              <!-- Settings -->
+              <section id="pause-view-settings" class="pause-view" tabindex="-1" hidden aria-label="Settings">
+                <div class="settings-block">
+                  <div class="section-heading-row">
+                    <h3 class="section-title">🎥 Camera</h3>
+                    <span class="section-note">Saved in this browser</span>
+                  </div>
+                  <div class="settings-row">
+                    <label class="settings-toggle" for="camera-memory-toggle">
+                      <input type="checkbox" id="camera-memory-toggle" checked />
+                      <span class="settings-toggle-text">
+                        <strong>Remember my camera position</strong>
+                        <small>Your view is restored the next time you visit.</small>
+                      </span>
+                    </label>
+                    <button id="camera-reset-btn" class="cozy-btn" type="button">Recenter camera</button>
+                  </div>
+                </div>
+
+                <div class="settings-block">
+                  <div class="section-heading-row">
+                    <h3 class="section-title">⌨️ Keybinds</h3>
+                    <span class="section-note" id="keybind-custom-note">Using the default keybinds.</span>
+                  </div>
+                  <p class="settings-hint">
+                    Click a key, then press the key you want. <kbd>Backspace</kbd> clears a key.
+                    <kbd>Esc</kbd> cancels a rebind and always opens this menu.
+                  </p>
+                  <div id="keybind-groups" class="keybind-groups"></div>
+                  <p class="settings-status" id="keybind-status" role="status" aria-live="polite">Choose an option below.</p>
+                  <div class="pause-view-actions">
+                    <button id="keybind-reset-btn" class="cozy-btn" type="button">↺ Reset keybinds</button>
+                  </div>
+                </div>
+
+                <div class="pause-view-actions">
+                  <button id="settings-back-btn" class="cozy-btn primary-btn" type="button">← Back</button>
+                </div>
+              </section>
+            </div>
+
+            <footer class="modal-footer">
+              <span class="footer-tip" id="pause-footer-hint">Press Esc to return to the farm.</span>
+            </footer>
+          </div>
+        </div>
+
         <div class="sr-only">
           <h1>Farm Hands</h1>
-          <p id="field-help">Click or tap to plant wheat. Drag to rotate. Scroll or pinch to zoom. Use WASD to move the camera across the farm, arrow keys to select a plot, and Enter to plant wheat. Click the farmhouse or press C to open the farming calendar.</p>
+          <p id="field-help">Click or tap to plant wheat. Drag to rotate. Scroll or pinch to zoom. Use WASD to move the camera across the farm, arrow keys to select a plot, and Enter to plant wheat. Press Escape for the menu, credits, and keybind settings.</p>
           <p class="field-status" id="field-status" role="status">Choose a soil plot to plant wheat, or click the farmhouse to open the calendar.</p>
         </div>
       </section>

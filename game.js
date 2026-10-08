@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
 import { getGameDate } from './calendar.js';
+import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js';
+// Importing the menu wires up the Escape menu (credits + keybind settings).
+import './menu.js';
 
 const COLUMNS = 3;
 const ROWS = 3;
@@ -44,6 +47,119 @@ controls.maxPolarAngle = THREE.MathUtils.degToRad(80);
 controls.rotateSpeed = 0.8;
 controls.update();
 
+// ==========================================================================
+// CAMERA MEMORY
+// --------------------------------------------------------------------------
+// Where the camera is left is remembered between visits, alongside the wheat
+// and weather that were already saved. Both the camera position and the orbit
+// target are stored (moving with WASD shifts the target too), and the saved
+// view is restored once the initial fit-to-window resize has run.
+// ==========================================================================
+
+const STORAGE_CAMERA_KEY = 'farm-hands-camera-v1';
+const STORAGE_CAMERA_MEMORY_KEY = 'farm-hands-camera-memory-v1';
+const DEFAULT_CAMERA_POSITION = camera.position.clone();
+const DEFAULT_CAMERA_TARGET = controls.target.clone();
+let lastSavedCameraState = '';
+
+function isCameraMemoryEnabled() {
+  try {
+    return localStorage.getItem(STORAGE_CAMERA_MEMORY_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function saneVector(values) {
+  return Array.isArray(values)
+    && values.length === 3
+    && values.every((value) => Number.isFinite(value))
+    && Math.abs(values[0]) < 1000
+    && Math.abs(values[2]) < 1000
+    && values[1] > -50
+    && values[1] < 500;
+}
+
+function cameraStateSnapshot() {
+  return {
+    position: camera.position.toArray().map((value) => Number(value.toFixed(3))),
+    target: controls.target.toArray().map((value) => Number(value.toFixed(3))),
+  };
+}
+
+function readSavedCameraState() {
+  if (!isCameraMemoryEnabled()) return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_CAMERA_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!saneVector(data?.position) || !saneVector(data?.target)) return null;
+    return { position: data.position, target: data.target };
+  } catch {
+    return null;
+  }
+}
+
+function applyCameraState(state) {
+  const target = new THREE.Vector3().fromArray(state.target);
+  const offset = new THREE.Vector3().fromArray(state.position).sub(target);
+  if (offset.lengthSq() < 1e-6) {
+    offset.copy(DEFAULT_CAMERA_POSITION).sub(DEFAULT_CAMERA_TARGET);
+  }
+  const distance = THREE.MathUtils.clamp(
+    offset.length(),
+    controls.minDistance,
+    controls.maxDistance,
+  );
+  controls.target.copy(target);
+  camera.position.copy(target).addScaledVector(offset.normalize(), distance);
+  controls.update();
+  lastSavedCameraState = JSON.stringify(cameraStateSnapshot());
+  cameraStateRestored = true;
+  render();
+}
+
+function saveCameraState(force = false) {
+  if (!isCameraMemoryEnabled()) return;
+  const snapshot = JSON.stringify(cameraStateSnapshot());
+  if (!force && snapshot === lastSavedCameraState) return;
+  lastSavedCameraState = snapshot;
+  try {
+    localStorage.setItem(STORAGE_CAMERA_KEY, snapshot);
+  } catch {
+    // Storage unavailable; the camera still moves, it just is not remembered.
+  }
+}
+
+function setCameraMemoryEnabled(enabled) {
+  try {
+    if (enabled) {
+      localStorage.removeItem(STORAGE_CAMERA_MEMORY_KEY);
+    } else {
+      localStorage.setItem(STORAGE_CAMERA_MEMORY_KEY, 'off');
+      localStorage.removeItem(STORAGE_CAMERA_KEY);
+    }
+  } catch {
+    // Ignore unavailable storage.
+  }
+  lastSavedCameraState = enabled ? '' : JSON.stringify(cameraStateSnapshot());
+  if (enabled) saveCameraState(true);
+}
+
+function resetCameraToDefault() {
+  // Reproduce the framing a fresh visit gets: the starting view direction at
+  // the same fit-to-window distance the resize handler would choose.
+  const direction = DEFAULT_CAMERA_POSITION.clone().sub(DEFAULT_CAMERA_TARGET);
+  const startDistance = fittedDistance ?? direction.length();
+  const distance = THREE.MathUtils.clamp(startDistance, controls.minDistance, controls.maxDistance);
+  controls.target.copy(DEFAULT_CAMERA_TARGET);
+  camera.position.copy(DEFAULT_CAMERA_TARGET).addScaledVector(direction.normalize(), distance);
+  controls.update();
+  lastSavedCameraState = '';
+  saveCameraState(true);
+  render();
+}
+
 // Warm pastoral lighting
 const ambientLight = new THREE.HemisphereLight(0xe8f4ff, 0x6e945c, 2.5);
 scene.add(ambientLight);
@@ -77,36 +193,14 @@ function box(parent, width, height, depth, meshMaterial, x, y, z) {
   return mesh;
 }
 
-// Terrain feature placements (shared by the 3D scene and the farmhouse map).
-const POND = { x: 8.8, z: 6.8, radius: 2.1 };
-const HILL = { x: 2, z: -9, height: 3.4, spread: 7 };
-const PINE_POSITIONS = [
-  [-11.0, -7.0], [-9.5, -9.0], [-7.8, -7.6], [-10.2, -5.4], [-12.2, -8.2],
-  [-6.8, -8.6], [-8.6, -10.2], [-11.4, -5.8], [-7.0, -5.6],
-];
-const ROCK_POSITIONS = [
-  [-3.4, 3.2], [4.2, 3.6], [3.8, -3.2], [-3.8, -3.4],
-  [7.3, 5.9], [9.6, 5.8], [8.2, 8.3], [10.3, 7.3], [6.9, 7.2], [9.9, 6.9],
-];
-const GARDEN_PATH_STEPS = [
-  [-5.8, -3.9], [-5.2, -3.6], [-4.6, -3.2],
-  [-3.9, -2.9], [-3.2, -2.6], [-2.5, -2.4], [-1.9, -2.2],
-];
-
 function groundHeight(x, z) {
   const distance = Math.hypot(x, z);
   const hills = THREE.MathUtils.smoothstep(distance, 7, 28);
-  let height = -0.18 + hills * (
+  return -0.18 + hills * (
     0.32 * Math.sin(x * 0.09) * Math.cos(z * 0.075) +
     0.19 * Math.sin(x * 0.19 + z * 0.14) +
     0.12 * Math.cos(z * 0.16)
   );
-
-  // Broad, rolling hill rising to the north.
-  const hillDist = Math.hypot(x - HILL.x, z - HILL.z);
-  height += HILL.height * Math.exp(-(hillDist * hillDist) / (2 * HILL.spread * HILL.spread));
-
-  return height;
 }
 
 function grassTexture() {
@@ -198,10 +292,7 @@ for (let index = 0; index < tuftCount; index += 1) {
     const radius = index < 1900 ? 5.5 + randomGrass() * 26 : 26 + Math.sqrt(randomGrass()) * 105;
     x = Math.cos(angle) * radius;
     z = Math.sin(angle) * radius;
-  } while (
-    (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2) || // Farmhouse
-    Math.hypot(x - POND.x, z - POND.z) < POND.radius + 0.7 // Pond
-  );
+  } while (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2);
   const height = 0.65 + randomGrass() * 1.05;
   const width = 0.8 + randomGrass() * 0.7;
   tuftTransform.position.set(x, groundHeight(x, z) + 0.012, z);
@@ -244,8 +335,7 @@ function addWildflowers() {
       z = Math.sin(angle) * radius;
     } while (
       (x > -2.6 && x < 2.6 && z > -2.6 && z < 2.6) || // Avoid wheat plot
-      (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2) || // Avoid house
-      Math.hypot(x - POND.x, z - POND.z) < POND.radius + 0.7 // Avoid pond
+      (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2)   // Avoid house
     );
 
     const y = groundHeight(x, z) + 0.16 + randomGrass() * 0.12;
@@ -427,8 +517,12 @@ function updateChimneySmoke(deltaSeconds = 0) {
 // 1. Winding Cobblestone Garden Path (Farmhouse -> Wheat Field)
 function addGardenPath() {
   const pathMat = material(0x8a8479, 0.95);
-  for (let i = 0; i < GARDEN_PATH_STEPS.length; i += 1) {
-    const [x, z] = GARDEN_PATH_STEPS[i];
+  const pathSteps = [
+    [-5.8, -3.9], [-5.2, -3.6], [-4.6, -3.2],
+    [-3.9, -2.9], [-3.2, -2.6], [-2.5, -2.4], [-1.9, -2.2]
+  ];
+  for (let i = 0; i < pathSteps.length; i += 1) {
+    const [x, z] = pathSteps[i];
     const stone = new THREE.Mesh(
       new THREE.CylinderGeometry(0.32 + (i % 2) * 0.08, 0.35 + (i % 2) * 0.08, 0.06, 7),
       pathMat
@@ -584,75 +678,6 @@ function addSignpost() {
   scene.add(signpost);
 }
 addSignpost();
-
-// ==========================================================================
-// INTERESTING TERRAIN: POND, PINE FOREST, BOULDERS
-// ==========================================================================
-
-function addPond() {
-  const waterLevel = groundHeight(POND.x, POND.z);
-
-  // Sandy bank
-  const bank = new THREE.Mesh(new THREE.CircleGeometry(POND.radius + 0.5, 30), material(0xc9b285));
-  bank.rotation.x = -Math.PI / 2;
-  bank.position.set(POND.x, waterLevel - 0.02, POND.z);
-  bank.receiveShadow = true;
-  scene.add(bank);
-
-  // Water surface
-  const water = new THREE.Mesh(
-    new THREE.CircleGeometry(POND.radius, 30),
-    new THREE.MeshStandardMaterial({
-      color: 0x4a90c9,
-      roughness: 0.15,
-      metalness: 0.1,
-      transparent: true,
-      opacity: 0.9,
-    }),
-  );
-  water.rotation.x = -Math.PI / 2;
-  water.position.set(POND.x, waterLevel + 0.01, POND.z);
-  scene.add(water);
-}
-
-function addPine(x, z, scale = 1) {
-  const pine = new THREE.Group();
-  pine.position.set(x, groundHeight(x, z), z);
-  pine.scale.setScalar(scale);
-
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, 1.0, 6), material(0x4a3017));
-  trunk.position.y = 0.5;
-  trunk.castShadow = true;
-  pine.add(trunk);
-
-  const tiers = [
-    [1.1, 1.6, 1.35],
-    [0.8, 1.4, 1.95],
-    [0.5, 1.1, 2.5],
-  ];
-  for (const [radius, height, centerY] of tiers) {
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 7), material(0x2f6b34));
-    cone.position.y = centerY;
-    cone.castShadow = true;
-    pine.add(cone);
-  }
-
-  scene.add(pine);
-}
-
-function addBoulder(x, z, scale = 1) {
-  const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34 * scale, 0), material(0x8a8578));
-  rock.position.set(x, groundHeight(x, z) + 0.1 * scale, z);
-  rock.rotation.set(Math.sin(x) * 0.6, z * 0.5, Math.cos(z) * 0.4);
-  rock.scale.y = 0.7;
-  rock.castShadow = true;
-  rock.receiveShadow = true;
-  scene.add(rock);
-}
-
-addPond();
-PINE_POSITIONS.forEach(([x, z], index) => addPine(x, z, 0.85 + (index % 3) * 0.15));
-ROCK_POSITIONS.forEach(([x, z], index) => addBoulder(x, z, 0.75 + (index % 3) * 0.3));
 
 // ==========================================================================
 // SOIL AND PLANTING FIELD
@@ -977,11 +1002,19 @@ function updateDaylight() {
 // and eases back to zero on release, which removes the old "steppy" key-repeat feel.
 const MOVE_SPEED = 9; // world units per second at full speed
 const MOVE_DAMPING = 12; // higher = snappier acceleration / deceleration
+// Held movement is tracked per action (not per physical key) so rebinding a
+// key in Settings takes effect immediately. The order below keeps the spoken
+// key hint reading "WASD".
+const MOVE_ACTIONS = ['moveForward', 'moveLeft', 'moveBackward', 'moveRight'];
 const heldKeys = new Set();
 const moveVelocity = new THREE.Vector3();
 const moveDirection = new THREE.Vector3();
 const moveForward = new THREE.Vector3();
 const moveRight = new THREE.Vector3();
+
+function pauseMenuIsOpen() {
+  return document.querySelector('#pause-modal')?.hasAttribute('hidden') === false;
+}
 
 function desiredMoveDirection() {
   camera.getWorldDirection(moveForward);
@@ -990,10 +1023,10 @@ function desiredMoveDirection() {
   moveRight.crossVectors(moveForward, camera.up).normalize();
 
   moveDirection.set(0, 0, 0);
-  if (heldKeys.has('w')) moveDirection.add(moveForward);
-  if (heldKeys.has('s')) moveDirection.sub(moveForward);
-  if (heldKeys.has('d')) moveDirection.add(moveRight);
-  if (heldKeys.has('a')) moveDirection.sub(moveRight);
+  if (heldKeys.has('moveForward')) moveDirection.add(moveForward);
+  if (heldKeys.has('moveBackward')) moveDirection.sub(moveForward);
+  if (heldKeys.has('moveRight')) moveDirection.add(moveRight);
+  if (heldKeys.has('moveLeft')) moveDirection.sub(moveRight);
   if (moveDirection.lengthSq() > 0) moveDirection.normalize();
   return moveDirection;
 }
@@ -1014,6 +1047,16 @@ function updateCameraMovement(deltaSeconds) {
   return true;
 }
 
+// Persist the camera a few times a second while it is being moved (and on
+// page hide) instead of writing to storage on every single frame.
+let cameraSaveCooldown = 0;
+function updateCameraMemory(deltaSeconds) {
+  cameraSaveCooldown += deltaSeconds;
+  if (cameraSaveCooldown < 0.6) return;
+  cameraSaveCooldown = 0;
+  saveCameraState();
+}
+
 // Unified Animation Loop
 function animateScene(now) {
   const deltaSeconds = Math.min((now - lastTickTime) / 1000, 0.06);
@@ -1025,6 +1068,7 @@ function animateScene(now) {
   if (updateCameraMovement(deltaSeconds)) {
     if (rain.visible) updateRain(0);
   }
+  updateCameraMemory(deltaSeconds);
   render();
   requestAnimationFrame(animateScene);
 }
@@ -1087,6 +1131,10 @@ function addWheatSeedlings(index, animateGrowth = true) {
 // ==========================================================================
 
 let fittedDistance = null;
+// A remembered camera keeps its own zoom distance. If the very first resize
+// arrives before the canvas has been measured (fittedDistance still null), the
+// restored distance must be kept instead of being snapped to the fit distance.
+let cameraStateRestored = false;
 function resize() {
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
@@ -1094,7 +1142,9 @@ function resize() {
   const aspect = width / height;
   const fit = Math.max(13, 12.2 / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect));
   const distance = fittedDistance === null
-    ? fit
+    ? (cameraStateRestored
+      ? THREE.MathUtils.clamp(controls.getDistance(), controls.minDistance, controls.maxDistance)
+      : fit)
     : THREE.MathUtils.clamp((controls.getDistance() * fit) / fittedDistance, controls.minDistance, controls.maxDistance);
   fittedDistance = fit;
   const direction = camera.position.clone().sub(controls.target).normalize();
@@ -1154,10 +1204,27 @@ function updateHighlights() {
 
 function updateCanvasLabel() {
   const state = plantedPlots.has(selectedIndex) ? 'already planted' : 'empty';
+  const movementKeys = MOVE_ACTIONS.map((action) => bindingLabel(action)).join('');
   canvas.setAttribute(
     'aria-label',
-    `3D wheat field. Plot ${selectedIndex + 1} of ${PLOT_COUNT} is ${state}. Use WASD to move camera, arrow keys to select a plot, Enter to plant wheat. Click the farmhouse to view the calendar.`
+    `3D wheat field. Plot ${selectedIndex + 1} of ${PLOT_COUNT} is ${state}. `
+    + `Use ${movementKeys} to move camera, ${bindingSummary('selectUp')}/${bindingSummary('selectDown')}/`
+    + `${bindingSummary('selectLeft')}/${bindingSummary('selectRight')} to select a plot, `
+    + `${bindingSummary('plant')} to plant wheat. Click the farmhouse or press ${bindingSummary('calendar')} `
+    + `to view the calendar, and press ${bindingSummary('openMenu')} for the menu, credits, and keybind settings.`
   );
+}
+
+function updateHelpText() {
+  const helpEl = document.querySelector('#field-help');
+  if (!helpEl) return;
+  const movementKeys = MOVE_ACTIONS.map((action) => bindingLabel(action)).join('');
+  helpEl.textContent = `Click or tap to plant wheat. Drag to rotate. Scroll or pinch to zoom. `
+    + `Use ${movementKeys} to move the camera across the farm, `
+    + `${bindingSummary('selectLeft')}/${bindingSummary('selectRight')}/${bindingSummary('selectUp')}/${bindingSummary('selectDown')} `
+    + `to select a plot, and ${bindingSummary('plant')} to plant wheat. `
+    + `Click the farmhouse or press ${bindingSummary('calendar')} to open the farming calendar. `
+    + `Press ${bindingSummary('openMenu')} for the menu, credits, and keybind settings.`;
 }
 
 function updatePlantedCountLedger() {
@@ -1176,7 +1243,6 @@ function plantWheat(index) {
     : `Wheat planted in plot ${index + 1}.`;
   updateCanvasLabel();
   updatePlantedCountLedger();
-  updateMapPlots();
   saveGameProgress();
 }
 
@@ -1280,12 +1346,13 @@ canvas.addEventListener('blur', () => {
 });
 
 canvas.addEventListener('keydown', (event) => {
+  if (pauseMenuIsOpen()) return;
   let next = selectedIndex;
-  if (event.key === 'ArrowLeft' && selectedIndex % COLUMNS > 0) next -= 1;
-  else if (event.key === 'ArrowRight' && selectedIndex % COLUMNS < COLUMNS - 1) next += 1;
-  else if (event.key === 'ArrowUp' && selectedIndex >= COLUMNS) next -= COLUMNS;
-  else if (event.key === 'ArrowDown' && selectedIndex < PLOT_COUNT - COLUMNS) next += COLUMNS;
-  else if (event.key === 'Enter' || event.key === ' ') plantWheat(selectedIndex);
+  if (eventMatches(event, 'selectLeft') && selectedIndex % COLUMNS > 0) next -= 1;
+  else if (eventMatches(event, 'selectRight') && selectedIndex % COLUMNS < COLUMNS - 1) next += 1;
+  else if (eventMatches(event, 'selectUp') && selectedIndex >= COLUMNS) next -= COLUMNS;
+  else if (eventMatches(event, 'selectDown') && selectedIndex < PLOT_COUNT - COLUMNS) next += COLUMNS;
+  else if (eventMatches(event, 'plant')) plantWheat(selectedIndex);
   else return;
   event.preventDefault();
   selectedIndex = next;
@@ -1296,111 +1363,54 @@ canvas.addEventListener('keydown', (event) => {
 window.addEventListener('keydown', (event) => {
   if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
   if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable]')) return;
-  const key = event.key.toLowerCase();
-  if (!['w', 'a', 's', 'd'].includes(key)) return;
-  event.preventDefault();
-  heldKeys.add(key);
+  if (pauseMenuIsOpen()) return;
+  for (const action of MOVE_ACTIONS) {
+    if (eventMatches(event, action)) {
+      event.preventDefault();
+      heldKeys.add(action);
+      return;
+    }
+  }
 });
 
 window.addEventListener('keyup', (event) => {
-  const key = event.key.toLowerCase();
-  if (['w', 'a', 's', 'd'].includes(key)) heldKeys.delete(key);
+  for (const action of MOVE_ACTIONS) {
+    if (eventMatches(event, action)) heldKeys.delete(action);
+  }
 });
 
 // Clear held keys if the window loses focus so the camera never keeps drifting.
 window.addEventListener('blur', () => heldKeys.clear());
 
-// ==========================================================================
-// FARM MAP (top-down map shown in the farmhouse modal)
-// ==========================================================================
+// Re-render the on-screen/assistive hints whenever keys are rebound, and stop
+// the camera if a rebind happens while a movement key is still held down.
+onKeybindsChange(() => {
+  heldKeys.clear();
+  updateCanvasLabel();
+  updateHelpText();
+});
 
-const MAP_SCALE = 13;
-const MAP_CX = 190;
-const MAP_CY = 150;
-const mapX = (x) => MAP_CX + x * MAP_SCALE;
-const mapY = (z) => MAP_CY + z * MAP_SCALE;
+// The Escape menu pauses the farm and takes over the keyboard.
+window.addEventListener('farm-hands:menu-open', () => heldKeys.clear());
+window.addEventListener('farm-hands:camera-memory-change', (event) => {
+  setCameraMemoryEnabled(event.detail?.enabled !== false);
+});
+window.addEventListener('farm-hands:camera-reset', () => resetCameraToDefault());
 
-function pineGlyph(cx, cy) {
-  return `M ${cx} ${cy - 5} L ${cx - 3.5} ${cy + 2} L ${cx + 3.5} ${cy + 2} Z`;
-}
-
-function buildFarmMap() {
-  const container = document.querySelector('#farm-map');
-  if (!container) return;
-
-  const parts = [];
-
-  // Distant hill contours (north)
-  for (const radius of [30, 55, 80]) {
-    parts.push(`<ellipse class="map-hill" cx="${mapX(HILL.x)}" cy="${mapY(HILL.z)}" rx="${radius}" ry="${Math.round(radius * 0.4)}" />`);
-  }
-
-  // Pond (south-east)
-  parts.push(`<ellipse class="map-pond" cx="${mapX(POND.x)}" cy="${mapY(POND.z)}" rx="${Math.round(POND.radius * MAP_SCALE * 1.15)}" ry="${Math.round(POND.radius * MAP_SCALE * 0.85)}" />`);
-  parts.push(`<ellipse class="map-pond-shine" cx="${mapX(POND.x) - 4}" cy="${mapY(POND.z) - 3}" rx="7" ry="4" />`);
-
-  // Pine forest (north-west)
-  for (const [x, z] of PINE_POSITIONS) {
-    parts.push(`<path class="map-pine" d="${pineGlyph(mapX(x), mapY(z))}" />`);
-  }
-
-  // Boulders
-  for (const [x, z] of ROCK_POSITIONS) {
-    parts.push(`<ellipse class="map-rock" cx="${mapX(x)}" cy="${mapY(z)}" rx="3.4" ry="2.6" />`);
-  }
-
-  // Fence around the field
-  parts.push(`<rect class="map-fence" x="${mapX(-2.35)}" y="${mapY(-2.35)}" width="${2.35 * MAP_SCALE * 2}" height="${2.35 * MAP_SCALE * 2}" rx="7" />`);
-
-  // Soil field
-  parts.push(`<rect class="map-field" x="${mapX(-1.9)}" y="${mapY(-1.9)}" width="${1.9 * MAP_SCALE * 2}" height="${1.9 * MAP_SCALE * 2}" rx="5" />`);
-
-  // Nine plantable plots
-  for (let index = 0; index < PLOT_COUNT; index += 1) {
-    const px = ((index % COLUMNS) - 1) * 1.22;
-    const pz = (Math.floor(index / COLUMNS) - 1) * 1.22;
-    parts.push(`<rect class="map-plot" data-index="${index}" x="${mapX(px) - 5.5}" y="${mapY(pz) - 5.5}" width="11" height="11" rx="2" />`);
-  }
-
-  // Garden path
-  parts.push(`<polyline class="map-path" points="${GARDEN_PATH_STEPS.map(([x, z]) => `${mapX(x)},${mapY(z)}`).join(' ')}" />`);
-
-  // Farmhouse
-  const hx = mapX(-5.8);
-  const hy = mapY(-5.1);
-  parts.push(`<rect class="map-house" x="${hx - 7}" y="${hy - 5}" width="14" height="14" rx="2" />`);
-  parts.push(`<path class="map-house-roof" d="M ${hx - 9} ${hy - 5} L ${hx} ${hy - 12} L ${hx + 9} ${hy - 5} Z" />`);
-
-  // Hay bales
-  for (const [x, z] of [[2.6, -1.8], [2.8, -1.2], [2.7, -1.5]]) {
-    parts.push(`<circle class="map-hay" cx="${mapX(x)}" cy="${mapY(z)}" r="3" />`);
-  }
-
-  // Signpost
-  parts.push(`<circle class="map-sign" cx="${mapX(-2.1)}" cy="${mapY(-1.9)}" r="2.5" />`);
-
-  // Orchard trees
-  for (const [x, z] of [[-8.5, -6.6], [3.8, -5.6]]) {
-    parts.push(`<circle class="map-tree" cx="${mapX(x)}" cy="${mapY(z)}" r="5.5" />`);
-  }
-
-  // Compass
-  parts.push(`<g class="map-compass"><path d="M ${MAP_CX + 158} 18 L ${MAP_CX + 162} 30 L ${MAP_CX + 166} 18 Z" /><text x="${MAP_CX + 164}" y="40">N</text></g>`);
-
-  container.innerHTML = `<svg class="farm-map-svg" viewBox="0 0 380 300" role="img" aria-label="Map of the farm">${parts.join('')}</svg>`;
-  updateMapPlots();
-}
-
-function updateMapPlots() {
-  document.querySelectorAll('.map-plot').forEach((cell) => {
-    const index = Number(cell.dataset.index);
-    cell.classList.toggle('is-planted', plantedPlots.has(index));
-  });
-}
+// Remember the camera when the page is hidden or closed.
+window.addEventListener('pagehide', () => saveCameraState(true));
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveCameraState(true);
+});
 
 updateCanvasLabel();
+updateHelpText();
 resize();
-buildFarmMap();
+// Restore the remembered camera only after the first fit-to-window resize,
+// otherwise that resize would overwrite the saved distance.
+const restoredCameraState = readSavedCameraState();
+if (restoredCameraState) applyCameraState(restoredCameraState);
+lastSavedCameraState = JSON.stringify(cameraStateSnapshot());
 
 // Expose on window for debugging and test verification
 window.FarmGame = {
@@ -1412,6 +1422,11 @@ window.FarmGame = {
   plantedPlots,
   weatherSettings,
   setWeather,
-  buildFarmMap,
-  updateMapPlots,
+  heldKeys,
+  readSavedCameraState,
+  saveCameraState,
+  applyCameraState,
+  resetCameraToDefault,
+  isCameraMemoryEnabled,
+  setCameraMemoryEnabled,
 };
