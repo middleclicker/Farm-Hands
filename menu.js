@@ -92,8 +92,7 @@ function renderKeybinds() {
 
     const heading = document.createElement('div');
     heading.className = 'keybind-group-header';
-    heading.innerHTML = `<span class="keybind-group-icon" aria-hidden="true">${group.icon}</span>
-      <div class="keybind-group-text">
+    heading.innerHTML = `<div class="keybind-group-text">
         <h4 class="keybind-group-title">${group.title}</h4>
         <p class="keybind-group-desc">${group.description}</p>
       </div>`;

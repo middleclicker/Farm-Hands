@@ -1321,10 +1321,6 @@ html, body {
   border-bottom: 1px dashed var(--parchment-border);
 }
 
-.keybind-group-icon {
-  font-size: 17px;
-}
-
 .keybind-group-text {
   display: flex;
   flex-direction: column;

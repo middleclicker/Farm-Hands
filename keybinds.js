@@ -17,7 +17,6 @@ export const KEYBIND_GROUPS = [
   {
     id: 'camera',
     title: 'Camera movement',
-    icon: '🎥',
     description: 'Move the camera across the farm.',
     actions: [
       { id: 'moveForward', label: 'Move forward', slots: ['KeyW'] },
@@ -29,7 +28,6 @@ export const KEYBIND_GROUPS = [
   {
     id: 'field',
     title: 'Field & planting',
-    icon: '🌾',
     description: 'Choose a soil plot and sow wheat.',
     actions: [
       { id: 'selectUp', label: 'Select plot above', slots: ['ArrowUp'] },
@@ -42,7 +40,6 @@ export const KEYBIND_GROUPS = [
   {
     id: 'menus',
     title: 'Menus & time',
-    icon: '📖',
     description: 'Open the calendar, the menu, and developer time controls.',
     actions: [
       { id: 'calendar', label: 'Open the farmhouse calendar', slots: ['KeyC', 'KeyH'] },
