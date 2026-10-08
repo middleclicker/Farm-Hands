@@ -1,4 +1,4 @@
-import { eventMatches } from './keybinds.js?v=night-5';
+import { eventMatches } from './keybinds.js?v=ground-6';
 
 const DEFAULT_SPEED = 120;
 const SPEED_LEVELS = [120, 300, 1000, 10000];

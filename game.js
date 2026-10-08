@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { advanceToMorning, getGameDate, setGamePaused } from './calendar.js?v=night-5';
-import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=night-5';
-import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=night-5';
+import { advanceToMorning, getGameDate, setGamePaused } from './calendar.js?v=ground-6';
+import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=ground-6';
+import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=ground-6';
 // Importing the menu wires up the Escape menu (credits + keybind settings).
-import './menu.js?v=night-5';
+import './menu.js?v=ground-6';
 
 const CELL_SIZE = 1.25;
 const MAX_GRID = 6;
@@ -479,6 +479,7 @@ function box(parent, width, height, depth, meshMaterial, x, y, z) {
 
 // Terrain feature placements (shared by the 3D scene and the farmhouse map).
 const HILL = { x: 2, z: -9, height: 3.4, spread: 7 };
+const RANCH = { minX: -11, maxX: 11, minZ: -11, maxZ: 11 };
 const PINE_POSITIONS = [
   [-12.0, -7.0], [-11.5, -9.0], [-12.8, -8.6], [-10.6, -10.2], [-13.4, -5.8],
 ];
@@ -556,6 +557,13 @@ function grassTexture() {
 const terrainGeometry = new THREE.PlaneGeometry(600, 600, 240, 240);
 terrainGeometry.rotateX(-Math.PI / 2);
 const terrainPositions = terrainGeometry.attributes.position;
+// The detailed ranch mesh owns the ground inside the boundary. Keep the
+// coarse landscape underneath it, including where shovel edits dig downward.
+function coarseTerrainHeight(x, z) {
+  const edge = Math.max(Math.abs(x), Math.abs(z));
+  const clearance = 1.0 * (1 - THREE.MathUtils.smoothstep(edge, 9, 13));
+  return groundHeight(x, z) - clearance;
+}
 const terrainColors = [];
 const grassLight = new THREE.Color(0x94c47b);
 const grassShade = new THREE.Color(0x73a869);
@@ -566,7 +574,7 @@ for (let index = 0; index < terrainPositions.count; index += 1) {
   const x = terrainPositions.getX(index);
   const z = terrainPositions.getZ(index);
   const height = groundHeight(x, z);
-  terrainPositions.setY(index, height);
+  terrainPositions.setY(index, coarseTerrainHeight(x, z));
   const variation = (Math.sin(x * 0.12 + z * 0.035) * Math.cos(z * 0.11) + 1) / 2;
   const color = grassShade.clone().lerp(grassLight, variation);
   color.lerp(rockShade.clone().lerp(rockLight, variation), THREE.MathUtils.smoothstep(height, 3, 11));
@@ -642,7 +650,6 @@ function spreadExcessDirt() {
   status.textContent = 'John spread the extra soil into the nearby ground.';
 }
 
-const RANCH = { minX: -11, maxX: 11, minZ: -11, maxZ: 11 };
 function dottedRectangle(bounds, color = 0xf5e2a7, step = 0.32) {
   const points = [];
   const edge = (ax, az, bx, bz) => {
@@ -931,8 +938,8 @@ function sendJohnToPlot(index, duration) {
   sendJohnToPoint(x - 0.48, z + 0.42, duration * 0.65);
 }
 
-function sendJohnToPoint(x, z, duration) {
-  johnTravel = { from: farmerJohn.position.clone(), to: new THREE.Vector3(x, groundHeight(x, z), z), started: performance.now(), duration };
+function sendJohnToPoint(x, z, duration, reason = null) {
+  johnTravel = { from: farmerJohn.position.clone(), to: new THREE.Vector3(x, groundHeight(x, z), z), started: performance.now(), duration, reason };
 }
 
 function updateFarmerJohn(now) {
@@ -941,7 +948,11 @@ function updateFarmerJohn(now) {
     const t = THREE.MathUtils.clamp((now - johnTravel.started) / johnTravel.duration, 0, 1);
     farmerJohn.position.lerpVectors(johnTravel.from, johnTravel.to, t);
     farmerJohn.rotation.y = Math.atan2(johnTravel.to.x - johnTravel.from.x, johnTravel.to.z - johnTravel.from.z);
-    if (t >= 1) { johnTravel = null; saveGameProgress(); }
+    if (t >= 1) {
+      if (johnTravel.reason === 'summoned') status.textContent = 'Farmer John reached the spot you chose.';
+      johnTravel = null;
+      saveGameProgress();
+    }
   }
   const working = Boolean(cleanupWork || activeWork.size);
   const stride = Math.sin(now * 0.013);
@@ -1221,6 +1232,36 @@ const weedGroups = [];
 const weedMaterialDark = material(0x4c7c33);
 const weedMaterialLight = material(0x6fa24a);
 
+function conformPlotSoil(mesh, x, z, scaleX, scaleZ) {
+  const positions = mesh.geometry.attributes.position;
+  const original = mesh.userData.originalVertices;
+  for (let i = 0; i < positions.count; i += 1) {
+    const offset = i * 3;
+    const worldX = x + original[offset] * scaleX;
+    const worldZ = z + original[offset + 2] * scaleZ;
+    positions.setY(i, groundHeight(worldX, worldZ) + (original[offset + 1] > 0 ? 0.09 : -0.055));
+  }
+  positions.needsUpdate = true;
+  mesh.geometry.computeVertexNormals();
+  mesh.geometry.computeBoundingSphere();
+}
+
+function conformPlotRidges(group, x, z, scaleX, scaleZ) {
+  for (const feature of group.children) {
+    const positions = feature.geometry.attributes.position;
+    const original = feature.userData.originalVertices;
+    for (let i = 0; i < positions.count; i += 1) {
+      const offset = i * 3;
+      const worldX = x + original[offset] * scaleX;
+      const worldZ = z + original[offset + 2] * scaleZ;
+      positions.setY(i, groundHeight(worldX, worldZ) + 0.18 + original[offset + 1]);
+    }
+    positions.needsUpdate = true;
+    feature.geometry.computeVertexNormals();
+    feature.geometry.computeBoundingSphere();
+  }
+}
+
 function addPlotWeeds(index) {
   const { x, z } = plotPositions[index];
   const group = new THREE.Group();
@@ -1239,6 +1280,7 @@ function addPlotWeeds(index) {
     stem.rotation.z = Math.cos(angle) * 0.32;
     stem.rotation.x = -Math.sin(angle) * 0.32;
     stem.castShadow = true;
+    stem.userData.baseY = stem.position.y;
     group.add(stem);
   }
   scene.add(group);
@@ -1251,7 +1293,12 @@ for (let row = 0; row < MAX_GRID; row += 1) {
     const x = (column - 1) * 1.22;
     const z = (row - 1) * 1.22;
     const soilMaterial = material(0x945f3c);
-    const soil = box(scene, 1.06, 0.1, 1.06, soilMaterial, x, -0.11, z);
+    const soil = new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.1, 1.06, 10, 1, 10), soilMaterial);
+    soil.position.set(x, -0.11, z);
+    soil.castShadow = true;
+    soil.receiveShadow = true;
+    soil.userData.originalVertices = new Float32Array(soil.geometry.attributes.position.array);
+    scene.add(soil);
     soil.visible = false;
     soil.userData.plotIndex = index;
     plotMeshes.push(soil);
@@ -1274,6 +1321,16 @@ for (let row = 0; row < MAX_GRID; row += 1) {
       pebble.position.set(((clump * 37 + index * 17) % 75) / 100 - 0.37, 0.035, ((clump * 23 + index * 11) % 80) / 100 - 0.4);
       pebble.castShadow = true;
       ridges.add(pebble);
+    }
+    // Bake each row's local transform once, then bend its vertices to the
+    // sampled ground whenever the field is placed or reshaped.
+    for (const feature of ridges.children) {
+      feature.updateMatrix();
+      feature.geometry.applyMatrix4(feature.matrix);
+      feature.position.set(0, 0, 0);
+      feature.rotation.set(0, 0, 0);
+      feature.scale.set(1, 1, 1);
+      feature.userData.originalVertices = new Float32Array(feature.geometry.attributes.position.array);
     }
     ridges.position.set(x, 0, z);
     ridges.visible = false;
@@ -1414,17 +1471,25 @@ function placeField(bounds, savedCleanup = null) {
     const row = Math.floor(index / COLUMNS);
     const x = bounds.minX + (column + 0.5) * width / COLUMNS;
     const z = bounds.minZ + (row + 0.5) * depth / ROWS;
-    const lift = groundHeight(x, z) + 0.18;
     plotPositions[index] = { x, z };
     const halfWidth = width / COLUMNS / 2;
     const halfDepth = depth / ROWS / 2;
     if (cellBlockedByTree(x, z, halfWidth, halfDepth)) blockedPlots.add(index);
-    plotMeshes[index].position.set(x, -0.11 + lift, z);
-    plotMeshes[index].scale.set((width / COLUMNS) / 1.06, 1, (depth / ROWS) / 1.06);
-    ridgeGroups[index].position.set(x, lift, z);
-    ridgeGroups[index].scale.set((width / COLUMNS) / 1.06, 1, (depth / ROWS) / 1.06);
-    weedGroups[index].position.set(x, -0.06 + lift, z);
-    weedGroups[index].scale.set((width / COLUMNS) / 1.06, 1, (depth / ROWS) / 1.06);
+    const scaleX = (width / COLUMNS) / 1.06;
+    const scaleZ = (depth / ROWS) / 1.06;
+    plotMeshes[index].position.set(x, 0, z);
+    plotMeshes[index].scale.set(scaleX, 1, scaleZ);
+    conformPlotSoil(plotMeshes[index], x, z, scaleX, scaleZ);
+    ridgeGroups[index].position.set(x, 0, z);
+    ridgeGroups[index].scale.set(scaleX, 1, scaleZ);
+    conformPlotRidges(ridgeGroups[index], x, z, scaleX, scaleZ);
+    weedGroups[index].position.set(x, 0, z);
+    weedGroups[index].scale.set(scaleX, 1, scaleZ);
+    for (const weed of weedGroups[index].children) {
+      const worldX = x + weed.position.x * scaleX;
+      const worldZ = z + weed.position.z * scaleZ;
+      weed.position.y = groundHeight(worldX, worldZ) + 0.055 + weed.userData.baseY;
+    }
     applyPlotVisual(index);
   }
   refreshCleanupVisuals();
@@ -2027,7 +2092,9 @@ function groundFromPointer(event) {
   const bounds = canvas.getBoundingClientRect();
   pointer.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
   raycaster.setFromCamera(pointer, camera);
-  return raycaster.intersectObject(terrain, false)[0]?.point ?? null;
+  return raycaster.intersectObject(ranchGround, false)[0]?.point
+    ?? raycaster.intersectObject(terrain, false)[0]?.point
+    ?? null;
 }
 
 function updatePlacementPreview(from, to) {
@@ -2317,12 +2384,16 @@ function pickTarget(event) {
   );
   raycaster.setFromCamera(pointer, camera);
 
-  // Check plot meshes and farmhouse hitbox
+  // Interactive objects take priority; the ground is the fallback destination.
   const targets = fieldBounds && !cleanupReady()
     ? [houseHitbox, ...cleanup.rocks.filter((id) => !cleanup.removed.includes(id)).map((id) => cleanupRocks[id]), ...cleanupPatches]
     : fieldBounds ? [houseHitbox, ...plotMeshes.slice(0, PLOT_COUNT)] : [houseHitbox];
   const hits = raycaster.intersectObjects(targets, false);
-  if (!hits.length) return null;
+  if (!hits.length) {
+    const ground = raycaster.intersectObject(ranchGround, false)[0]
+      ?? raycaster.intersectObject(terrain, false)[0];
+    return ground ? { type: 'ground', point: ground.point } : null;
+  }
 
   const first = hits[0].object;
   if (first.userData.isFarmhouse) {
@@ -2334,6 +2405,15 @@ function pickTarget(event) {
     return { type: 'plot', index: first.userData.plotIndex };
   }
   return null;
+}
+
+function summonJohnToGround(point) {
+  if (johnSleeping) { status.textContent = 'John is asleep until 8 AM.'; return; }
+  if (cleanupWork || activeWork.size || pendingJobs.length) { status.textContent = 'John will be free to walk after his current job.'; return; }
+  const distance = Math.hypot(point.x - farmerJohn.position.x, point.z - farmerJohn.position.z);
+  if (distance < 0.4) { status.textContent = 'Farmer John is already at that spot.'; return; }
+  sendJohnToPoint(point.x, point.z, THREE.MathUtils.clamp(distance / 2 * 1000, 500, 30000), 'summoned');
+  status.textContent = 'Farmer John is walking to the spot you chose.';
 }
 
 function positionPlotActionMenu() {
@@ -2532,7 +2612,7 @@ function updateCanvasLabel() {
     `3D wheat field. Plot ${selectedIndex + 1} of ${PLOT_COUNT} is ${state}. `
     + `Use ${movementKeys} to move camera, ${bindingSummary('selectUp')}/${bindingSummary('selectDown')}/`
     + `${bindingSummary('selectLeft')}/${bindingSummary('selectRight')} to select a plot, `
-    + `${bindingSummary('plant')} to open plot actions. Click the farmhouse or press ${bindingSummary('calendar')} `
+    + `${bindingSummary('plant')} to open plot actions. Click bare ground to send Farmer John there. Click the farmhouse or press ${bindingSummary('calendar')} `
     + `to view the journal, and press ${bindingSummary('openMenu')} for the menu, credits, and keybind settings.`
   );
 }
@@ -2545,7 +2625,7 @@ function updateHelpText() {
     return;
   }
   const movementKeys = MOVE_ACTIONS.map((action) => bindingLabel(action)).join('');
-  helpEl.textContent = `Click or tap a plot to choose its seasonal field action: clear, test, cultivate, drill, tend, fertilise, treat, or harvest. Drag to rotate. Scroll or pinch to zoom. `
+  helpEl.textContent = `Click or tap a plot to choose its seasonal field action: clear, test, cultivate, drill, tend, fertilise, treat, or harvest. Click bare ground to send Farmer John there. Drag to rotate. Scroll or pinch to zoom. `
     + `Use ${movementKeys} to move the camera across the farm, `
     + `${bindingSummary('selectLeft')}/${bindingSummary('selectRight')}/${bindingSummary('selectUp')}/${bindingSummary('selectDown')} `
     + `to select a plot, and ${bindingSummary('plant')} to open plot actions. `
@@ -2782,6 +2862,9 @@ canvas.addEventListener('pointermove', (event) => {
       hoveredPlotIndex = target.index;
       updateHighlights();
     }
+  } else if (target?.type === 'ground') {
+    canvas.style.cursor = 'crosshair';
+    if (hoveredPlotIndex !== -1) { hoveredPlotIndex = -1; updateHighlights(); }
   } else {
     canvas.style.cursor = 'grab';
     if (hoveredPlotIndex !== -1) {
@@ -2829,6 +2912,11 @@ canvas.addEventListener('click', (event) => {
 
   if (target.type === 'cleanup') {
     startCleanupWork(target.kind, target.id);
+    return;
+  }
+
+  if (target.type === 'ground') {
+    summonJohnToGround(target.point);
     return;
   }
 

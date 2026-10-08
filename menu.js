@@ -18,8 +18,8 @@ import {
   onKeybindsChange,
   resetKeybinds,
   setBinding,
-} from './keybinds.js?v=night-5';
-import { closeFarmhouseMenu, isFarmhouseMenuOpen, isDeveloperTimeEnabled, setDeveloperTimeEnabled, setGamePaused } from './calendar.js?v=night-5';
+} from './keybinds.js?v=ground-6';
+import { closeFarmhouseMenu, isFarmhouseMenuOpen, isDeveloperTimeEnabled, setDeveloperTimeEnabled, setGamePaused } from './calendar.js?v=ground-6';
 
 const pauseModal = document.querySelector('#pause-modal');
 const pauseBackdrop = document.querySelector('#pause-backdrop');
