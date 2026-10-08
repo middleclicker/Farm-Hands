@@ -1962,6 +1962,10 @@ html, body {
 .shop-buttons button:not(:disabled):hover { background: #f5dea8; }
 .plot-action-grid button:disabled { background: #e9dec6; color: #968775; box-shadow: none; }
 .pause-menu-btn { border-radius: 5px; }
+.pause-menu-btn, .pause-card button { transition: background-color .14s ease, color .14s ease, border-color .14s ease, transform .14s ease, box-shadow .14s ease; }
+.pause-menu-btn:hover, .pause-menu-btn:focus-visible { background: #e8cb91; border-color: #83582f; transform: translateX(4px); box-shadow: inset 5px 0 #7a9a4e, 0 3px 0 #6b482c; }
+.pause-menu-btn:hover strong, .pause-menu-btn:focus-visible strong { color: #34512e; }
+.pause-card button:not(:disabled):hover { border-color: #7f5b32; }
 .settings-block { border-color: #b88b57; border-radius: 5px; }
 .reset-everything-btn { background: #e8bc96; }
 .developer-settings .settings-status { min-height: 0; }
@@ -2064,6 +2068,17 @@ html, body {
 .farm-hud-dashboard { width: 235px; border: 4px solid #624128; border-radius: 7px; background: repeating-linear-gradient(0deg,#f4e3bd,#f4e3bd 3px,#efdab1 4px); box-shadow: inset 0 0 0 2px #bb8b54, 0 6px 0 #4a3020, 0 10px 17px rgba(24,17,11,.3); }
 .farm-hud-dashboard .farm-hud-value { min-width: 0; margin: 0 11px; padding: 5px 2px 3px; border: 0; border-bottom: 2px solid #bb9565; border-radius: 0; background: none; box-shadow: none; }
 .farm-hud-dashboard .clock-display { min-width: 0; width: 100%; padding: 8px 10px 9px; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.energy-display { display: grid; grid-template-columns: 1fr auto; gap: 3px 7px; padding: 4px 11px 9px; color: #513b2c; font-family: var(--font-serif); font-size: 13px; font-weight: 700; }
+.energy-display strong { color: #527741; }
+.energy-track { grid-column: 1 / -1; height: 9px; overflow: hidden; border: 2px solid #6d4d31; border-radius: 5px; background: #9b8060; }
+.energy-track span { display: block; width: 100%; height: 100%; background: linear-gradient(90deg,#749c50,#b6ce79); transition: width .25s ease; }
+.cleanup-hud { position: absolute; z-index: 20; left: 16px; bottom: 16px; display: grid; gap: 5px; width: min(290px,calc(100% - 32px)); padding: 10px 13px; border: 3px solid #68472d; border-radius: 5px; background: #f6e6c0; box-shadow: 0 5px 0 #4a3020,0 10px 18px rgba(22,15,9,.3); color: #463522; font-family: var(--font-serif); font-size: 13px; }
+.cleanup-hud[hidden] { display: none; }
+.cleanup-hud > strong { font-size: 18px; }
+.cleanup-hud > div { display: flex; justify-content: space-between; border-top: 1px solid #c4a579; padding-top: 3px; }
+.cleanup-hud b { color: #496b3d; }
+.cleanup-hud.is-complete { width: min(250px,calc(100% - 32px)); background: #e9e1bf; }
+.cleanup-hud.is-complete > strong { font-size: 16px; }
 .farm-hud-left .home-icon-btn { display: grid; place-items: center; width: 48px; min-width: 48px; height: 48px; padding: 8px; }
 .home-icon-btn svg { display: block; width: 26px; height: 26px; }
 

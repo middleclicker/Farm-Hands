@@ -9,11 +9,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600;700;800&family=Alegreya+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=farmer-john-2" />
+    <link rel="stylesheet" href="./styles.css?v=cleanup-4" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=farmer-john-2"></script>
+    <script type="module" src="./game.js?v=cleanup-4"></script>
   </head>
   <body>
     <main class="game-shell">
@@ -32,8 +32,8 @@
           </div>
         </div>
         <div id="field-placement" class="field-placement" hidden>
-          <div class="placement-instructions"><strong>Draw our first field</strong><span>Drag across the open meadow to mark a rectangular area. Keep clear of the farmhouse and trees.</span></div>
-          <div class="placement-controls"><span id="placement-status" role="status">Choose an open patch of land.</span><button id="placement-confirm" class="cozy-btn primary-btn" type="button" disabled>Build field</button></div>
+          <div class="placement-instructions"><strong>Draw our first field</strong><span>Drag across the gridded ranch. Each crop cell has a fixed size. Rocks and uneven ground add cleanup work.</span></div>
+          <div class="placement-controls"><span id="placement-status" role="status">Choose a patch of ranch land.</span><button id="placement-confirm" class="cozy-btn primary-btn" type="button" disabled>Mark field</button></div>
         </div>
 
         <!-- Farm controls -->
@@ -41,16 +41,17 @@
           <button id="home-btn" class="cozy-hud-btn home-icon-btn" type="button" aria-label="Back to home" title="Return the camera to the farmhouse"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5M6 10v10h12V10M10 20v-6h4v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </header>
 
-        <aside class="farm-hud farm-hud-right" aria-label="Farm time and coins">
-          <div class="farm-hud-dashboard" aria-label="Farm time and coin balance"><div class="farm-hud-value coin-display" aria-label="Coin balance"><span>Coins</span><strong id="hud-coins">100</strong></div>
+        <aside class="farm-hud farm-hud-right" aria-label="Farm time, coins, and energy">
+          <div class="farm-hud-dashboard" aria-label="Farm time, coin balance, and Farmer John energy"><div class="farm-hud-value coin-display" aria-label="Coin balance"><span>Coins</span><strong id="hud-coins">100</strong></div>
           <div class="clock-display" aria-label="Farm clock and date">
             <div class="clock-face" aria-hidden="true"><span class="clock-hand clock-hour" id="clock-hour-hand"></span><span class="clock-hand clock-minute" id="clock-minute-hand"></span><span class="clock-pivot"></span></div>
             <div class="clock-copy"><span class="clock-caption">Farm time</span><time id="hud-clock" datetime="06:00">6:00 AM</time><time id="hud-date" datetime="2001-07-01">July 1, 2001</time></div>
-          </div></div>
+          </div><div class="energy-display"><span>John's energy</span><strong id="hud-energy">100%</strong><div class="energy-track"><span id="energy-fill"></span></div></div></div>
           <button id="speed-btn" class="cozy-hud-btn time-control" type="button" title="Cycle game time speed" aria-label="Game time speed">
             <span>Time</span> <strong id="speed-btn-label">120×</strong>
           </button>
         </aside>
+        <aside id="cleanup-hud" class="cleanup-hud" aria-live="polite" hidden><strong>Prepare the ground</strong><span id="cleanup-instruction">Click each stone to have John remove it.</span><div>Cleanliness <b id="ground-cleanliness">100%</b></div><div>Flatness <b id="ground-flatness">90%</b></div><div>Dirt carried <b id="ground-dirt">0</b></div></aside>
 
         <!-- Farmhouse Calendar Menu (Modal Dialog) -->
         <div id="farmhouse-modal" class="farmhouse-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-modal-title" hidden>

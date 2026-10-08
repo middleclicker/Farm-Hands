@@ -1,5 +1,4 @@
-import { eventMatches } from './keybinds.js?v=farmer-john-2';
-import { farmPhase, phaseMessage } from './farming.mjs?v=farmer-john-2';
+import { eventMatches } from './keybinds.js?v=cleanup-4';
 
 const DEFAULT_SPEED = 120;
 const SPEED_LEVELS = [120, 300, 1000, 10000];
@@ -306,11 +305,9 @@ function renderEventCalendar(date) {
     const selected = new Date(`${detailKey}T12:00:00Z`);
     const firstFieldSummer = selected.getUTCFullYear() === 2001 && [6, 7].includes(selected.getUTCMonth());
     const event = firstFieldSummer && selected.getUTCMonth() === 6 && selected.getUTCDate() === 20 ? null : eventByDate.get(`${selected.getUTCMonth()}-${selected.getUTCDate()}`);
-    const phase = farmPhase(selected);
     const heading = `${WEEKDAY_LABELS[selected.getUTCDay()]}, ${months[selected.getUTCMonth()]} ${selected.getUTCDate()}`;
-    const phaseName = ({ 'harvest-prep': 'Harvest and field preparation', ripening: 'Ripening', drilling: 'Autumn sowing', establishing: 'Seedling care', dormant: 'Winter rest', tillering: 'Tillering', 'stem-extension': 'Stem growth', flowering: 'Flowering and grain formation' })[phase];
-    const title = firstFieldSummer ? 'Preparing the first field' : event?.title ?? phaseName;
-    const description = firstFieldSummer ? 'There is no wheat to harvest yet. Help Farmer John clear, test, and cultivate the new field. Drilling begins September 1.' : event?.description ?? phaseMessage(selected);
+    const title = event?.title ?? 'No event';
+    const description = event?.description ?? 'No event is scheduled for this day.';
     calendarDayDetail.innerHTML = `<span class="calendar-detail-kicker">Field note · ${selected.getUTCFullYear()}</span><h3>${heading}</h3><strong>${title}</strong><p>${description}</p>`;
   }
 }

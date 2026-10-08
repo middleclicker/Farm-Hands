@@ -1,14 +1,16 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { getGameDate, setGamePaused } from './calendar.js?v=farmer-john-2';
-import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=farmer-john-2';
-import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=farmer-john-2';
+import { getGameDate, setGamePaused } from './calendar.js?v=cleanup-4';
+import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=cleanup-4';
+import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=cleanup-4';
 // Importing the menu wires up the Escape menu (credits + keybind settings).
-import './menu.js?v=farmer-john-2';
+import './menu.js?v=cleanup-4';
 
-const COLUMNS = 3;
-const ROWS = 3;
-const PLOT_COUNT = COLUMNS * ROWS;
+const CELL_SIZE = 1.25;
+const MAX_GRID = 6;
+let COLUMNS = 3;
+let ROWS = 3;
+let PLOT_COUNT = COLUMNS * ROWS;
 const canvas = document.querySelector('#field');
 const status = document.querySelector('#field-status');
 setGamePaused(true);
@@ -24,10 +26,11 @@ const PLOT_STATE = Object.freeze({
   PLANTED: 'planted',
   HARVESTED: 'harvested',
 });
-const plotStates = new Array(PLOT_COUNT).fill(PLOT_STATE.WEEDY);
-const plotCare = Array.from({ length: PLOT_COUNT }, () => ({}));
+const plotStates = new Array(MAX_GRID * MAX_GRID).fill(PLOT_STATE.WEEDY);
+const plotCare = Array.from({ length: MAX_GRID * MAX_GRID }, () => ({}));
 const inventory = { seed: 0, fertiliser: 0, treatment: 0, grain: 0, straw: 0 };
 let coins = 100;
+let energy = 100;
 const mapView = { centerX: 0, centerZ: 0, zoom: 8 };
 const mapCanvas = document.querySelector('#farm-map-canvas');
 const mapContext = mapCanvas?.getContext('2d');
@@ -40,8 +43,13 @@ const sellableGoods = [
   { key: 'grain', label: 'Stored grain', unit: 'sacks', price: 5 },
   { key: 'straw', label: 'Baled straw', unit: 'bales', price: 2 },
 ];
-const wheatGroups = new Array(PLOT_COUNT).fill(null);
+const wheatGroups = new Array(MAX_GRID * MAX_GRID).fill(null);
 let fieldBounds = null;
+let cleanup = null;
+let cleanupWork = null;
+const terrainEdits = [];
+const cleanupRocks = [];
+const cleanupPatches = [];
 
 let renderer;
 try {
@@ -498,7 +506,14 @@ function groundHeight(x, z) {
   const sharpPeaks = 8 * Math.max(0, Math.sin(angle * 10 + Math.sin(angle * 3))) ** 4;
   const peaks = 13 + 5 * Math.sin(x * 0.13 + z * 0.04) + 4 * Math.cos(z * 0.11 - x * 0.08) + sharpPeaks;
   const mountains = THREE.MathUtils.smoothstep(distance, 38, 60) * ridge * peaks;
-  return -0.18 + farmClearing * (foothills + northernHill) + mountains;
+  const natural = -0.18 + farmClearing * (foothills + northernHill) + mountains;
+  // The house sits in a graded clearing, with a soft edge into the meadow.
+  const houseDistance = Math.hypot(Math.max(0, Math.abs(x + 5.8) - 2.5), Math.max(0, Math.abs(z + 5.1) - 2.35));
+  const graded = THREE.MathUtils.lerp(-0.18, natural, THREE.MathUtils.smoothstep(houseDistance, 0, 2));
+  return graded + terrainEdits.reduce((sum, edit) => {
+    const radius = Math.hypot(x - edit.x, z - edit.z);
+    return sum + edit.delta * Math.max(0, 1 - radius / (CELL_SIZE * 1.2));
+  }, 0);
 }
 
 function grassTexture() {
@@ -555,6 +570,77 @@ const terrain = new THREE.Mesh(
 );
 terrain.receiveShadow = true;
 scene.add(terrain);
+
+// Finer geometry over owned land lets shovel jobs visibly change the ground.
+const ranchGeometry = new THREE.PlaneGeometry(22, 22, 88, 88);
+ranchGeometry.rotateX(-Math.PI / 2);
+const ranchPositions = ranchGeometry.attributes.position;
+const ranchColors = [];
+for (let index = 0; index < ranchPositions.count; index += 1) {
+  const x = ranchPositions.getX(index), z = ranchPositions.getZ(index);
+  ranchPositions.setY(index, groundHeight(x, z) + 0.035);
+  const shade = (Math.sin(x * 0.12 + z * 0.035) * Math.cos(z * 0.11) + 1) / 2;
+  const color = grassShade.clone().lerp(grassLight, shade);
+  ranchColors.push(color.r, color.g, color.b);
+}
+ranchGeometry.setAttribute('color', new THREE.Float32BufferAttribute(ranchColors, 3));
+ranchGeometry.computeVertexNormals();
+const ranchGround = new THREE.Mesh(ranchGeometry, terrain.material);
+ranchGround.receiveShadow = true;
+scene.add(ranchGround);
+function refreshRanchTerrain() {
+  for (let index = 0; index < ranchPositions.count; index += 1) ranchPositions.setY(index, groundHeight(ranchPositions.getX(index), ranchPositions.getZ(index)) + 0.035);
+  ranchPositions.needsUpdate = true;
+  ranchGeometry.computeVertexNormals();
+}
+
+const RANCH = { minX: -11, maxX: 11, minZ: -11, maxZ: 11 };
+function dottedRectangle(bounds, color = 0xf5e2a7, step = 0.32) {
+  const points = [];
+  const edge = (ax, az, bx, bz) => {
+    const length = Math.hypot(bx - ax, bz - az);
+    for (let distance = 0; distance < length; distance += step * 2) {
+      const end = Math.min(length, distance + step);
+      for (const d of [distance, end]) {
+        const x = ax + (bx - ax) * d / length;
+        const z = az + (bz - az) * d / length;
+        points.push(new THREE.Vector3(x, groundHeight(x, z) + 0.12, z));
+      }
+    }
+  };
+  edge(bounds.minX, bounds.minZ, bounds.maxX, bounds.minZ);
+  edge(bounds.maxX, bounds.minZ, bounds.maxX, bounds.maxZ);
+  edge(bounds.maxX, bounds.maxZ, bounds.minX, bounds.maxZ);
+  edge(bounds.minX, bounds.maxZ, bounds.minX, bounds.minZ);
+  const line = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color, depthTest: false }));
+  scene.add(line);
+  return line;
+}
+const ranchBorder = dottedRectangle(RANCH, 0xf3df9e, 0.4);
+let fieldBorder = null;
+let fieldGrid = null;
+
+// A narrow dirt lane leaves the farmhouse and crosses the ranch boundary.
+const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x9a7950, roughness: 1, side: THREE.DoubleSide });
+const roadCenter = (z) => z < 8 ? -5.8 : -5.8 - Math.min(4.6, (z - 8) * 0.38);
+const roadVertices = [];
+for (let z = -3.85; z < 23; z += 0.25) {
+  const nextZ = Math.min(23, z + 0.25);
+  const edge = (atZ, side) => {
+    const slope = (roadCenter(atZ + 0.1) - roadCenter(atZ - 0.1)) / 0.2;
+    const offset = side * 0.72 / Math.hypot(1, slope);
+    const x = roadCenter(atZ) + offset;
+    return [x, groundHeight(x, atZ) + 0.07, atZ - offset * slope];
+  };
+  const left = edge(z, -1), right = edge(z, 1), nextLeft = edge(nextZ, -1), nextRight = edge(nextZ, 1);
+  roadVertices.push(...left, ...right, ...nextLeft, ...right, ...nextRight, ...nextLeft);
+}
+const roadGeometry = new THREE.BufferGeometry();
+roadGeometry.setAttribute('position', new THREE.Float32BufferAttribute(roadVertices, 3));
+roadGeometry.computeVertexNormals();
+const road = new THREE.Mesh(roadGeometry, roadMaterial);
+road.receiveShadow = true;
+scene.add(road);
 
 let grassSeed = 317;
 const randomGrass = () => ((grassSeed = (grassSeed * 1664525 + 1013904223) >>> 0) / 4294967296);
@@ -626,7 +712,7 @@ function addWarmLight(parent, x, y, z, intensity, distance) {
 
 function addFarmhouse() {
   const house = farmhouseGroup;
-  house.position.set(-5.8, groundHeight(-5.8, -5.1), -5.1);
+  house.position.set(-5.8, -0.18, -5.1);
   scene.add(house);
 
   const foundation = material(0x9a886f);
@@ -644,7 +730,7 @@ function addFarmhouse() {
   });
   glowMaterials.push(warmGlass);
 
-  box(house, 2.9, 0.22, 2.7, foundation, 0, 0.08, 0);
+  box(house, 2.9, 0.5, 2.7, foundation, 0, 0.1, 0);
   box(house, 2.58, 1.82, 2.38, siding, 0, 1.07, 0);
   box(house, 2.72, 0.14, 2.52, trim, 0, 0.23, 0);
   box(house, 2.72, 0.12, 2.52, trim, 0, 1.98, 0);
@@ -686,7 +772,7 @@ function addFarmhouse() {
   const knob = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), material(0xdfaf4a));
   knob.position.set(0.22, 0.84, 1.33);
   house.add(knob);
-  box(house, 1.05, 0.14, 0.6, foundation, 0, 0.13, 1.5);
+  box(house, 1.05, 0.34, 0.7, foundation, 0, 0.04, 1.53);
 
   // Front Porch Lantern
   const lanternBracket = box(house, 0.06, 0.15, 0.12, material(0x2d1f14), 0.46, 1.25, 1.25);
@@ -771,13 +857,23 @@ box(farmerJohn, 0.82, 0.08, 0.7, johnHat, 0, 1.9, 0);
 box(farmerJohn, 0.48, 0.26, 0.48, johnHat, 0, 2.06, 0);
 const johnLeftArm = box(farmerJohn, 0.17, 0.62, 0.2, johnShirt, -0.37, 1.02, 0);
 const johnRightArm = box(farmerJohn, 0.17, 0.62, 0.2, johnShirt, 0.37, 1.02, 0);
+const johnShovel = new THREE.Group();
+box(johnShovel, 0.06, 1.04, 0.06, material(0x8b6036), 0, 0.16, 0);
+box(johnShovel, 0.21, 0.28, 0.05, material(0x71766d, 0.8, 0.2), 0, -0.47, 0);
+johnShovel.position.set(0.49, 0.81, 0.04);
+johnShovel.visible = false;
+farmerJohn.add(johnShovel);
 farmerJohn.position.set(-5.15, groundHeight(-5.15, -3.05), -3.05);
 scene.add(farmerJohn);
 let johnTravel = null;
 
 function sendJohnToPlot(index, duration) {
   const { x, z } = plotPositions[index];
-  johnTravel = { from: farmerJohn.position.clone(), to: new THREE.Vector3(x - 0.48, groundHeight(x - 0.48, z), z + 0.42), started: performance.now(), duration: duration * 0.65 };
+  sendJohnToPoint(x - 0.48, z + 0.42, duration * 0.65);
+}
+
+function sendJohnToPoint(x, z, duration) {
+  johnTravel = { from: farmerJohn.position.clone(), to: new THREE.Vector3(x, groundHeight(x, z), z), started: performance.now(), duration };
 }
 
 function updateFarmerJohn(now) {
@@ -1019,10 +1115,15 @@ function addBoulder(x, z, scale = 1) {
   rock.castShadow = true;
   rock.receiveShadow = true;
   scene.add(rock);
+  return rock;
 }
 
 PINE_POSITIONS.forEach(([x, z], index) => addPine(x, z, 0.85 + (index % 3) * 0.15));
-ROCK_POSITIONS.forEach(([x, z], index) => addBoulder(x, z, 0.75 + (index % 3) * 0.3));
+ROCK_POSITIONS.forEach(([x, z], index) => {
+  const rock = addBoulder(x, z, 0.75 + (index % 3) * 0.3);
+  rock.userData.cleanupRock = index;
+  cleanupRocks[index] = rock;
+});
 
 // ==========================================================================
 // SOIL AND PLANTING FIELD
@@ -1078,9 +1179,9 @@ function addPlotWeeds(index) {
   return group;
 }
 
-for (let row = 0; row < ROWS; row += 1) {
-  for (let column = 0; column < COLUMNS; column += 1) {
-    const index = row * COLUMNS + column;
+for (let row = 0; row < MAX_GRID; row += 1) {
+  for (let column = 0; column < MAX_GRID; column += 1) {
+    const index = row * MAX_GRID + column;
     const x = (column - 1) * 1.22;
     const z = (row - 1) * 1.22;
     const soilMaterial = material(0x945f3c);
@@ -1119,16 +1220,126 @@ for (let row = 0; row < ROWS; row += 1) {
   }
 }
 
-function placeField(bounds) {
+function cleanupPlan(bounds, columns, rows) {
+  const heights = [];
+  for (let row = 0; row < rows; row += 1) for (let col = 0; col < columns; col += 1) {
+    const x = bounds.minX + (col + 0.5) * (bounds.maxX - bounds.minX) / columns;
+    const z = bounds.minZ + (row + 0.5) * (bounds.maxZ - bounds.minZ) / rows;
+    heights.push(groundHeight(x, z));
+  }
+  const average = heights.reduce((sum, h) => sum + h, 0) / heights.length;
+  const high = [], low = [];
+  heights.forEach((height, index) => {
+    if (height > average + 0.13) high.push(index);
+    else if (height < average - 0.13) low.push(index);
+  });
+  const rocks = ROCK_POSITIONS.flatMap(([x, z], index) => x > bounds.minX && x < bounds.maxX && z > bounds.minZ && z < bounds.maxZ ? [index] : []);
+  return { rocks, high, low, removed: [], dug: [], filled: [], dirt: 0, shovel: false };
+}
+
+function cleanupReady() {
+  return !cleanup || (cleanup.rocks.every((id) => cleanup.removed?.includes(id)) && cleanup.high.every((id) => cleanup.dug.includes(id)) && (cleanup.low.every((id) => cleanup.filled.includes(id)) || cleanup.dirt === 0));
+}
+
+function refreshCleanupVisuals() {
+  for (const marker of cleanupPatches) {
+    scene.remove(marker);
+    marker.geometry.dispose();
+    marker.material.dispose();
+  }
+  cleanupPatches.length = 0;
+  if (!fieldBounds || !cleanup) return;
+  johnShovel.visible = Boolean(cleanup.shovel) && !cleanupReady();
+  for (const [kind, ids, done] of [['high', cleanup.high, cleanup.dug], ['low', cleanup.low, cleanup.filled]]) {
+    for (const id of ids) {
+      if (done.includes(id)) continue;
+      const { x, z } = plotPositions[id];
+      const marker = new THREE.Mesh(new THREE.PlaneGeometry(CELL_SIZE * 0.9, CELL_SIZE * 0.9), new THREE.MeshBasicMaterial({ color: kind === 'high' ? 0xd8914a : 0x69a7cb, transparent: true, opacity: 0.52, side: THREE.DoubleSide, depthWrite: false }));
+      marker.rotation.x = -Math.PI / 2;
+      marker.position.set(x, groundHeight(x, z) + 0.19, z);
+      marker.userData.cleanupKind = kind;
+      marker.userData.cleanupId = id;
+      cleanupPatches.push(marker);
+      scene.add(marker);
+    }
+  }
+  for (const id of cleanup.rocks) {
+    const rock = cleanupRocks[id];
+    rock.visible = !cleanup.removed?.includes(id);
+    rock.material.color.setHex(0xc4b090);
+    if (rock.visible) {
+      const [x, z] = ROCK_POSITIONS[id];
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.47, 0.55, 24), new THREE.MeshBasicMaterial({ color: 0xf3c768, side: THREE.DoubleSide, depthTest: false }));
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(x, groundHeight(x, z) + 0.17, z);
+      ring.userData.cleanupKind = 'rock';
+      ring.userData.cleanupId = id;
+      cleanupPatches.push(ring);
+      scene.add(ring);
+    }
+  }
+  for (let index = 0; index < MAX_GRID * MAX_GRID; index += 1) applyPlotVisual(index);
+  updateCleanupHUD();
+}
+
+function updateCleanupHUD() {
+  const hud = document.querySelector('#cleanup-hud');
+  if (!hud) return;
+  hud.hidden = !fieldBounds;
+  hud.classList.toggle('is-complete', cleanupReady());
+  if (!cleanup) return;
+  const removed = cleanup.removed?.length ?? 0;
+  const rockTotal = cleanup.rocks.length;
+  const effortTotal = cleanup.high.length + cleanup.low.length;
+  const effortDone = cleanup.dug.length + cleanup.filled.length;
+  document.querySelector('#ground-cleanliness').textContent = `${rockTotal ? Math.round(100 * removed / rockTotal) : 100}%`;
+  document.querySelector('#ground-flatness').textContent = `${effortTotal ? Math.round(35 + 53 * effortDone / effortTotal) : 88}%`;
+  document.querySelector('#ground-dirt').textContent = `${cleanup.dirt}`;
+  const instruction = document.querySelector('#cleanup-instruction');
+  const remainingLows = cleanup.low.length - cleanup.filled.length;
+  if (instruction) instruction.textContent = cleanupReady()
+    ? remainingLows ? `${remainingLows} shallow spots remain without enough dirt. The field is ready for hand preparation.` : 'Ground prepared by hand. Select a plot to begin field work.'
+    : rockTotal > removed ? 'Click highlighted stones: 2 coins and energy each.'
+    : cleanup.high.length > cleanup.dug.length ? 'Click orange high ground. John will fetch a shovel, then dig: 2 coins each.'
+      : cleanup.dirt > 0 && cleanup.low.length > cleanup.filled.length ? 'Click blue low ground to fill it with dug soil: 2 coins each.'
+        : 'No more usable soil. Remaining low spots will stay shallow.';
+}
+
+function placeField(bounds, savedCleanup = null) {
   fieldBounds = bounds;
   const width = bounds.maxX - bounds.minX;
   const depth = bounds.maxZ - bounds.minZ;
+  COLUMNS = THREE.MathUtils.clamp(Math.round(width / CELL_SIZE), 2, MAX_GRID);
+  ROWS = THREE.MathUtils.clamp(Math.round(depth / CELL_SIZE), 2, MAX_GRID);
+  PLOT_COUNT = COLUMNS * ROWS;
+  cleanup = savedCleanup ?? cleanupPlan(bounds, COLUMNS, ROWS);
   const centerX = (bounds.minX + bounds.maxX) / 2;
   const centerZ = (bounds.minZ + bounds.maxZ) / 2;
-  fieldSoil.position.set(centerX, groundHeight(centerX, centerZ) + 0.018, centerZ);
-  fieldSoil.scale.set(width / 3.8, depth / 3.8, 1);
-  fieldSoil.visible = true;
-  for (let index = 0; index < PLOT_COUNT; index += 1) {
+  fieldSoil.visible = false;
+  if (fieldBorder) { scene.remove(fieldBorder); fieldBorder.geometry.dispose(); fieldBorder.material.dispose(); }
+  fieldBorder = dottedRectangle(bounds, 0xffe2a1, 0.19);
+  if (fieldGrid) { scene.remove(fieldGrid); fieldGrid.geometry.dispose(); fieldGrid.material.dispose(); }
+  const gridPoints = [];
+  const dashed = (ax, az, bx, bz) => {
+    const length = Math.hypot(bx - ax, bz - az);
+    for (let d = 0; d < length; d += 0.14) {
+      const end = Math.min(length, d + 0.08);
+      for (const distance of [d, end]) {
+        const x = ax + (bx - ax) * distance / length;
+        const z = az + (bz - az) * distance / length;
+        gridPoints.push(new THREE.Vector3(x, groundHeight(x, z) + 0.13, z));
+      }
+    }
+  };
+  for (let col = 1; col < COLUMNS; col += 1) dashed(bounds.minX + width * col / COLUMNS, bounds.minZ, bounds.minX + width * col / COLUMNS, bounds.maxZ);
+  for (let row = 1; row < ROWS; row += 1) dashed(bounds.minX, bounds.minZ + depth * row / ROWS, bounds.maxX, bounds.minZ + depth * row / ROWS);
+  fieldGrid = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(gridPoints), new THREE.LineBasicMaterial({ color: 0xe2cf9c, depthTest: false }));
+  scene.add(fieldGrid);
+  for (let index = 0; index < MAX_GRID * MAX_GRID; index += 1) {
+    plotMeshes[index].visible = false;
+    ridgeGroups[index].visible = false;
+    weedGroups[index].visible = false;
+    if (index >= PLOT_COUNT) continue;
     const column = index % COLUMNS;
     const row = Math.floor(index / COLUMNS);
     const x = bounds.minX + (column + 0.5) * width / COLUMNS;
@@ -1136,14 +1347,14 @@ function placeField(bounds) {
     const lift = groundHeight(x, z) + 0.18;
     plotPositions[index] = { x, z };
     plotMeshes[index].position.set(x, -0.11 + lift, z);
-    plotMeshes[index].scale.set(width / 3.7, 1, depth / 3.7);
-    plotMeshes[index].visible = true;
+    plotMeshes[index].scale.set((width / COLUMNS) / 1.06, 1, (depth / ROWS) / 1.06);
     ridgeGroups[index].position.set(x, lift, z);
-    ridgeGroups[index].scale.set(width / 3.7, 1, depth / 3.7);
+    ridgeGroups[index].scale.set((width / COLUMNS) / 1.06, 1, (depth / ROWS) / 1.06);
     weedGroups[index].position.set(x, -0.06 + lift, z);
-    weedGroups[index].scale.set(width / 3.7, 1, depth / 3.7);
+    weedGroups[index].scale.set((width / COLUMNS) / 1.06, 1, (depth / ROWS) / 1.06);
     applyPlotVisual(index);
   }
+  refreshCleanupVisuals();
   updateFarmMap();
   render();
 }
@@ -1152,17 +1363,14 @@ function fieldAreaIsValid(bounds) {
   if (!bounds) return false;
   const width = bounds.maxX - bounds.minX;
   const depth = bounds.maxZ - bounds.minZ;
-  if (width < 3.8 || depth < 3.8 || width > 8 || depth > 8) return false;
-  if (bounds.minX < -9 || bounds.maxX > 9 || bounds.minZ < -9 || bounds.maxZ > 9) return false;
+  if (width < CELL_SIZE * 2 || depth < CELL_SIZE * 2 || width > CELL_SIZE * MAX_GRID || depth > CELL_SIZE * MAX_GRID) return false;
+  if (bounds.minX < RANCH.minX || bounds.maxX > RANCH.maxX || bounds.minZ < RANCH.minZ || bounds.maxZ > RANCH.maxZ) return false;
   const obstacles = [
     { x: -5.8, z: -5.1, radius: 3.2 },
-    { x: -10.7, z: -7.4, radius: 1.8 }, { x: 3.8, z: -5.6, radius: 1.8 },
     ...PINE_POSITIONS.map(([x, z]) => ({ x, z, radius: 1.5 })),
-    ...ROCK_POSITIONS.map(([x, z]) => ({ x, z, radius: 0.75 })),
   ];
   if (obstacles.some(({ x, z, radius }) => x + radius > bounds.minX && x - radius < bounds.maxX && z + radius > bounds.minZ && z - radius < bounds.maxZ)) return false;
-  const heights = [[bounds.minX, bounds.minZ], [bounds.minX, bounds.maxZ], [bounds.maxX, bounds.minZ], [bounds.maxX, bounds.maxZ]].map(([x, z]) => groundHeight(x, z));
-  return Math.max(...heights) - Math.min(...heights) < 0.55;
+  return true;
 }
 
 function render() {
@@ -1296,7 +1504,7 @@ const STORAGE_FARM_KEY = 'farm-hands-seasonal-farm-v3';
 function saveGameProgress() {
   if (window.__farmHandsResetting) return;
   try {
-    localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ layoutVersion: 2, fieldBounds, plotStates, plotCare, inventory, coins }));
+    localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ layoutVersion: 3, fieldBounds, cleanup, terrainEdits, plotStates, plotCare, inventory, coins, energy }));
   } catch {
     // Storage unavailable (e.g. private browsing); the game keeps running.
   }
@@ -1308,11 +1516,18 @@ function restoreGameProgress() {
     const legacyRaw = raw ? null : localStorage.getItem('farm-hands-seasonal-farm-v2');
     const saved = raw ? JSON.parse(raw) : legacyRaw ? JSON.parse(legacyRaw) : null;
     const legacyStates = saved ? null : JSON.parse(localStorage.getItem('farm-hands-plot-states-v1') || 'null');
-    if (saved?.layoutVersion === 2) {
+    if (Array.isArray(saved?.terrainEdits)) {
+      for (const edit of saved.terrainEdits) if (Number.isFinite(edit?.x) && Number.isFinite(edit?.z) && Number.isFinite(edit?.delta) && Math.abs(edit.delta) < 1) terrainEdits.push(edit);
+      refreshRanchTerrain();
+    }
+    if (saved?.layoutVersion >= 2) {
       const bounds = saved.fieldBounds;
-      if (bounds && ['minX', 'maxX', 'minZ', 'maxZ'].every((key) => Number.isFinite(bounds[key])) && fieldAreaIsValid(bounds)) placeField(bounds);
+      if (bounds && ['minX', 'maxX', 'minZ', 'maxZ'].every((key) => Number.isFinite(bounds[key])) && fieldAreaIsValid(bounds)) {
+        const legacyCleanup = { rocks: [], high: [], low: [], removed: [], dug: [], filled: [], dirt: 0, shovel: true };
+        placeField(bounds, saved.layoutVersion === 3 && saved.cleanup ? saved.cleanup : legacyCleanup);
+      }
     } else if (saved || Array.isArray(legacyStates)) {
-      placeField({ minX: -1.9, maxX: 1.9, minZ: -1.9, maxZ: 1.9 });
+      placeField({ minX: -1.9, maxX: 1.9, minZ: -1.9, maxZ: 1.9 }, { rocks: [], high: [], low: [], removed: [], dug: [], filled: [], dirt: 0, shovel: true });
     }
     if (Array.isArray(saved?.plotStates) || Array.isArray(legacyStates)) {
       for (let index = 0; index < PLOT_COUNT; index += 1) {
@@ -1330,6 +1545,7 @@ function restoreGameProgress() {
         if (Number.isInteger(value) && value >= 0) inventory[key] = value;
       }
       if (Number.isInteger(saved?.coins) && saved.coins >= 0) coins = saved.coins;
+      if (Number.isFinite(saved?.energy)) energy = THREE.MathUtils.clamp(saved.energy, 0, 100);
     }
   } catch {
     // Fall through to a fresh field.
@@ -1345,6 +1561,7 @@ function restoreGameProgress() {
   updateFieldLedger();
   updateInventory();
   updateCoins();
+  updateEnergy();
   saveGameProgress();
   if (fieldBounds) setGamePaused(false);
 }
@@ -1528,6 +1745,12 @@ function animateScene(now) {
   updateHomeTransition(now);
   updateFarmerJohn(now);
   updatePlotWork(now);
+  updateCleanupWork(now);
+  if (energy < 100 && !cleanupWork) {
+    const before = Math.floor(energy);
+    energy = Math.min(100, energy + deltaSeconds * 0.55);
+    if (Math.floor(energy) !== before) updateEnergy();
+  }
   positionPlotActionMenu();
   updateDaylight();
   const gameDay = getGameDate().toISOString().slice(0, 10);
@@ -1560,7 +1783,7 @@ function addWheatSeedlings(index, animateGrowth = true) {
   const { x, z } = plotPositions[index];
   const cluster = new THREE.Group();
   cluster.position.set(x, groundHeight(x, z) + 0.16, z);
-  if (fieldBounds) cluster.scale.set((fieldBounds.maxX - fieldBounds.minX) / 3.7, 1, (fieldBounds.maxZ - fieldBounds.minZ) / 3.7);
+  if (fieldBounds) cluster.scale.set((fieldBounds.maxX - fieldBounds.minX) / COLUMNS / 1.22, 1, (fieldBounds.maxZ - fieldBounds.minZ) / ROWS / 1.22);
   const offsets = [
     [-0.24, -0.19, 0.48], [0.22, -0.18, 0.56], [0, 0.04, 0.63],
     [-0.22, 0.25, 0.52], [0.24, 0.24, 0.49],
@@ -1690,45 +1913,84 @@ const placementGrid = new THREE.LineSegments(
 );
 placementGrid.visible = false;
 scene.add(placementGrid);
+const zoningPoints = [];
+const zoningColors = [];
+for (let x = RANCH.minX; x <= RANCH.maxX + 0.01; x += CELL_SIZE) {
+  for (let z = RANCH.minZ; z < RANCH.maxZ; z += 0.3) {
+    const end = Math.min(RANCH.maxZ, z + 0.3);
+    zoningPoints.push(new THREE.Vector3(x, groundHeight(x, z) + 0.14, z), new THREE.Vector3(x, groundHeight(x, end) + 0.14, end));
+    const color = Math.abs(groundHeight(x, end) - groundHeight(x, z)) > 0.06 ? new THREE.Color(0xe7a65f) : new THREE.Color(0xe5e1a6);
+    zoningColors.push(color.r, color.g, color.b, color.r, color.g, color.b);
+  }
+}
+for (let z = RANCH.minZ; z <= RANCH.maxZ + 0.01; z += CELL_SIZE) {
+  for (let x = RANCH.minX; x < RANCH.maxX; x += 0.3) {
+    const end = Math.min(RANCH.maxX, x + 0.3);
+    zoningPoints.push(new THREE.Vector3(x, groundHeight(x, z) + 0.14, z), new THREE.Vector3(end, groundHeight(end, z) + 0.14, z));
+    const color = Math.abs(groundHeight(end, z) - groundHeight(x, z)) > 0.06 ? new THREE.Color(0xe7a65f) : new THREE.Color(0xe5e1a6);
+    zoningColors.push(color.r, color.g, color.b, color.r, color.g, color.b);
+  }
+}
+const zoningGeometry = new THREE.BufferGeometry().setFromPoints(zoningPoints);
+zoningGeometry.setAttribute('color', new THREE.Float32BufferAttribute(zoningColors, 3));
+const zoningGrid = new THREE.LineSegments(zoningGeometry, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8, depthTest: false }));
+zoningGrid.visible = false;
+scene.add(zoningGrid);
 
 function groundFromPointer(event) {
   const bounds = canvas.getBoundingClientRect();
   pointer.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
   raycaster.setFromCamera(pointer, camera);
-  return raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.18), new THREE.Vector3());
+  return raycaster.intersectObject(terrain, false)[0]?.point ?? null;
 }
 
 function updatePlacementPreview(from, to) {
-  const bounds = { minX: Math.min(from.x, to.x), maxX: Math.max(from.x, to.x), minZ: Math.min(from.z, to.z), maxZ: Math.max(from.z, to.z) };
+  const edge = (value) => RANCH.minX + Math.floor((value - RANCH.minX) / CELL_SIZE) * CELL_SIZE;
+  const startX = edge(from.x), endX = edge(to.x);
+  const startZ = edge(from.z), endZ = edge(to.z);
+  const bounds = { minX: Math.min(startX, endX), maxX: Math.max(startX, endX) + CELL_SIZE, minZ: Math.min(startZ, endZ), maxZ: Math.max(startZ, endZ) + CELL_SIZE };
   const valid = fieldAreaIsValid(bounds);
+  const columns = Math.round((bounds.maxX - bounds.minX) / CELL_SIZE);
+  const rows = Math.round((bounds.maxZ - bounds.minZ) / CELL_SIZE);
+  const plan = valid ? cleanupPlan(bounds, columns, rows) : null;
   const cx = (bounds.minX + bounds.maxX) / 2;
   const cz = (bounds.minZ + bounds.maxZ) / 2;
   const y = groundHeight(cx, cz) + 0.25;
   placementSurface.position.set(cx, y, cz);
   placementSurface.scale.set(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ, 1);
   placementSurface.material.color.setHex(valid ? 0x8fba65 : 0xca795b);
-  placementSurface.visible = true;
+  placementSurface.visible = false;
   placementEdge.geometry.dispose();
-  placementEdge.geometry = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(bounds.minX, y + 0.02, bounds.minZ), new THREE.Vector3(bounds.maxX, y + 0.02, bounds.minZ),
-    new THREE.Vector3(bounds.maxX, y + 0.02, bounds.maxZ), new THREE.Vector3(bounds.minX, y + 0.02, bounds.maxZ),
-  ]);
-  placementEdge.visible = true;
+  placementEdge.visible = false;
   const gridPoints = [];
-  for (let part = 1; part < 3; part += 1) {
-    const gridX = bounds.minX + (bounds.maxX - bounds.minX) * part / 3;
-    const gridZ = bounds.minZ + (bounds.maxZ - bounds.minZ) * part / 3;
-    gridPoints.push(new THREE.Vector3(gridX, y + 0.025, bounds.minZ), new THREE.Vector3(gridX, y + 0.025, bounds.maxZ));
-    gridPoints.push(new THREE.Vector3(bounds.minX, y + 0.025, gridZ), new THREE.Vector3(bounds.maxX, y + 0.025, gridZ));
+  const addLine = (ax, az, bx, bz) => {
+    const length = Math.hypot(bx - ax, bz - az);
+    for (let d = 0; d < length; d += 0.25) {
+      const end = Math.min(length, d + 0.25);
+      for (const distance of [d, end]) {
+        const x = ax + (bx - ax) * distance / length;
+        const z = az + (bz - az) * distance / length;
+        gridPoints.push(new THREE.Vector3(x, groundHeight(x, z) + 0.2, z));
+      }
+    }
+  };
+  for (let part = 0; part <= columns; part += 1) {
+    const x = bounds.minX + part * CELL_SIZE;
+    addLine(x, bounds.minZ, x, bounds.maxZ);
+  }
+  for (let part = 0; part <= rows; part += 1) {
+    const z = bounds.minZ + part * CELL_SIZE;
+    addLine(bounds.minX, z, bounds.maxX, z);
   }
   placementGrid.geometry.dispose();
   placementGrid.geometry = new THREE.BufferGeometry().setFromPoints(gridPoints);
+  placementGrid.material.color.setHex(valid ? 0xffe6a3 : 0xee886b);
   placementGrid.visible = true;
   pendingFieldBounds = valid ? bounds : null;
   if (placementConfirm) placementConfirm.disabled = !valid;
   if (placementStatus) placementStatus.textContent = valid
-    ? `Good ground: ${Math.round((bounds.maxX - bounds.minX) * (bounds.maxZ - bounds.minZ))} square metres. Build here or drag again.`
-    : 'Draw a 4–8 metre field on level, open ground away from the house, trees, and rocks.';
+    ? `${columns} × ${rows} crop cells · ${plan.rocks.length} stones · ${plan.high.length} high and ${plan.low.length} low patches. About ${(plan.rocks.length + plan.high.length + Math.min(plan.high.length, plan.low.length)) * 2} coins and ${(plan.rocks.length + plan.high.length + Math.min(plan.high.length, plan.low.length)) * 4 + (plan.high.length ? 2 : 0)} seconds of work.${plan.low.length > plan.high.length ? ` ${plan.low.length - plan.high.length} low spots may remain.` : ''}`
+    : 'Draw 2–6 cells per side inside the ranch boundary, clear of the house and trees.';
 }
 
 function beginFieldPlacement() {
@@ -1737,9 +1999,9 @@ function beginFieldPlacement() {
   placementMode = true;
   document.querySelector('.farm')?.classList.add('is-placing');
   controls.enabled = false;
-  camera.up.set(0, 0, -1);
-  controls.minPolarAngle = 0;
-  transitionCamera(new THREE.Vector3(0, -0.18, 0), new THREE.Vector3(0, 28, 0.01));
+  zoningGrid.visible = true;
+  controls.minPolarAngle = THREE.MathUtils.degToRad(25);
+  transitionCamera(new THREE.Vector3(0, -0.18, 0), new THREE.Vector3(13, 22, 16));
   canvas.style.cursor = 'crosshair';
 }
 
@@ -1785,7 +2047,7 @@ placementConfirm?.addEventListener('click', () => {
   placementSurface.visible = false;
   placementEdge.visible = false;
   placementGrid.visible = false;
-  camera.up.set(0, 1, 0);
+  zoningGrid.visible = false;
   controls.minPolarAngle = THREE.MathUtils.degToRad(25);
   controls.enabled = true;
   placeField(bounds);
@@ -1795,7 +2057,7 @@ placementConfirm?.addEventListener('click', () => {
   const target = new THREE.Vector3(cx, groundHeight(cx, cz), cz);
   transitionCamera(target, target.clone().add(new THREE.Vector3(7, 10, 13)));
   canvas.style.cursor = 'grab';
-  status.textContent = 'Farmer John is ready. Click a plot and clear the field to begin.';
+  status.textContent = cleanupReady() ? 'Farmer John is ready. Click a plot to begin.' : 'Follow the highlighted cleanup tasks in the ground panel.';
   updateCanvasLabel();
   updateHelpText();
   updateFieldLedger();
@@ -1818,6 +2080,67 @@ const activeWork = new Map();
 const plotCooldownUntil = new Array(PLOT_COUNT).fill(0);
 const plotStopwatch = document.querySelector('#plot-stopwatch');
 const plotStopwatchTime = document.querySelector('#plot-stopwatch-time');
+
+function startCleanupWork(kind, id) {
+  if (!cleanup || cleanupReady() || cleanupWork) return;
+  if (kind !== 'rock' && cleanup.rocks.some((rockId) => !cleanup.removed.includes(rockId))) { status.textContent = 'Move the field stones before grading the ground.'; return; }
+  if (kind === 'low' && cleanup.high.some((patchId) => !cleanup.dug.includes(patchId))) { status.textContent = 'Dig the high ground before filling low patches.'; return; }
+  if (kind === 'rock' && (!cleanup.rocks.includes(id) || cleanup.removed.includes(id))) return;
+  if (kind === 'high' && (!cleanup.high.includes(id) || cleanup.dug.includes(id))) return;
+  if (kind === 'low' && (!cleanup.low.includes(id) || cleanup.filled.includes(id))) return;
+  if (kind === 'low' && cleanup.dirt < 1) { status.textContent = 'John needs soil from a high patch before filling this hollow.'; return; }
+  const cost = 2;
+  if (coins < cost) { status.textContent = `This cleanup job needs ${cost} coins.`; return; }
+  if (energy < 8) { status.textContent = 'John needs to rest before doing more cleanup. His energy recovers over time.'; return; }
+  const [x, z] = kind === 'rock' ? ROCK_POSITIONS[id] : [plotPositions[id].x, plotPositions[id].z];
+  const fetchShovel = kind !== 'rock' && !cleanup.shovel;
+  cleanupWork = { kind, id, x, z, started: performance.now(), duration: fetchShovel ? 6200 : 3900, fetchShovel, fetched: false, cost };
+  if (fetchShovel) {
+    sendJohnToPoint(-5.4, -3.2, 1700);
+    status.textContent = 'Farmer John is fetching a shovel from the house.';
+  } else {
+    sendJohnToPoint(x - 0.35, z + 0.35, 2400);
+    status.textContent = kind === 'rock' ? 'Farmer John is carrying away a stone.' : kind === 'high' ? 'Farmer John is digging the high ground.' : 'Farmer John is filling a low patch.';
+  }
+}
+
+function updateCleanupWork(now) {
+  if (!cleanupWork) return;
+  const work = cleanupWork;
+  const elapsed = now - work.started;
+  if (work.fetchShovel && !work.fetched && elapsed > 1900) {
+    work.fetched = true;
+    cleanup.shovel = true;
+    johnShovel.visible = true;
+    sendJohnToPoint(work.x - 0.35, work.z + 0.35, 2400);
+    status.textContent = 'John has the shovel. He is heading to the marked ground.';
+  }
+  if (plotStopwatch) {
+    plotStopwatch.hidden = false;
+    plotStopwatchTime.textContent = `${Math.max(0, (work.duration - elapsed) / 1000).toFixed(1)}s`;
+    plotStopwatch.style.setProperty('--timer-progress', `${Math.round(100 * elapsed / work.duration)}%`);
+    const projected = new THREE.Vector3(work.x, groundHeight(work.x, work.z) + 0.85, work.z).project(camera);
+    const rect = canvas.getBoundingClientRect();
+    plotStopwatch.style.left = `${THREE.MathUtils.clamp((projected.x + 1) * rect.width / 2, 50, rect.width - 50)}px`;
+    plotStopwatch.style.top = `${THREE.MathUtils.clamp((1 - projected.y) * rect.height / 2 - 30, 100, rect.height - 65)}px`;
+  }
+  if (elapsed < work.duration) return;
+  cleanupWork = null;
+  if (plotStopwatch) plotStopwatch.hidden = true;
+  coins -= work.cost;
+  energy = Math.max(0, energy - 8);
+  if (work.kind === 'rock') cleanup.removed.push(work.id);
+  else if (work.kind === 'high') { cleanup.dug.push(work.id); cleanup.dirt += 1; terrainEdits.push({ x: work.x, z: work.z, delta: -0.18 }); }
+  else { cleanup.filled.push(work.id); cleanup.dirt -= 1; terrainEdits.push({ x: work.x, z: work.z, delta: 0.18 }); }
+  if (work.kind !== 'rock') refreshRanchTerrain();
+  updateCoins();
+  updateEnergy();
+  if (work.kind === 'rock') refreshCleanupVisuals();
+  else placeField(fieldBounds, cleanup);
+  updateFarmMap();
+  status.textContent = cleanupReady() ? 'Ground cleanup is complete. Select a plot to start clearing and testing the soil.' : 'Cleanup progress saved. Click the next highlighted area.';
+  saveGameProgress();
+}
 let openPlotIndex = null;
 let hoveredPlotIndex = -1;
 let selectedIndex = 0;
@@ -1835,7 +2158,9 @@ function pickTarget(event) {
   raycaster.setFromCamera(pointer, camera);
 
   // Check plot meshes and farmhouse hitbox
-  const targets = fieldBounds ? [houseHitbox, ...plotMeshes] : [houseHitbox];
+  const targets = fieldBounds && !cleanupReady()
+    ? [houseHitbox, ...cleanup.rocks.filter((id) => !cleanup.removed.includes(id)).map((id) => cleanupRocks[id]), ...cleanupPatches]
+    : fieldBounds ? [houseHitbox, ...plotMeshes.slice(0, PLOT_COUNT)] : [houseHitbox];
   const hits = raycaster.intersectObjects(targets, false);
   if (!hits.length) return null;
 
@@ -1843,6 +2168,8 @@ function pickTarget(event) {
   if (first.userData.isFarmhouse) {
     return { type: 'farmhouse' };
   }
+  if (first.userData.cleanupRock !== undefined) return { type: 'cleanup', kind: 'rock', id: first.userData.cleanupRock };
+  if (first.userData.cleanupKind) return { type: 'cleanup', kind: first.userData.cleanupKind, id: first.userData.cleanupId };
   if (first.userData.plotIndex !== undefined) {
     return { type: 'plot', index: first.userData.plotIndex };
   }
@@ -1872,7 +2199,7 @@ function closePlotActionMenu(returnFocus = false) {
 }
 
 function openPlotActionMenu(index) {
-  if (!fieldBounds || !Number.isInteger(index) || index < 0 || index >= PLOT_COUNT) return;
+  if (!fieldBounds || !cleanupReady() || !Number.isInteger(index) || index < 0 || index >= PLOT_COUNT) return;
   openPlotIndex = index;
   const available = allowedAction(getGameDate(), plotStates[index], plotCare[index]);
   const supply = actionSupply[available];
@@ -1919,6 +2246,7 @@ plotActionMenu?.addEventListener('click', (event) => {
 
 function startPlotWork(index, action) {
   if (activeWork.has(index) || performance.now() < plotCooldownUntil[index]) return;
+  if (!cleanupReady() || energy < 5) { status.textContent = energy < 5 ? 'Farmer John needs to rest before working another plot.' : 'Finish ground cleanup first.'; return; }
   if (allowedAction(getGameDate(), plotStates[index], plotCare[index]) !== action) return;
   const supply = actionSupply[action];
   if (supply && inventory[supply] < 1) return;
@@ -1958,6 +2286,9 @@ function updatePlotWork(now) {
     if (allowedAction(getGameDate(), plotStates[index], plotCare[index]) === work.action) handlePlotAction(index, work.action);
     else status.textContent = `The season changed before work on plot ${index + 1} finished.`;
     if (openPlotIndex === index) openPlotActionMenu(index);
+    energy = Math.max(0, energy - 5);
+    updateEnergy();
+    saveGameProgress();
   }
   if (openPlotIndex !== null && !activeWork.has(openPlotIndex)) {
     const remaining = plotCooldownUntil[openPlotIndex] - now;
@@ -2073,9 +2404,19 @@ function updateFieldLedger() {
 
 function applyPlotVisual(index) {
   const state = plotStates[index];
-  if (ridgeGroups[index]) ridgeGroups[index].visible = Boolean(fieldBounds) && (state === PLOT_STATE.CULTIVATED || state === PLOT_STATE.PLANTED);
-  if (weedGroups[index]) weedGroups[index].visible = Boolean(fieldBounds) && state === PLOT_STATE.WEEDY;
-  if (plotMaterials[index]) plotMaterials[index].color.setHex(state === PLOT_STATE.CULTIVATED || state === PLOT_STATE.PLANTED ? 0x774a32 : 0x945f3c);
+  const ready = Boolean(fieldBounds) && index < PLOT_COUNT && cleanupReady();
+  if (plotMeshes[index]) {
+    plotMeshes[index].visible = ready;
+    plotMeshes[index].castShadow = ready && state !== PLOT_STATE.WEEDY;
+  }
+  if (ridgeGroups[index]) ridgeGroups[index].visible = ready && (state === PLOT_STATE.CULTIVATED || state === PLOT_STATE.PLANTED);
+  if (weedGroups[index]) weedGroups[index].visible = ready && state === PLOT_STATE.WEEDY;
+  if (plotMaterials[index]) {
+    plotMaterials[index].color.setHex(state === PLOT_STATE.CULTIVATED || state === PLOT_STATE.PLANTED ? 0x774a32 : 0x945f3c);
+    plotMaterials[index].transparent = state === PLOT_STATE.WEEDY;
+    plotMaterials[index].opacity = state === PLOT_STATE.WEEDY ? 0 : 1;
+    plotMaterials[index].depthWrite = state !== PLOT_STATE.WEEDY;
+  }
 }
 
 function refreshStatus() {
@@ -2200,6 +2541,13 @@ function updateCoins() {
   if (display) display.textContent = String(coins);
 }
 
+function updateEnergy() {
+  const display = document.querySelector('#hud-energy');
+  const fill = document.querySelector('#energy-fill');
+  if (display) display.textContent = `${Math.round(energy)}%`;
+  if (fill) fill.style.width = `${Math.round(energy)}%`;
+}
+
 document.querySelector('#farm-shop')?.addEventListener('click', (event) => {
   const button = event.target.closest('button');
   if (!button || button.disabled) return;
@@ -2253,6 +2601,9 @@ canvas.addEventListener('pointermove', (event) => {
       hoveredPlotIndex = -1;
       updateHighlights();
     }
+  } else if (target?.type === 'cleanup') {
+    canvas.style.cursor = 'pointer';
+    if (hoveredPlotIndex !== -1) { hoveredPlotIndex = -1; updateHighlights(); }
   } else if (target?.type === 'plot') {
     canvas.style.cursor = 'pointer';
     if (target.index !== hoveredPlotIndex) {
@@ -2304,6 +2655,11 @@ canvas.addEventListener('click', (event) => {
     return;
   }
 
+  if (target.type === 'cleanup') {
+    startCleanupWork(target.kind, target.id);
+    return;
+  }
+
   if (target.type === 'plot') {
     selectedIndex = target.index;
     canvas.focus({ preventScroll: true });
@@ -2324,7 +2680,7 @@ canvas.addEventListener('blur', () => {
 });
 
 canvas.addEventListener('keydown', (event) => {
-  if (pauseMenuIsOpen()) return;
+  if (pauseMenuIsOpen() || !fieldBounds || !cleanupReady()) return;
   let next = selectedIndex;
   if (eventMatches(event, 'selectLeft') && selectedIndex % COLUMNS > 0) next -= 1;
   else if (eventMatches(event, 'selectRight') && selectedIndex % COLUMNS < COLUMNS - 1) next += 1;
@@ -2408,22 +2764,43 @@ function updateFarmMap() {
     }
   }
   const square = (x, z, size, color) => { ctx.fillStyle = color; ctx.fillRect(sx(x) - size / 2, sy(z) - size / 2, size, size); };
+  ctx.save();
+  ctx.setLineDash([4, 3]);
+  ctx.strokeStyle = '#f4e4b3';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(sx(RANCH.minX), sy(RANCH.minZ), sx(RANCH.maxX) - sx(RANCH.minX), sy(RANCH.maxZ) - sy(RANCH.minZ));
+  ctx.restore();
+  ctx.strokeStyle = '#94714c';
+  ctx.lineWidth = Math.max(3, mapView.zoom * 1.4);
+  ctx.beginPath();
+  for (let z = -3.85; z <= 23; z += 0.65) {
+    if (z === -3.85) ctx.moveTo(sx(roadCenter(z)), sy(z));
+    else ctx.lineTo(sx(roadCenter(z)), sy(z));
+  }
+  ctx.stroke();
   for (const [x, z] of PINE_POSITIONS) {
     square(x, z, 12, '#335c39'); square(x, z - 0.3, 6, '#4d7d43');
   }
   for (const [x, z] of [[-10.7, -7.4], [3.8, -5.6]]) {
     square(x, z, 14, '#49783e'); square(x + 0.25, z - 0.2, 7, '#68964b');
   }
-  for (const [x, z] of ROCK_POSITIONS) square(x, z, 5, '#837f70');
+  ROCK_POSITIONS.forEach(([x, z], id) => { if (!cleanup?.removed?.includes(id)) square(x, z, 5, '#837f70'); });
   if (fieldBounds) {
     const x = sx(fieldBounds.minX), y = sy(fieldBounds.minZ);
     const w = sx(fieldBounds.maxX) - x, h = sy(fieldBounds.maxZ) - y;
-    ctx.fillStyle = '#65472e'; ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+    ctx.save();
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = '#513a24';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+    ctx.restore();
     for (let index = 0; index < PLOT_COUNT; index += 1) {
       const px = sx(plotPositions[index].x), py = sy(plotPositions[index].z);
-      const pw = Math.max(5, Math.floor(w / 3) - 3), ph = Math.max(5, Math.floor(h / 3) - 3);
+      const pw = Math.max(5, Math.floor(w / COLUMNS) - 3), ph = Math.max(5, Math.floor(h / ROWS) - 3);
       const colors = { weedy: '#648342', cleared: '#ae8053', tested: '#c19760', cultivated: '#855232', planted: '#59804a', harvested: '#caa56f' };
-      ctx.fillStyle = colors[plotStates[index]];
+      if (cleanup?.high.includes(index) && !cleanup.dug.includes(index)) ctx.fillStyle = '#d8914a';
+      else if (cleanup?.low.includes(index) && !cleanup.filled.includes(index)) ctx.fillStyle = '#69a7cb';
+      else ctx.fillStyle = colors[plotStates[index]];
       ctx.fillRect(px - pw / 2, py - ph / 2, pw, ph);
       if (plotStates[index] === PLOT_STATE.CULTIVATED || plotStates[index] === PLOT_STATE.PLANTED) {
         ctx.fillStyle = plotStates[index] === PLOT_STATE.PLANTED ? '#9dbb5e' : '#a86e45';
