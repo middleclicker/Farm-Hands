@@ -724,9 +724,59 @@ function setWeather(name) {
   render();
 }
 
-weatherSelect.addEventListener('change', () => setWeather(weatherSelect.value));
+// ==========================================================================
+// PROGRESS PERSISTENCE
+// ==========================================================================
+
+const STORAGE_PLOTS_KEY = 'farm-hands-planted-plots-v1';
+const STORAGE_WEATHER_KEY = 'farm-hands-weather-v1';
+
+function saveGameProgress() {
+  try {
+    localStorage.setItem(STORAGE_PLOTS_KEY, JSON.stringify([...plantedPlots]));
+    localStorage.setItem(STORAGE_WEATHER_KEY, weatherSelect.value);
+  } catch {
+    // Storage unavailable (e.g. private browsing); the game keeps running.
+  }
+}
+
+function restoreGameProgress() {
+  let savedPlots = null;
+  try {
+    const raw = localStorage.getItem(STORAGE_PLOTS_KEY);
+    savedPlots = raw ? JSON.parse(raw) : null;
+  } catch {
+    savedPlots = null;
+  }
+  if (Array.isArray(savedPlots)) {
+    for (const value of savedPlots) {
+      const index = Number(value);
+      if (Number.isInteger(index) && index >= 0 && index < PLOT_COUNT && !plantedPlots.has(index)) {
+        plantedPlots.add(index);
+        addWheatSeedlings(index, false);
+      }
+    }
+  }
+
+  let savedWeather = null;
+  try {
+    savedWeather = localStorage.getItem(STORAGE_WEATHER_KEY);
+  } catch {
+    savedWeather = null;
+  }
+  if (savedWeather && weatherSettings[savedWeather]) {
+    weatherSelect.value = savedWeather;
+  }
+  setWeather(weatherSelect.value);
+  updatePlantedCountLedger();
+}
+
+weatherSelect.addEventListener('change', () => {
+  setWeather(weatherSelect.value);
+  saveGameProgress();
+});
 reducedMotion.addEventListener('change', () => setWeather(weatherSelect.value));
-setWeather(weatherSelect.value);
+restoreGameProgress();
 
 // ─── Daylight cycle ──────────────────────────────────────────────────────
 // Each keyframe is keyed by fractional hour (0–24).
@@ -886,7 +936,11 @@ function animateScene(now) {
 }
 requestAnimationFrame(animateScene);
 
-function addWheatSeedlings(index) {
+// ==========================================================================
+// WHEAT SEEDLING GROWTH
+// ==========================================================================
+
+function addWheatSeedlings(index, animateGrowth = true) {
   const { x, z } = plotPositions[index];
   const cluster = new THREE.Group();
   cluster.position.set(x, -0.02, z);
@@ -915,6 +969,10 @@ function addWheatSeedlings(index) {
   }
   scene.add(cluster);
 
+  if (!animateGrowth) {
+    render();
+    return;
+  }
   if (reducedMotion.matches) {
     render();
     return;
@@ -1024,6 +1082,7 @@ function plantWheat(index) {
     : `Wheat planted in plot ${index + 1}.`;
   updateCanvasLabel();
   updatePlantedCountLedger();
+  saveGameProgress();
 }
 
 canvas.addEventListener('pointerdown', (event) => {

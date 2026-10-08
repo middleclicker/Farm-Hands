@@ -1,6 +1,6 @@
 # Farm Hands
 
-A cozy singleplayer 3D farming game set in a pastoral countryside with a starter farmhouse, split-rail fencing, cobblestone path, orchard trees, and wildflowers. The full-window field features nine soil plots in a 3×3 grid. Click or tap to plant; drag to rotate around the field; scroll or pinch to zoom in and out; use WASD to move the camera across the ground. Keyboard users can select plots with the arrow keys and plant with Enter.
+A cozy singleplayer 3D farming game set in a pastoral countryside with a starter farmhouse, split-rail fencing, cobblestone path, orchard trees, and wildflowers. The full-window field features nine soil plots in a 3×3 grid. Click or tap to plant; drag to rotate around the field; scroll or pinch to zoom in and out; use WASD to move the camera across the ground. Keyboard users can select plots with the arrow keys and plant with Enter. Planted wheat and your chosen weather are saved in your browser and restored automatically the next time you visit.
 
 Use the Weather menu to switch between warm sunlight, light rain, moderate rain, and heavy rain. Rain changes the sky, light, and number and speed of falling drops. The scene keeps its chosen weather while you plant or rotate. Rain and smoke animations pause when reduced motion is requested.
 
