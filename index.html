@@ -9,11 +9,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,600&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=cozy-farm-world-menu-1" />
+    <link rel="stylesheet" href="./styles.css?v=cozy-farm-winter-wheat-2" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=cozy-farm-world-menu-1"></script>
+    <script type="module" src="./game.js?v=cozy-farm-winter-wheat-2"></script>
   </head>
   <body>
     <main class="game-shell">
@@ -88,11 +88,11 @@
               <section class="almanac-section live-date-section" aria-label="Current date and time">
                 <div class="date-hero-card">
                   <div class="date-top-bar">
-                    <span class="season-badge" id="calendar-season">Spring · Year 1</span>
+                    <span class="season-badge" id="calendar-season">Summer · Year 1</span>
                     <span class="speed-badge" id="calendar-speed-badge">3× real time</span>
                   </div>
                   <div class="date-primary-row">
-                    <div class="calendar-date" id="calendar-date">March 1</div>
+                    <div class="calendar-date" id="calendar-date">July 1</div>
                     <div class="calendar-clock-box">
                       <span class="clock-label">Game Clock</span>
                       <span class="calendar-clock" id="calendar-clock">06:00:00</span>
@@ -100,10 +100,10 @@
                   </div>
                   <div class="calendar-progress-wrap">
                     <div class="progress-info-row">
-                      <span class="calendar-day" id="calendar-day">Day 60 of 365</span>
+                      <span class="calendar-day" id="calendar-day">Day 182 of 365</span>
                       <span class="year-label" id="calendar-year-label">Year 1</span>
                     </div>
-                    <div class="calendar-year-track" id="calendar-year-track" role="progressbar" aria-label="Progress through the year" aria-valuemin="0" aria-valuemax="100" aria-valuenow="16" aria-valuetext="Day 60 of 365, Year 1">
+                    <div class="calendar-year-track" id="calendar-year-track" role="progressbar" aria-label="Progress through the year" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-valuetext="Day 182 of 365, Year 1">
                       <span id="calendar-year-fill"></span>
                     </div>
                   </div>
@@ -162,7 +162,7 @@
                     <span class="ledger-icon" aria-hidden="true">🌾</span>
                     <div class="ledger-details">
                       <span class="ledger-label">Wheat Field Status</span>
-                      <strong class="ledger-value" id="farm-planted-count">0 / 9 plots planted</strong>
+                      <strong class="ledger-value" id="farm-planted-count">9 weedy · 0 cleared · 0 ready · 0 drilled</strong>
                     </div>
                   </div>
                   <div class="ledger-item">
@@ -317,8 +317,8 @@
 
         <div class="sr-only">
           <h1>Farm Hands</h1>
-          <p id="field-help">Click or tap to plant wheat. Drag to rotate. Scroll or pinch to zoom. Use WASD to move the camera across the farm, arrow keys to select a plot, and Enter to plant wheat. Press Escape for the menu, credits, and keybind settings.</p>
-          <p class="field-status" id="field-status" role="status">Choose a soil plot to plant wheat, or click the farmhouse to open the calendar.</p>
+          <p id="field-help">Click or tap a plot to clear weeds, cultivate the seedbed, or drill winter wheat in September and October. Drag to rotate. Scroll or pinch to zoom. Use WASD to move the camera across the farm, arrow keys to select a plot, and Enter / Space to work the soil. Click the farmhouse or press C / H to open the farming calendar. Press Esc for the menu, credits, and keybind settings.</p>
+          <p class="field-status" id="field-status" role="status">It's July — the field is overgrown with weeds. Clear and cultivate the plots before drilling winter wheat in September.</p>
         </div>
       </section>
     </main>

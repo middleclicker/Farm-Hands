@@ -12,7 +12,17 @@ const canvas = document.querySelector('#field');
 const status = document.querySelector('#field-status');
 const weatherSelect = document.querySelector('#weather-select');
 const weatherDescription = document.querySelector('#weather-description');
-const plantedPlots = new Set();
+
+// Each soil plot progresses through four states over the winter-wheat year:
+// weedy (overgrown after the previous harvest) → cleared (weeds removed) →
+// cultivated (seedbed prepared) → planted (winter wheat drilled).
+const PLOT_STATE = Object.freeze({
+  WEEDY: 'weedy',
+  CLEARED: 'cleared',
+  CULTIVATED: 'cultivated',
+  PLANTED: 'planted',
+});
+const plotStates = new Array(PLOT_COUNT).fill(PLOT_STATE.WEEDY);
 
 let renderer;
 try {
@@ -793,6 +803,36 @@ scene.add(fieldSoil);
 const plotMeshes = [];
 const plotMaterials = [];
 const plotPositions = [];
+const ridgeGroups = [];
+const weedGroups = [];
+
+const weedMaterialDark = material(0x4c7c33);
+const weedMaterialLight = material(0x6fa24a);
+
+function addPlotWeeds(index) {
+  const { x, z } = plotPositions[index];
+  const group = new THREE.Group();
+  group.position.set(x, -0.06, z);
+  let seed = (index + 1) * 733;
+  const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  for (let w = 0; w < 7; w += 1) {
+    const angle = random() * Math.PI * 2;
+    const radius = 0.1 + random() * 0.34;
+    const height = 0.12 + random() * 0.22;
+    const stem = new THREE.Mesh(
+      new THREE.ConeGeometry(0.045, height, 5),
+      w % 2 === 0 ? weedMaterialDark : weedMaterialLight
+    );
+    stem.position.set(Math.cos(angle) * radius, height / 2 - 0.02, Math.sin(angle) * radius);
+    stem.rotation.z = Math.cos(angle) * 0.32;
+    stem.rotation.x = -Math.sin(angle) * 0.32;
+    stem.castShadow = true;
+    group.add(stem);
+  }
+  scene.add(group);
+  return group;
+}
+
 for (let row = 0; row < ROWS; row += 1) {
   for (let column = 0; column < COLUMNS; column += 1) {
     const index = row * COLUMNS + column;
@@ -804,9 +844,19 @@ for (let row = 0; row < ROWS; row += 1) {
     plotMeshes.push(soil);
     plotMaterials.push(soilMaterial);
     plotPositions.push({ x, z });
+
+    // Cultivated seedbed furrows — hidden until the plot is cultivated.
+    const ridges = new THREE.Group();
     for (let furrow = -1; furrow <= 1; furrow += 1) {
-      box(scene, 0.88, 0.035, 0.09, ridgeMaterial, x, -0.04, z + furrow * 0.28);
+      box(ridges, 0.88, 0.035, 0.09, ridgeMaterial, 0, -0.04, furrow * 0.28);
     }
+    ridges.position.set(x, 0, z);
+    ridges.visible = false;
+    scene.add(ridges);
+    ridgeGroups.push(ridges);
+
+    // Overgrown weeds — shown until the plot is cleared.
+    weedGroups.push(addPlotWeeds(index));
   }
 }
 
@@ -935,12 +985,13 @@ function setWeather(name) {
 // PROGRESS PERSISTENCE
 // ==========================================================================
 
-const STORAGE_PLOTS_KEY = 'farm-hands-planted-plots-v1';
+const STORAGE_PLOT_STATES_KEY = 'farm-hands-plot-states-v1';
 const STORAGE_WEATHER_KEY = 'farm-hands-weather-v1';
+const STORAGE_LEGACY_PLOTS_KEY = 'farm-hands-planted-plots-v1';
 
 function saveGameProgress() {
   try {
-    localStorage.setItem(STORAGE_PLOTS_KEY, JSON.stringify([...plantedPlots]));
+    localStorage.setItem(STORAGE_PLOT_STATES_KEY, JSON.stringify(plotStates));
     localStorage.setItem(STORAGE_WEATHER_KEY, weatherSelect.value);
   } catch {
     // Storage unavailable (e.g. private browsing); the game keeps running.
@@ -948,21 +999,44 @@ function saveGameProgress() {
 }
 
 function restoreGameProgress() {
-  let savedPlots = null;
+  let restoredStates = false;
   try {
-    const raw = localStorage.getItem(STORAGE_PLOTS_KEY);
-    savedPlots = raw ? JSON.parse(raw) : null;
-  } catch {
-    savedPlots = null;
-  }
-  if (Array.isArray(savedPlots)) {
-    for (const value of savedPlots) {
-      const index = Number(value);
-      if (Number.isInteger(index) && index >= 0 && index < PLOT_COUNT && !plantedPlots.has(index)) {
-        plantedPlots.add(index);
-        addWheatSeedlings(index, false);
+    const raw = localStorage.getItem(STORAGE_PLOT_STATES_KEY);
+    const saved = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(saved)) {
+      for (let index = 0; index < PLOT_COUNT; index += 1) {
+        if (Object.values(PLOT_STATE).includes(saved[index])) {
+          plotStates[index] = saved[index];
+          restoredStates = true;
+        }
       }
     }
+  } catch {
+    // Fall through to a fresh field.
+  }
+
+  // Migrate the legacy planted-plots key once, if present.
+  if (!restoredStates) {
+    let legacy = null;
+    try {
+      const raw = localStorage.getItem(STORAGE_LEGACY_PLOTS_KEY);
+      legacy = raw ? JSON.parse(raw) : null;
+    } catch {
+      legacy = null;
+    }
+    if (Array.isArray(legacy)) {
+      for (const value of legacy) {
+        const index = Number(value);
+        if (Number.isInteger(index) && index >= 0 && index < PLOT_COUNT) {
+          plotStates[index] = PLOT_STATE.PLANTED;
+        }
+      }
+    }
+  }
+
+  for (let index = 0; index < PLOT_COUNT; index += 1) {
+    applyPlotVisual(index);
+    if (plotStates[index] === PLOT_STATE.PLANTED) addWheatSeedlings(index, false);
   }
 
   let savedWeather = null;
@@ -975,10 +1049,8 @@ function restoreGameProgress() {
     weatherSelect.value = savedWeather;
   }
   setWeather(weatherSelect.value);
-  status.textContent = plantedPlots.size === PLOT_COUNT
-    ? 'Every plot has wheat planted.'
-    : 'Choose a soil plot to plant wheat, or click the farmhouse to open the calendar.';
-  updatePlantedCountLedger();
+  refreshStatus();
+  updateFieldLedger();
 }
 
 weatherSelect.addEventListener('change', () => {
@@ -1293,15 +1365,23 @@ function updateHighlights() {
   render();
 }
 
+function describePlotState(index) {
+  const state = plotStates[index];
+  if (state === PLOT_STATE.WEEDY) return 'overgrown with weeds';
+  if (state === PLOT_STATE.CLEARED) return 'cleared, ready to cultivate';
+  if (state === PLOT_STATE.CULTIVATED) return 'cultivated, ready to drill';
+  return 'planted with winter wheat';
+}
+
 function updateCanvasLabel() {
-  const state = plantedPlots.has(selectedIndex) ? 'already planted' : 'empty';
+  const state = describePlotState(selectedIndex);
   const movementKeys = MOVE_ACTIONS.map((action) => bindingLabel(action)).join('');
   canvas.setAttribute(
     'aria-label',
     `3D wheat field. Plot ${selectedIndex + 1} of ${PLOT_COUNT} is ${state}. `
     + `Use ${movementKeys} to move camera, ${bindingSummary('selectUp')}/${bindingSummary('selectDown')}/`
     + `${bindingSummary('selectLeft')}/${bindingSummary('selectRight')} to select a plot, `
-    + `${bindingSummary('plant')} to plant wheat. Click the farmhouse or press ${bindingSummary('calendar')} `
+    + `${bindingSummary('plant')} to work the soil. Click the farmhouse or press ${bindingSummary('calendar')} `
     + `to view the calendar, and press ${bindingSummary('openMenu')} for the menu, credits, and keybind settings.`
   );
 }
@@ -1310,32 +1390,107 @@ function updateHelpText() {
   const helpEl = document.querySelector('#field-help');
   if (!helpEl) return;
   const movementKeys = MOVE_ACTIONS.map((action) => bindingLabel(action)).join('');
-  helpEl.textContent = `Click or tap to plant wheat. Drag to rotate. Scroll or pinch to zoom. `
+  helpEl.textContent = `Click or tap a plot to clear weeds, cultivate the seedbed, or drill winter wheat in September and October. Drag to rotate. Scroll or pinch to zoom. `
     + `Use ${movementKeys} to move the camera across the farm, `
     + `${bindingSummary('selectLeft')}/${bindingSummary('selectRight')}/${bindingSummary('selectUp')}/${bindingSummary('selectDown')} `
-    + `to select a plot, and ${bindingSummary('plant')} to plant wheat. `
+    + `to select a plot, and ${bindingSummary('plant')} to work the soil. `
     + `Click the farmhouse or press ${bindingSummary('calendar')} to open the farming calendar. `
     + `Press ${bindingSummary('openMenu')} for the menu, credits, and keybind settings.`;
 }
 
-function updatePlantedCountLedger() {
+function countState(state) {
+  let count = 0;
+  for (let index = 0; index < PLOT_COUNT; index += 1) {
+    if (plotStates[index] === state) count += 1;
+  }
+  return count;
+}
+
+function fieldSummary() {
+  return `${countState(PLOT_STATE.WEEDY)} weedy · ${countState(PLOT_STATE.CLEARED)} cleared · ${countState(PLOT_STATE.CULTIVATED)} ready · ${countState(PLOT_STATE.PLANTED)} drilled`;
+}
+
+function updateFieldLedger() {
   const ledgerEl = document.querySelector('#farm-planted-count');
-  if (ledgerEl) {
-    ledgerEl.textContent = `${plantedPlots.size} / ${PLOT_COUNT} plots planted`;
+  if (ledgerEl) ledgerEl.textContent = fieldSummary();
+  updateFarmMap();
+}
+
+function isDrillingSeason() {
+  const month = getGameDate().getUTCMonth();
+  return month === 8 || month === 9; // September and October
+}
+
+function applyPlotVisual(index) {
+  const state = plotStates[index];
+  if (ridgeGroups[index]) ridgeGroups[index].visible = state === PLOT_STATE.CULTIVATED || state === PLOT_STATE.PLANTED;
+  if (weedGroups[index]) weedGroups[index].visible = state === PLOT_STATE.WEEDY;
+}
+
+function refreshStatus() {
+  const weedy = countState(PLOT_STATE.WEEDY);
+  const cleared = countState(PLOT_STATE.CLEARED);
+  const cultivated = countState(PLOT_STATE.CULTIVATED);
+  const drilled = countState(PLOT_STATE.PLANTED);
+
+  if (drilled === PLOT_COUNT) {
+    status.textContent = 'Every plot has winter wheat drilled.';
+  } else if (weedy === PLOT_COUNT) {
+    status.textContent = "It's July — the field is overgrown with weeds. Click a plot to clear it, then cultivate the seedbed before drilling wheat in September.";
+  } else if (isDrillingSeason() && cultivated > 0) {
+    status.textContent = 'Drilling season — click each cultivated plot to drill winter wheat.';
+  } else if (cultivated > 0) {
+    status.textContent = 'Seedbed prepared. Winter wheat can be drilled from September to early October.';
+  } else {
+    status.textContent = `${weedy} weedy · ${cleared} cleared · ${cultivated} ready · ${drilled} drilled`;
   }
 }
 
-function plantWheat(index) {
-  if (index < 0 || plantedPlots.has(index)) return;
-  plantedPlots.add(index);
-  addWheatSeedlings(index);
-  status.textContent = plantedPlots.size === PLOT_COUNT
-    ? 'Every plot has wheat planted.'
-    : `Wheat planted in plot ${index + 1}.`;
+function clearWeeds(index) {
+  if (index < 0 || index >= PLOT_COUNT || plotStates[index] !== PLOT_STATE.WEEDY) return;
+  plotStates[index] = PLOT_STATE.CLEARED;
+  applyPlotVisual(index);
+  status.textContent = `Weeds cleared from plot ${index + 1}. Click again to cultivate the seedbed.`;
   updateCanvasLabel();
-  updatePlantedCountLedger();
-  updateMapPlots();
+  updateFieldLedger();
   saveGameProgress();
+}
+
+function cultivate(index) {
+  if (index < 0 || index >= PLOT_COUNT || plotStates[index] !== PLOT_STATE.CLEARED) return;
+  plotStates[index] = PLOT_STATE.CULTIVATED;
+  applyPlotVisual(index);
+  status.textContent = `Plot ${index + 1} cultivated — seedbed ready.`;
+  updateCanvasLabel();
+  updateFieldLedger();
+  saveGameProgress();
+}
+
+function drillWheat(index) {
+  if (index < 0 || index >= PLOT_COUNT || plotStates[index] !== PLOT_STATE.CULTIVATED) return;
+  if (!isDrillingSeason()) {
+    status.textContent = 'Winter wheat can only be drilled from September to early October. Clear weeds and cultivate the field meanwhile.';
+    updateCanvasLabel();
+    return;
+  }
+  plotStates[index] = PLOT_STATE.PLANTED;
+  applyPlotVisual(index);
+  addWheatSeedlings(index);
+  const drilled = countState(PLOT_STATE.PLANTED);
+  status.textContent = drilled === PLOT_COUNT
+    ? 'Every plot has winter wheat drilled.'
+    : `Winter wheat drilled in plot ${index + 1}.`;
+  updateCanvasLabel();
+  updateFieldLedger();
+  saveGameProgress();
+}
+
+function handlePlotAction(index) {
+  const state = plotStates[index];
+  if (state === PLOT_STATE.WEEDY) clearWeeds(index);
+  else if (state === PLOT_STATE.CLEARED) cultivate(index);
+  else if (state === PLOT_STATE.CULTIVATED) drillWheat(index);
+  // PLANTED: no further action.
 }
 
 canvas.addEventListener('pointerdown', (event) => {
@@ -1369,7 +1524,7 @@ canvas.addEventListener('pointermove', (event) => {
       updateHighlights();
     }
   } else if (target?.type === 'plot') {
-    canvas.style.cursor = !plantedPlots.has(target.index) ? 'pointer' : 'grab';
+    canvas.style.cursor = plotStates[target.index] !== PLOT_STATE.PLANTED ? 'pointer' : 'grab';
     if (target.index !== hoveredPlotIndex) {
       hoveredPlotIndex = target.index;
       updateHighlights();
@@ -1414,7 +1569,7 @@ canvas.addEventListener('click', (event) => {
   if (!target) return;
 
   if (target.type === 'farmhouse') {
-    updatePlantedCountLedger();
+    updateFieldLedger();
     window.FarmCalendar?.openFarmhouseMenu?.();
     return;
   }
@@ -1422,7 +1577,7 @@ canvas.addEventListener('click', (event) => {
   if (target.type === 'plot') {
     selectedIndex = target.index;
     canvas.focus({ preventScroll: true });
-    plantWheat(target.index);
+    handlePlotAction(target.index);
   }
 });
 
@@ -1444,7 +1599,7 @@ canvas.addEventListener('keydown', (event) => {
   else if (eventMatches(event, 'selectRight') && selectedIndex % COLUMNS < COLUMNS - 1) next += 1;
   else if (eventMatches(event, 'selectUp') && selectedIndex >= COLUMNS) next -= COLUMNS;
   else if (eventMatches(event, 'selectDown') && selectedIndex < PLOT_COUNT - COLUMNS) next += COLUMNS;
-  else if (eventMatches(event, 'plant')) plantWheat(selectedIndex);
+  else if (eventMatches(event, 'plant')) handlePlotAction(selectedIndex);
   else return;
   event.preventDefault();
   selectedIndex = next;
@@ -1579,8 +1734,16 @@ function buildFarmMap() {
 function updateMapPlots() {
   document.querySelectorAll('.map-plot').forEach((cell) => {
     const index = Number(cell.dataset.index);
-    cell.classList.toggle('is-planted', plantedPlots.has(index));
+    const state = plotStates[index];
+    cell.classList.remove('state-weedy', 'state-cleared', 'state-cultivated', 'state-planted');
+    cell.classList.add(`state-${state}`);
+    cell.classList.toggle('is-planted', state === PLOT_STATE.PLANTED);
+    cell.setAttribute('aria-label', `Plot ${index + 1}: ${describePlotState(index)}`);
   });
+}
+
+function updateFarmMap() {
+  updateMapPlots();
 }
 
 updateCanvasLabel();
@@ -1598,9 +1761,13 @@ window.FarmGame = {
   scene,
   camera,
   controls,
-  plantWheat,
+  plotStates,
+  handlePlotAction,
+  clearWeeds,
+  cultivate,
+  drillWheat,
+  updateFarmMap,
   pickTarget,
-  plantedPlots,
   weatherSettings,
   setWeather,
   heldKeys,

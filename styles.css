@@ -874,6 +874,21 @@ html, body {
   transition: fill 0.15s ease;
 }
 
+.map-plot.state-weedy {
+  fill: #6f9d4f;
+  stroke: #3f6b38;
+}
+
+.map-plot.state-cleared {
+  fill: #b08055;
+  stroke: #70452c;
+}
+
+.map-plot.state-cultivated {
+  fill: #8a5a33;
+  stroke: #5d3a24;
+}
+
 .map-plot.is-planted {
   fill: #6fae63;
   stroke: #3f6b38;

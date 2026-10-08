@@ -2,23 +2,30 @@ import { eventMatches } from './keybinds.js';
 
 const DEFAULT_SPEED = 3;
 const SPEED_LEVELS = [3, 15, 60, 300, 1200];
-const GAME_START = Date.UTC(2001, 2, 1, 6); // March 1, Year 1, 06:00:00 UTC
+const GAME_START = Date.UTC(2001, 6, 1, 6); // July 1, Year 1, 06:00:00 UTC
 const DAY_MS = 24 * 60 * 60 * 1000;
-const STORAGE_TIME_KEY = 'farm-hands-calendar-time-v2';
-const STORAGE_LAST_REAL_KEY = 'farm-hands-calendar-lastreal-v2';
-const STORAGE_SPEED_KEY = 'farm-hands-calendar-speed-v2';
+const STORAGE_TIME_KEY = 'farm-hands-calendar-time-v3';
+const STORAGE_LAST_REAL_KEY = 'farm-hands-calendar-lastreal-v3';
+const STORAGE_SPEED_KEY = 'farm-hands-calendar-speed-v3';
 
 const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const seasons = ['Winter', 'Winter', 'Spring', 'Spring', 'Spring', 'Summer', 'Summer', 'Summer', 'Autumn', 'Autumn', 'Autumn', 'Winter'];
 
 // Recurring farm events (month is 0-indexed, matching Date#getUTCMonth).
+// Follows the winter wheat growing year: July–August field preparation,
+// September–October drilling, autumn germination, winter dormancy, spring
+// tillering and stem extension, and the summer harvest.
 const events = [
-  { month: 2, day: 1, emoji: '🌱', title: 'Spring Sowing Day', description: 'Plant the first seeds of the year in freshly thawed soil.' },
-  { month: 2, day: 20, emoji: '🌷', title: 'Spring Equinox', description: 'Flower buds open across the pasture as winter fades away.' },
-  { month: 5, day: 21, emoji: '☀️', title: 'Midsummer Fair', description: 'The longest day of the year — hay is cut and the village gathers.' },
-  { month: 8, day: 22, emoji: '🌾', title: 'Harvest Festival', description: 'Gather the ripe wheat bushels and celebrate the autumn harvest.' },
-  { month: 9, day: 31, emoji: '🎃', title: 'Lantern Night', description: 'Carved lanterns glow along the farm lane at dusk.' },
-  { month: 11, day: 21, emoji: '❄️', title: 'Winter Solstice', description: 'The shortest day — rest by the hearth and plan for spring.' },
+  { month: 6, day: 1, emoji: '🌾', title: 'Field Preparation', description: 'Previous crop is in. Clear weeds, test the soil, and cultivate the seedbed.' },
+  { month: 6, day: 18, emoji: '🚜', title: 'Cultivate the Seedbed', description: 'Work the cleared field into a fine, level seedbed ready for drilling.' },
+  { month: 8, day: 1, emoji: '🌱', title: 'Drill Winter Wheat', description: 'Sow winter wheat into the prepared seedbed — aim to finish by early October.' },
+  { month: 9, day: 15, emoji: '🌧️', title: 'Germination', description: 'Seedlings emerge and establish roots and shoots. Watch for weeds, slugs, and pests.' },
+  { month: 11, day: 21, emoji: '❄️', title: 'Winter Dormancy', description: 'Growth slows through winter. The crop stays established but mostly dormant.' },
+  { month: 1, day: 20, emoji: '🌿', title: 'Tillering & Spring Fertiliser', description: 'Plants push out extra shoots that can form ears. Apply spring fertiliser.' },
+  { month: 3, day: 15, emoji: '📏', title: 'Stem Extension', description: 'The crop enters stem extension — rapid growth rather than field work.' },
+  { month: 5, day: 1, emoji: '🌾', title: 'Ear Emergence & Flowering', description: 'Ears emerge and the wheat flowers. Fungicides and treatments may be used.' },
+  { month: 6, day: 15, emoji: '🌾', title: 'Grain Fill & Ripen', description: 'Grains fill and the crop changes from green to golden.' },
+  { month: 7, day: 20, emoji: '🚜', title: 'Harvest', description: 'The combine harvests the wheat. Dry and store the grain; bale the straw.' },
 ];
 const eventByDate = new Map(events.map((event) => [`${event.month}-${event.day}`, event]));
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -59,6 +66,13 @@ const farmhouseHudBtn = document.querySelector('#farmhouse-btn');
 const eventCalendarMonth = document.querySelector('#event-calendar-month');
 const eventCalendarGrid = document.querySelector('#event-calendar-grid');
 const upcomingEventsList = document.querySelector('#upcoming-events-list');
+
+// Tab elements
+const tabEventsBtn = document.querySelector('#tab-events');
+const tabMapBtn = document.querySelector('#tab-map');
+const tabEventsPanel = document.querySelector('#tab-events-panel');
+const tabMapPanel = document.querySelector('#tab-map-panel');
+const modalTabs = document.querySelector('.modal-tabs');
 
 const pad = (value) => String(value).padStart(2, '0');
 
@@ -174,8 +188,20 @@ export function openFarmhouseMenu() {
   farmhouseModal.removeAttribute('hidden');
   farmhouseHudBtn?.setAttribute('aria-expanded', 'true');
   updateCalendar();
+  setActiveTab('events');
   modalCloseBtn?.focus();
   document.dispatchEvent(new CustomEvent('farmhouse-modal-open'));
+}
+
+function setActiveTab(name) {
+  const isMap = name === 'map';
+  tabEventsBtn?.classList.toggle('is-active', !isMap);
+  tabMapBtn?.classList.toggle('is-active', isMap);
+  tabEventsBtn?.setAttribute('aria-selected', String(!isMap));
+  tabMapBtn?.setAttribute('aria-selected', String(isMap));
+  if (tabEventsPanel) tabEventsPanel.hidden = isMap;
+  if (tabMapPanel) tabMapPanel.hidden = !isMap;
+  if (isMap) window.FarmGame?.updateFarmMap?.();
 }
 
 export function closeFarmhouseMenu() {
@@ -341,6 +367,20 @@ function pauseMenuIsOpen() {
   return document.querySelector('#pause-modal')?.hasAttribute('hidden') === false;
 }
 
+// Tab switching
+tabEventsBtn?.addEventListener('click', () => setActiveTab('events'));
+tabMapBtn?.addEventListener('click', () => setActiveTab('map'));
+modalTabs?.addEventListener('keydown', (event) => {
+  if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+  const tabs = [tabEventsBtn, tabMapBtn];
+  const currentIndex = tabs.indexOf(document.activeElement);
+  const delta = event.key === 'ArrowRight' ? 1 : -1;
+  const nextIndex = (currentIndex + delta + tabs.length) % tabs.length;
+  tabs[nextIndex]?.focus();
+  setActiveTab(nextIndex === 0 ? 'events' : 'map');
+  event.preventDefault();
+});
+
 window.addEventListener('keydown', (event) => {
   if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable]')) {
     return;
@@ -390,4 +430,11 @@ window.FarmCalendar = {
   toggleFarmhouseMenu,
   isFarmhouseMenuOpen,
   updateCalendar,
+  // Dev/test helpers: read the current game date and jump the calendar.
+  getDate: () => new Date(GAME_START + accumulatedGameMs),
+  setDate: (utcDate) => {
+    accumulatedGameMs = utcDate.getTime() - GAME_START;
+    lastRealTick = Date.now();
+    updateCalendar();
+  },
 };
