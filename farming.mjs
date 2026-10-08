@@ -17,13 +17,11 @@ export function allowedAction(date, state, care = {}) {
   const phase = farmPhase(date);
   if (phase === 'harvest-prep') {
     if (state === 'planted' && care.drilledYear < date.getUTCFullYear()) return 'harvest';
-    if (state === 'weedy' || state === 'harvested') return 'clear';
-    if (state === 'cleared') return 'test';
-    if (state === 'tested') return 'cultivate';
+    if (state === 'weedy' || state === 'harvested') return 'turn_grass';
+    if (state === 'cleared' || state === 'tested') return 'break_soil';
   }
-  if (phase === 'ripening' && state === 'weedy') return 'clear';
-  if (phase === 'ripening' && state === 'cleared') return 'test';
-  if (phase === 'ripening' && state === 'tested') return 'cultivate';
+  if (phase === 'ripening' && state === 'weedy') return 'turn_grass';
+  if (phase === 'ripening' && (state === 'cleared' || state === 'tested')) return 'break_soil';
   if (phase === 'drilling' && state === 'cultivated') return 'drill';
   if (phase === 'establishing' && state === 'planted' && !care.protected) return 'protect';
   if (phase === 'tillering' && state === 'planted' && !care.fertilized) return 'fertilize';
@@ -34,7 +32,7 @@ export function allowedAction(date, state, care = {}) {
 export function phaseMessage(date) {
   switch (farmPhase(date)) {
     case 'ripening': return 'Summer is for harvest and preparing ground for autumn drilling.';
-    case 'harvest-prep': return 'Harvest ripe wheat, then clear, test, and cultivate the next seedbed.';
+    case 'harvest-prep': return 'Turn under the grass, then break up the exposed soil into a seedbed.';
     case 'drilling': return 'Drill winter wheat into cultivated plots by October 10.';
     case 'establishing': return 'Wheat is germinating. Tend each planted plot for weeds, slugs, and pests.';
     case 'dormant': return 'Winter wheat is dormant. There is no field work this season.';

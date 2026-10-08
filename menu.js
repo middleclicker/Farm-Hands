@@ -19,7 +19,7 @@ import {
   resetKeybinds,
   setBinding,
 } from './keybinds.js?v=town-7';
-import { closeFarmhouseMenu, isFarmhouseMenuOpen, isDeveloperTimeEnabled, setDeveloperTimeEnabled, setGamePaused } from './calendar.js?v=town-7';
+import { closeFarmhouseMenu, isFarmhouseMenuOpen, isDeveloperTimeEnabled, setDeveloperTimeEnabled, setGamePaused } from './calendar.js?v=charlie-11';
 
 const pauseModal = document.querySelector('#pause-modal');
 const pauseBackdrop = document.querySelector('#pause-backdrop');

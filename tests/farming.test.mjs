@@ -4,9 +4,9 @@ import { allowedAction, farmPhase } from '../farming.mjs';
 const date = (year, month, day = 1) => new Date(Date.UTC(year, month - 1, day));
 const planted = { drilledYear: 2001 };
 
-assert.equal(allowedAction(date(2001, 7, 1), 'weedy'), 'clear');
-assert.equal(allowedAction(date(2001, 8, 1), 'cleared'), 'test');
-assert.equal(allowedAction(date(2001, 8, 1), 'tested'), 'cultivate');
+assert.equal(allowedAction(date(2001, 7, 1), 'weedy'), 'turn_grass');
+assert.equal(allowedAction(date(2001, 8, 1), 'cleared'), 'break_soil');
+assert.equal(allowedAction(date(2001, 8, 1), 'tested'), 'break_soil');
 assert.equal(allowedAction(date(2001, 8, 1), 'cultivated'), null);
 assert.equal(allowedAction(date(2001, 9, 1), 'cultivated'), 'drill');
 assert.equal(allowedAction(date(2001, 10, 10), 'cultivated'), 'drill');
@@ -22,9 +22,9 @@ assert.equal(allowedAction(date(2002, 5, 1), 'planted', planted), 'treat');
 assert.equal(allowedAction(date(2002, 6, 1), 'planted', { ...planted, treated: true }), null);
 assert.equal(allowedAction(date(2002, 7, 19), 'planted', planted), null);
 assert.equal(allowedAction(date(2002, 7, 20), 'planted', planted), 'harvest');
-assert.equal(allowedAction(date(2002, 7, 20), 'harvested'), 'clear');
-assert.equal(allowedAction(date(2002, 8, 1), 'cleared'), 'test');
-assert.equal(allowedAction(date(2002, 8, 1), 'tested'), 'cultivate');
+assert.equal(allowedAction(date(2002, 7, 20), 'harvested'), 'turn_grass');
+assert.equal(allowedAction(date(2002, 8, 1), 'cleared'), 'break_soil');
+assert.equal(allowedAction(date(2002, 8, 1), 'tested'), 'break_soil');
 assert.equal(allowedAction(date(2001, 7, 20), 'planted', planted), null);
 
 console.log('Seasonal farming schedule passed.');

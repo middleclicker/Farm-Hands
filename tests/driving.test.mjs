@@ -14,8 +14,8 @@ test('the player drives, steers, brakes, and reverses the car in world space', (
   assert.ok(straight.z > 6);
   assert.ok(Math.abs(straight.x) < 0.01);
   const turned = drive(parked,{ gas: true, right: true },2);
-  assert.ok(turned.x > 1);
-  assert.ok(turned.heading > 0.3);
+  assert.ok(turned.x < -1);
+  assert.ok(turned.heading < -0.3);
   const braking = drive(straight,{ brake: true },0.4);
   assert.ok(braking.speed < straight.speed);
   const reversed = drive(parked,{ brake: true },1);

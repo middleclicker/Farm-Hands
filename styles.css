@@ -1294,8 +1294,26 @@ html, body {
 .mission-meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #71915d, #d4b958); transition: width .25s; }
 .mission-buttons { display: flex; flex-wrap: wrap; gap: 7px; }
 .soil-journey-hud button:disabled { opacity: .55; cursor: not-allowed; }
-.mail-alert { position: absolute; right: 18px; top: 180px; z-index: 29; padding: 7px 12px; color: #4e3019; background: #f8e2a6; border: 3px solid #85582e; border-radius: 3px; box-shadow: 0 4px 0 #4c3321; font: 700 15px var(--font-serif); cursor: pointer; animation: mail-bob 1.8s ease-in-out infinite; }
+.mail-alert { position: absolute; right: 18px; top: 265px; z-index: 29; padding: 7px 12px; color: #4e3019; background: #f8e2a6; border: 3px solid #85582e; border-radius: 3px; box-shadow: 0 4px 0 #4c3321; font: 700 15px var(--font-serif); cursor: pointer; animation: mail-bob 1.8s ease-in-out infinite; }
 .mail-alert[hidden] { display: none; }
+.car-toggle { position: absolute; left: 83px; top: 18px; z-index: 28; padding: 8px 13px; color: #4b321c; background: #f4e1b5; border: 3px solid #895b34; border-radius: 6px; box-shadow: 0 4px 0 #553821; font: 700 15px var(--font-serif); cursor: pointer; }
+.car-toggle:hover,.car-toggle:focus-visible { background: #ffedca; transform: translateY(-2px); }
+.soil-plan-hud { position: absolute; left: 18px; bottom: 220px; z-index: 20; display: grid; gap: 3px; max-width: 265px; padding: 10px 13px; color: #49321c; background: #f6e5bd; border: 3px solid #8c613a; border-radius: 6px; box-shadow: 0 5px 0 #573b25; font: 15px var(--font-serif); }
+.soil-plan-hud[hidden] { display: none; }
+.soil-plan-hud small { line-height: 1.25; }
+.charlie-overlay { position: absolute; inset: 0; z-index: 95; display: grid; place-items: center; padding: 22px; background: #172219bb; }
+.charlie-overlay[hidden] { display: none; }
+.charlie-card { position: relative; width: min(770px,100%); max-height: calc(100dvh - 40px); overflow: auto; padding: 23px 27px; color: #4d341d; background: #f4dfad; border: 9px solid #704a2e; outline: 3px solid #c89b61; box-shadow: 13px 16px 0 #24190d88, inset 0 0 0 3px #d5b179; font: 16px var(--font-serif); }
+.charlie-card h2 { margin: 7px 0 9px; font: 800 30px var(--font-serif); }
+.charlie-card p { line-height: 1.4; }
+.charlie-plans { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin-top: 17px; }
+.charlie-plan { display: grid; align-content: start; gap: 8px; min-height: 180px; padding: 14px; color: #4b301c; background: #fff0cb; border: 3px solid #aa8052; box-shadow: 3px 4px 0 #8f683d; text-align: left; font: 14px var(--font-serif); cursor: pointer; }
+.charlie-plan strong { font-size: 19px; }
+.charlie-plan small { font-weight: 800; color: #5b713d; }
+.charlie-plan:hover,.charlie-plan:focus-visible { background: #f2dca7; border-color: #617642; transform: translateY(-3px); }
+.charlie-plan:disabled { opacity: .58; cursor: not-allowed; transform: none; }
+.charlie-tip { font-size: 13px; }
+@media (max-width:650px) { .charlie-plans { grid-template-columns: 1fr; } .charlie-plan { min-height: 0; } .mail-alert { top: 260px; right: 8px; } .soil-plan-hud { bottom: 215px; max-width: 210px; } }
 @keyframes mail-bob { 50% { transform: translateY(-4px); } }
 .mailbox-overlay { position: absolute; inset: 0; z-index: 95; display: grid; place-items: center; padding: 20px; background: #1b170fcc; }
 .mailbox-overlay[hidden] { display: none; }

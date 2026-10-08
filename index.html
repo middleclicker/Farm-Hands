@@ -9,11 +9,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600;700;800&family=Alegreya+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=drive-9" />
+    <link rel="stylesheet" href="./styles.css?v=charlie-11" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=drive-9"></script>
+    <script type="module" src="./game.js?v=charlie-11"></script>
   </head>
   <body>
     <main class="game-shell">
@@ -56,22 +56,25 @@
         <aside id="cleanup-hud" class="cleanup-hud" aria-live="polite" hidden><strong>Prepare the ground</strong><span id="cleanup-instruction">Click each stone to have John remove it.</span><div>Cleanliness <b id="ground-cleanliness">100%</b></div><div>Flatness <b id="ground-flatness">90%</b></div><div>Soil nearby <b id="ground-dirt">0</b></div></aside>
         <aside id="soil-journey-hud" class="soil-journey-hud" aria-live="polite" hidden><strong id="soil-journey-title">Soil study</strong><span id="soil-journey-status"></span><div id="soil-coverage" class="mission-meter" hidden><span id="soil-coverage-label">0% represented</span><div><i id="soil-coverage-fill"></i></div></div><div id="lab-progress" class="mission-meter" hidden><span id="lab-progress-label">Lab testing · 0%</span><div><i id="lab-progress-fill"></i></div></div><div class="mission-buttons"><button id="soil-journey-action" type="button" hidden></button><button id="soil-plan-undo" type="button" hidden>Undo point</button></div></aside>
         <button id="mail-alert" class="mail-alert" type="button" hidden>✉ New mail</button>
+        <button id="car-toggle" class="car-toggle" type="button" aria-label="Get in car">Drive car</button>
+        <aside id="soil-plan-hud" class="soil-plan-hud" aria-live="polite" hidden><strong>Charlie's soil plan</strong><span id="soil-plan-name"></span><small id="soil-plan-progress"></small></aside>
         <aside id="drive-phone" class="drive-phone" aria-label="Driving navigation" hidden><div class="phone-speaker" aria-hidden="true"></div><div class="phone-screen"><div class="drive-phone-status"><span>Willow Creek Maps</span><span>◖◖ ▰</span></div><div class="drive-phone-top"><span class="nav-arrow" aria-hidden="true">↗</span><div><small>YOUR ROUTE</small><strong id="drive-direction">Science center</strong></div></div><canvas id="drive-map" width="220" height="236" aria-label="Map showing the real farm road, car position, and destination"></canvas><div class="drive-phone-bottom"><div><small>REMAINING</small><strong id="drive-distance">0 m</strong></div><div><small>SPEED</small><strong id="drive-speed">0 mph</strong></div></div></div><p>W accelerate · S brake/reverse · A/D steer<br>Touch: drag map up and sideways</p><div class="phone-home-bar" aria-hidden="true"></div></aside>
         <div id="mailbox-modal" class="mailbox-overlay" role="dialog" aria-modal="true" aria-labelledby="mailbox-title" hidden><div class="mailbox-card"><button id="mailbox-close" class="mailbox-close" type="button" aria-label="Close mailbox">×</button><span class="mailbox-kicker">Willow Creek · Post</span><h2 id="mailbox-title">Farmhouse Mailbox</h2><div id="mailbox-content"></div></div></div>
+        <div id="charlie-modal" class="charlie-overlay" role="dialog" aria-modal="true" aria-labelledby="charlie-title" hidden><div class="charlie-card"><button id="charlie-close" class="mailbox-close" type="button" aria-label="Close Charlie's visit">×</button><span class="mailbox-kicker">A visit from Charlie</span><h2 id="charlie-title">Let's talk about your soil</h2><p id="charlie-issues"></p><div id="charlie-plans" class="charlie-plans"></div><p class="charlie-tip">Need more coins? Close this conversation, use the farmhouse shop, then speak with Charlie again.</p></div></div>
 
         <div id="crop-book" class="crop-book-overlay" role="dialog" aria-modal="true" aria-labelledby="crop-book-title" hidden>
           <div class="crop-book">
             <button id="crop-book-close-top" class="crop-book-close-top" type="button" aria-label="Close field guide">×</button>
             <div class="crop-book-spine" aria-hidden="true"></div>
             <div class="crop-book-page">
-              <span class="crop-book-kicker">Farmer John's field guide · Volume 1</span>
+              <span class="crop-book-kicker">From Charlie · Farmer John's field guide · Volume 1</span>
               <h2 id="crop-book-title">Winter Wheat</h2>
               <div class="crop-book-art" aria-hidden="true"><svg viewBox="0 0 120 120"><path d="M59 109V25M59 80 38 59M59 69 81 45M59 50 45 30M59 40 73 20" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M40 48q-15-8-15-20 14 1 18 17M79 41q15-9 16-21-16 3-19 19M44 28q-10-8-8-19 12 4 13 16M73 21q11-10 9-19-14 5-13 18" fill="currentColor"/></svg></div>
               <p>Winter wheat is sown in autumn, survives the cold as a young plant, then grows again in spring.</p>
             </div>
             <div class="crop-book-page crop-book-page-right">
               <h3>Our first growing year</h3>
-              <ol><li><strong>July–August</strong> · Clear and prepare the field.</li><li><strong>September–early October</strong> · Drill seed.</li><li><strong>Autumn</strong> · Seedlings establish.</li><li><strong>Winter</strong> · Growth slows.</li><li><strong>Spring</strong> · Tillering, stems, and ears develop.</li><li><strong>Summer</strong> · Grain ripens for harvest.</li></ol>
+              <ol><li><strong>July–August</strong> · Turn under grass and break up soil for a seedbed.</li><li><strong>September–early October</strong> · Drill seed.</li><li><strong>Autumn</strong> · Seedlings establish.</li><li><strong>Winter</strong> · Growth slows.</li><li><strong>Spring</strong> · Tillering, stems, and ears develop.</li><li><strong>Summer</strong> · Grain ripens for harvest.</li></ol>
               <button id="crop-book-close" class="cozy-btn primary-btn" type="button">Back to the farm</button>
             </div>
           </div>
@@ -124,9 +127,7 @@
                 <div id="farm-shop" class="farm-shop"></div>
               </div>
               <div id="tab-knowledge-panel" class="tab-panel knowledge-panel" role="tabpanel" aria-labelledby="tab-knowledge" hidden>
-                <h3>Winter wheat field guide</h3>
-                <p>Clear the summer field, sample the soil, and cultivate a seedbed. Drill winter wheat from September through early October. It establishes in autumn, rests through winter, tillers in spring, flowers in May–June, and ripens for harvest in July–August.</p>
-                <div class="knowledge-cycle"><span>Prepare</span><span>Drill</span><span>Establish</span><span>Rest</span><span>Grow</span><span>Harvest</span></div>
+                <section id="journal-field-guide" hidden><h3>Charlie's winter wheat field guide</h3><p>Turn under the summer grass, break up the soil into a seedbed, and drill winter wheat from September through early October. It establishes in autumn, rests through winter, tillers in spring, flowers in May–June, and ripens for harvest in July–August.</p><div class="knowledge-cycle"><span>Prepare</span><span>Drill</span><span>Establish</span><span>Rest</span><span>Grow</span><span>Harvest</span></div></section>
                 <section id="journal-soil-report" class="journal-soil-report" aria-live="polite"><h4>Field soil report</h4><p>Collect samples after ground cleanup. Results will arrive by mail from the town science center.</p></section>
               </div>
             </div>

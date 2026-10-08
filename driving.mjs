@@ -2,7 +2,7 @@
 export function advanceCar(state, input, elapsedSeconds, onRoad = true) {
   const dt = Math.max(0, Math.min(elapsedSeconds, 0.06));
   const next = { ...state };
-  const steeringInput = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+  const steeringInput = (input.left ? 1 : 0) - (input.right ? 1 : 0);
   const blend = 1 - Math.exp(-dt * 7);
   next.steer = (next.steer ?? 0) + (steeringInput - (next.steer ?? 0)) * blend;
   let speed = next.speed ?? 0;

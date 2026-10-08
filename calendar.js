@@ -17,9 +17,9 @@ const seasons = ['Winter', 'Winter', 'Spring', 'Spring', 'Spring', 'Summer', 'Su
 // September–October drilling, autumn germination, winter dormancy, spring
 // tillering and stem extension, and the summer harvest.
 const events = [
-  { month: 6, day: 1, emoji: '🚜', title: 'Field Preparation', description: 'Clear the site, collect field soil samples, and cultivate a seedbed after the science center report arrives.' },
+  { month: 6, day: 1, emoji: '🚜', title: 'Field Preparation', description: 'Prepare the site, collect field soil samples, choose a soil plan, then turn under grass and break up soil for a seedbed.' },
   { month: 6, day: 20, emoji: '🌾', title: 'Wheat Harvest', description: 'Harvest ripe wheat and store the grain.' },
-  { month: 7, day: 1, emoji: '🚜', title: 'Prepare the Next Seedbed', description: 'Clear harvested plots and cultivate for the next crop.' },
+  { month: 7, day: 1, emoji: '🚜', title: 'Prepare the Next Seedbed', description: 'Turn under growth on harvested plots and break up soil for the next crop.' },
   { month: 8, day: 1, emoji: '🌱', title: 'Drill Winter Wheat', description: 'Sow winter wheat into the prepared seedbed — aim to finish by early October.' },
   { month: 9, day: 11, emoji: '🌱', title: 'Germination', description: 'Seedlings establish; check for weeds, slugs, and pests through November.' },
   { month: 11, day: 1, emoji: '❄️', title: 'Winter Dormancy', description: 'Growth slows through December and January.' },
