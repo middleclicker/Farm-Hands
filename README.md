@@ -1,10 +1,10 @@
 # Farm Hands
 
-A cozy singleplayer 3D farming game set in a pastoral countryside with a starter farmhouse, split-rail fencing, cobblestone path, orchard trees, and wildflowers. The full-window field features nine soil plots in a 3×3 grid. Click or tap to plant; drag to rotate around the field; scroll or pinch to zoom in and out; use WASD to move the camera across the ground. Keyboard users can select plots with the arrow keys and plant with Enter. Planted wheat and your chosen weather are saved in your browser and restored automatically the next time you visit.
+A cozy singleplayer 3D farming game set in a pastoral countryside with a starter farmhouse, split-rail fencing, cobblestone path, orchard trees, and wildflowers. The surrounding land features a pond, a pine forest, scattered boulders, and a rolling hill to the north. The full-window field features nine soil plots in a 3×3 grid. Click or tap to plant; drag to rotate around the field; scroll or pinch to zoom in and out; use WASD to move the camera across the ground. Keyboard users can select plots with the arrow keys and plant with Enter. Planted wheat and your chosen weather are saved in your browser and restored automatically the next time you visit.
 
 Use the Weather menu to switch between warm sunlight, light rain, moderate rain, and heavy rain. Rain changes the sky, light, and number and speed of falling drops. The scene keeps its chosen weather while you plant or rotate. Rain and smoke animations pause when reduced motion is requested.
 
-Click the 3D farmhouse (or the top-left Farmhouse button, or press `C`) to open the Farmhouse Calendar menu, which displays the live calendar, current year progress, upcoming farm events, and farm ledger.
+Click the 3D farmhouse (or the top-left Farmhouse button, or press `C`) to open the Farmhouse Calendar menu, which displays the live calendar, a top-down farm map, upcoming farm events, and a farm ledger.
 
 Use the developer Speed Up button (`⚡ 3× Speed`, or press `T` / `]`) to cycle game speeds (3×, 15×, 60×, 300×, 1200×) for testing calendar progression across days, months, and seasons.
 
