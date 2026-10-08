@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { getGameDate } from './calendar.js?v=seasonal-farm-4';
-import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=seasonal-farm-3';
-import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=seasonal-farm-4';
+import { getGameDate } from './calendar.js?v=farm-economy-2';
+import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=farm-economy-2';
+import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=farm-economy-2';
 // Importing the menu wires up the Escape menu (credits + keybind settings).
-import './menu.js?v=seasonal-farm-4';
+import './menu.js?v=farm-economy-2';
 
 const COLUMNS = 3;
 const ROWS = 3;
@@ -25,7 +25,17 @@ const PLOT_STATE = Object.freeze({
 });
 const plotStates = new Array(PLOT_COUNT).fill(PLOT_STATE.WEEDY);
 const plotCare = Array.from({ length: PLOT_COUNT }, () => ({}));
-const inventory = { seed: PLOT_COUNT, fertiliser: PLOT_COUNT, treatment: PLOT_COUNT, grain: 0, straw: 0 };
+const inventory = { seed: 0, fertiliser: 0, treatment: 0, grain: 0, straw: 0 };
+let coins = 100;
+const shopSupplies = [
+  { key: 'seed', label: 'Winter wheat seed', unit: 'bags', price: 4 },
+  { key: 'fertiliser', label: 'Spring fertiliser', unit: 'bags', price: 3 },
+  { key: 'treatment', label: 'Crop treatment', unit: 'applications', price: 3 },
+];
+const sellableGoods = [
+  { key: 'grain', label: 'Stored grain', unit: 'sacks', price: 5 },
+  { key: 'straw', label: 'Baled straw', unit: 'bales', price: 2 },
+];
 const wheatGroups = new Array(PLOT_COUNT).fill(null);
 
 let renderer;
@@ -174,16 +184,45 @@ function resetCameraToDefault() {
   render();
 }
 
+let homeTransition = null;
+
 function focusFarmhouse() {
+  closePlotActionMenu();
   const target = new THREE.Vector3(-5.8, groundHeight(-5.8, -5.1) + 1.1, -5.1);
-  controls.target.copy(target);
-  camera.position.copy(target).add(new THREE.Vector3(5.5, 5.2, 8));
-  controls.update();
-  saveCameraState(true);
-  render();
+  const position = target.clone().add(new THREE.Vector3(5.5, 5.2, 8));
+  if (reducedMotion.matches) {
+    controls.target.copy(target);
+    camera.position.copy(position);
+    controls.update();
+    saveCameraState(true);
+    render();
+    return;
+  }
+  homeTransition = {
+    start: performance.now(),
+    duration: 1000,
+    fromPosition: camera.position.clone(),
+    fromTarget: controls.target.clone(),
+    position,
+    target,
+  };
 }
 
 document.querySelector('#home-btn')?.addEventListener('click', focusFarmhouse);
+controls.addEventListener('start', () => { homeTransition = null; closePlotActionMenu(); });
+
+function updateHomeTransition(now) {
+  if (!homeTransition) return;
+  const progress = THREE.MathUtils.clamp((now - homeTransition.start) / homeTransition.duration, 0, 1);
+  const eased = progress * progress * (3 - 2 * progress);
+  controls.target.lerpVectors(homeTransition.fromTarget, homeTransition.target, eased);
+  camera.position.lerpVectors(homeTransition.fromPosition, homeTransition.position, eased);
+  controls.update();
+  if (progress === 1) {
+    homeTransition = null;
+    saveCameraState(true);
+  }
+}
 
 // Warm pastoral lighting
 const ambientLight = new THREE.HemisphereLight(0xe8f4ff, 0x6e945c, 2.5);
@@ -1136,13 +1175,12 @@ function setWeather(name) {
 // PROGRESS PERSISTENCE
 // ==========================================================================
 
-// New saves use a seasonal field. Legacy planted plots are cleared on migration
-// so the old starter plants do not appear in the new winter wheat year.
-const STORAGE_FARM_KEY = 'farm-hands-seasonal-farm-v2';
+// Version 3 starts with an empty barn and coins. Existing field work is kept.
+const STORAGE_FARM_KEY = 'farm-hands-seasonal-farm-v3';
 
 function saveGameProgress() {
   try {
-    localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ plotStates, plotCare, inventory }));
+    localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ plotStates, plotCare, inventory, coins }));
   } catch {
     // Storage unavailable (e.g. private browsing); the game keeps running.
   }
@@ -1151,21 +1189,25 @@ function saveGameProgress() {
 function restoreGameProgress() {
   try {
     const raw = localStorage.getItem(STORAGE_FARM_KEY);
-    const saved = raw ? JSON.parse(raw) : null;
-    const legacyStates = raw ? null : JSON.parse(localStorage.getItem('farm-hands-plot-states-v1') || 'null');
+    const legacyRaw = raw ? null : localStorage.getItem('farm-hands-seasonal-farm-v2');
+    const saved = raw ? JSON.parse(raw) : legacyRaw ? JSON.parse(legacyRaw) : null;
+    const legacyStates = saved ? null : JSON.parse(localStorage.getItem('farm-hands-plot-states-v1') || 'null');
     if (Array.isArray(saved?.plotStates) || Array.isArray(legacyStates)) {
       for (let index = 0; index < PLOT_COUNT; index += 1) {
         const state = saved?.plotStates?.[index] ?? legacyStates?.[index];
         if (Object.values(PLOT_STATE).includes(state)) {
-          plotStates[index] = !raw && state === PLOT_STATE.PLANTED ? PLOT_STATE.WEEDY : state;
+          plotStates[index] = !raw && !legacyRaw && state === PLOT_STATE.PLANTED ? PLOT_STATE.WEEDY : state;
           const care = saved?.plotCare?.[index];
           if (care && typeof care === 'object') plotCare[index] = care;
         }
       }
     }
-    for (const key of Object.keys(inventory)) {
-      const value = saved?.inventory?.[key];
-      if (Number.isInteger(value) && value >= 0) inventory[key] = value;
+    if (raw) {
+      for (const key of Object.keys(inventory)) {
+        const value = saved?.inventory?.[key];
+        if (Number.isInteger(value) && value >= 0) inventory[key] = value;
+      }
+      if (Number.isInteger(saved?.coins) && saved.coins >= 0) coins = saved.coins;
     }
   } catch {
     // Fall through to a fresh field.
@@ -1180,6 +1222,7 @@ function restoreGameProgress() {
   refreshStatus();
   updateFieldLedger();
   updateInventory();
+  updateCoins();
   saveGameProgress();
 }
 
@@ -1353,6 +1396,8 @@ function animateScene(now) {
   const deltaSeconds = Math.min((now - lastTickTime) / 1000, 0.06);
   lastTickTime = now;
 
+  updateHomeTransition(now);
+  positionPlotActionMenu();
   updateDaylight();
   const gameDay = getGameDate().toISOString().slice(0, 10);
   if (gameDay !== lastCropDay) {
@@ -1482,6 +1527,19 @@ new ResizeObserver(resize).observe(canvas);
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
+const plotActionMenu = document.querySelector('#plot-action-menu');
+const plotActions = [
+  ['clear', 'Clear field'],
+  ['test', 'Test soil'],
+  ['cultivate', 'Cultivate'],
+  ['drill', 'Drill wheat'],
+  ['protect', 'Control pests'],
+  ['fertilize', 'Apply fertiliser'],
+  ['treat', 'Treat crop'],
+  ['harvest', 'Harvest'],
+];
+const actionSupply = { drill: 'seed', fertilize: 'fertiliser', treat: 'treatment' };
+let openPlotIndex = null;
 let hoveredPlotIndex = -1;
 let selectedIndex = 0;
 let keyboardFocus = false;
@@ -1512,6 +1570,70 @@ function pickTarget(event) {
   return null;
 }
 
+function positionPlotActionMenu() {
+  if (openPlotIndex === null || !plotActionMenu || plotActionMenu.hidden) return;
+  const { x, z } = plotPositions[openPlotIndex];
+  const projected = new THREE.Vector3(x, groundHeight(x, z) + 0.4, z).project(camera);
+  const farm = document.querySelector('.farm');
+  const farmBounds = farm.getBoundingClientRect();
+  const canvasBounds = canvas.getBoundingClientRect();
+  const screenX = canvasBounds.left - farmBounds.left + (projected.x + 1) * canvasBounds.width / 2;
+  const screenY = canvasBounds.top - farmBounds.top + (1 - projected.y) * canvasBounds.height / 2;
+  const width = plotActionMenu.offsetWidth;
+  const height = plotActionMenu.offsetHeight;
+  plotActionMenu.style.left = `${THREE.MathUtils.clamp(screenX, width / 2 + 8, farmBounds.width - width / 2 - 8)}px`;
+  plotActionMenu.style.top = `${Math.max(height + 8, screenY - 14)}px`;
+}
+
+function closePlotActionMenu(returnFocus = false) {
+  if (!plotActionMenu || plotActionMenu.hidden) return;
+  plotActionMenu.hidden = true;
+  openPlotIndex = null;
+  if (returnFocus) canvas.focus({ preventScroll: true });
+}
+
+function openPlotActionMenu(index) {
+  if (!Number.isInteger(index) || index < 0 || index >= PLOT_COUNT) return;
+  openPlotIndex = index;
+  const available = allowedAction(getGameDate(), plotStates[index], plotCare[index]);
+  const supply = actionSupply[available];
+  const needsStock = supply && inventory[supply] < 1;
+  const note = needsStock
+    ? 'Buy supplies in the farmhouse inventory before doing this work.'
+    : available ? 'Choose the available field action.' : phaseMessage(getGameDate());
+  plotActionMenu.setAttribute('aria-label', `Plot ${index + 1} actions`);
+  plotActionMenu.innerHTML = `<div class="plot-action-header"><strong>Plot ${index + 1}</strong><button type="button" class="plot-action-close" aria-label="Close plot actions">×</button></div><p class="plot-action-state">${describePlotState(index)}</p><div class="plot-action-grid">${plotActions.map(([action, label]) => `<button type="button" data-action="${action}" ${action !== available || needsStock ? 'disabled' : ''}>${label}</button>`).join('')}</div><p class="plot-action-note">${note}</p>`;
+  plotActionMenu.hidden = false;
+  positionPlotActionMenu();
+  (plotActionMenu.querySelector('button[data-action]:not([disabled])') || plotActionMenu.querySelector('.plot-action-close'))?.focus({ preventScroll: true });
+}
+
+plotActionMenu?.addEventListener('click', (event) => {
+  const button = event.target.closest('button');
+  if (!button) return;
+  if (button.classList.contains('plot-action-close')) {
+    closePlotActionMenu(true);
+    return;
+  }
+  const index = openPlotIndex;
+  const action = button.dataset.action;
+  if (index !== null && action) handlePlotAction(index, action);
+  closePlotActionMenu(true);
+});
+
+document.addEventListener('pointerdown', (event) => {
+  if (openPlotIndex !== null && !plotActionMenu.contains(event.target)) closePlotActionMenu();
+});
+window.addEventListener('keydown', (event) => {
+  if (openPlotIndex !== null && event.key === 'Escape') {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    closePlotActionMenu(true);
+  }
+}, true);
+document.addEventListener('farmhouse-modal-open', () => closePlotActionMenu());
+window.addEventListener('farm-hands:menu-open', () => closePlotActionMenu());
+
 function updateHighlights() {
   for (let index = 0; index < PLOT_COUNT; index += 1) {
     const active = index === hoveredPlotIndex || (keyboardFocus && index === selectedIndex);
@@ -1539,8 +1661,8 @@ function updateCanvasLabel() {
     `3D wheat field. Plot ${selectedIndex + 1} of ${PLOT_COUNT} is ${state}. `
     + `Use ${movementKeys} to move camera, ${bindingSummary('selectUp')}/${bindingSummary('selectDown')}/`
     + `${bindingSummary('selectLeft')}/${bindingSummary('selectRight')} to select a plot, `
-    + `${bindingSummary('plant')} to work the soil. Click the farmhouse or press ${bindingSummary('calendar')} `
-    + `to view the calendar, and press ${bindingSummary('openMenu')} for the menu, credits, and keybind settings.`
+    + `${bindingSummary('plant')} to open plot actions. Click the farmhouse or press ${bindingSummary('calendar')} `
+    + `to view the journal, and press ${bindingSummary('openMenu')} for the menu, credits, and keybind settings.`
   );
 }
 
@@ -1548,11 +1670,11 @@ function updateHelpText() {
   const helpEl = document.querySelector('#field-help');
   if (!helpEl) return;
   const movementKeys = MOVE_ACTIONS.map((action) => bindingLabel(action)).join('');
-  helpEl.textContent = `Click or tap a plot to do the field work allowed by the calendar: clear, test, cultivate, drill, tend, fertilise, treat, or harvest. Drag to rotate. Scroll or pinch to zoom. `
+  helpEl.textContent = `Click or tap a plot to choose its seasonal field action: clear, test, cultivate, drill, tend, fertilise, treat, or harvest. Drag to rotate. Scroll or pinch to zoom. `
     + `Use ${movementKeys} to move the camera across the farm, `
     + `${bindingSummary('selectLeft')}/${bindingSummary('selectRight')}/${bindingSummary('selectUp')}/${bindingSummary('selectDown')} `
-    + `to select a plot, and ${bindingSummary('plant')} to work the soil. `
-    + `Click the farmhouse or press ${bindingSummary('calendar')} to open the farming calendar. `
+    + `to select a plot, and ${bindingSummary('plant')} to open plot actions. `
+    + `Click the farmhouse or press ${bindingSummary('calendar')} to open the farming journal. `
     + `Press ${bindingSummary('openMenu')} for the menu, credits, and keybind settings.`;
 }
 
@@ -1632,9 +1754,10 @@ function drillWheat(index) {
   saveGameProgress();
 }
 
-function handlePlotAction(index) {
+function handlePlotAction(index, requestedAction = null) {
   if (!Number.isInteger(index) || index < 0 || index >= PLOT_COUNT) return;
   const action = allowedAction(getGameDate(), plotStates[index], plotCare[index]);
+  if (requestedAction !== null && requestedAction !== action) return;
   if (action === 'clear') return clearWeeds(index);
   if (action === 'test') return testSoil(index);
   if (action === 'cultivate') return cultivate(index);
@@ -1671,15 +1794,45 @@ function handlePlotAction(index) {
 function updateInventory() {
   const container = document.querySelector('#farm-inventory');
   if (!container) return;
-  const items = [
-    ['Winter wheat seed', inventory.seed, 'bags'],
-    ['Spring fertiliser', inventory.fertiliser, 'bags'],
-    ['Crop treatment', inventory.treatment, 'applications'],
-    ['Stored grain', inventory.grain, 'sacks'],
-    ['Baled straw', inventory.straw, 'bales'],
-  ];
-  container.innerHTML = items.map(([label, count, unit]) => `<div class="inventory-item"><span>${label}</span><strong>${count}</strong><small>${unit}</small></div>`).join('');
+  const items = [...shopSupplies, ...sellableGoods].filter(({ key }) => inventory[key] > 0);
+  container.innerHTML = items.length
+    ? items.map(({ key, label, unit }) => `<div class="inventory-item"><span>${label}</span><strong>${inventory[key]}</strong><small>${unit}</small></div>`).join('')
+    : '<p class="inventory-empty">Your inventory is empty.</p>';
+  const shop = document.querySelector('#farm-shop');
+  if (shop) {
+    const buyRows = shopSupplies.map(({ key, label, price }) => `<div class="shop-row"><span>${label}</span><div class="shop-buttons"><button type="button" data-buy="${key}" data-count="1" ${coins < price ? 'disabled' : ''}>Buy 1 · ${price} coins</button><button type="button" data-buy="${key}" data-count="9" ${coins < price * 9 ? 'disabled' : ''}>Buy 9 · ${price * 9} coins</button><button type="button" data-sell="${key}" data-count="1" ${inventory[key] < 1 ? 'disabled' : ''}>Sell 1 · +${price} coins</button><button type="button" data-sell="${key}" data-count="9" ${inventory[key] < 9 ? 'disabled' : ''}>Sell 9 · +${price * 9} coins</button></div></div>`);
+    const sellRows = sellableGoods.map(({ key, label, price }) => `<div class="shop-row"><span>${label}</span><div class="shop-buttons"><button type="button" data-sell="${key}" data-count="1" ${inventory[key] < 1 ? 'disabled' : ''}>Sell 1 · +${price} coins</button><button type="button" data-sell="${key}" data-count="9" ${inventory[key] < 9 ? 'disabled' : ''}>Sell 9 · +${price * 9} coins</button></div></div>`);
+    shop.innerHTML = [...buyRows, ...sellRows].join('');
+  }
 }
+
+function updateCoins() {
+  const display = document.querySelector('#hud-coins');
+  if (display) display.textContent = String(coins);
+}
+
+document.querySelector('#farm-shop')?.addEventListener('click', (event) => {
+  const button = event.target.closest('button');
+  if (!button || button.disabled) return;
+  const buy = shopSupplies.find(({ key }) => key === button.dataset.buy);
+  const sell = [...shopSupplies, ...sellableGoods].find(({ key }) => key === button.dataset.sell);
+  if (buy) {
+    const amount = Number(button.dataset.count);
+    if (![1, 9].includes(amount) || coins < buy.price * amount) return;
+    coins -= buy.price * amount;
+    inventory[buy.key] += amount;
+    status.textContent = `Bought ${amount} ${buy.label.toLowerCase()} for ${buy.price * amount} coins.`;
+  } else if (sell) {
+    const amount = Number(button.dataset.count);
+    if (![1, 9].includes(amount) || inventory[sell.key] < amount) return;
+    inventory[sell.key] -= amount;
+    coins += sell.price * amount;
+    status.textContent = `Sold ${amount} ${sell.label.toLowerCase()} for ${sell.price * amount} coins.`;
+  } else return;
+  updateInventory();
+  updateCoins();
+  saveGameProgress();
+});
 
 canvas.addEventListener('pointerdown', (event) => {
   if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -1712,7 +1865,7 @@ canvas.addEventListener('pointermove', (event) => {
       updateHighlights();
     }
   } else if (target?.type === 'plot') {
-    canvas.style.cursor = allowedAction(getGameDate(), plotStates[target.index], plotCare[target.index]) ? 'pointer' : 'grab';
+    canvas.style.cursor = 'pointer';
     if (target.index !== hoveredPlotIndex) {
       hoveredPlotIndex = target.index;
       updateHighlights();
@@ -1765,7 +1918,7 @@ canvas.addEventListener('click', (event) => {
   if (target.type === 'plot') {
     selectedIndex = target.index;
     canvas.focus({ preventScroll: true });
-    handlePlotAction(target.index);
+    openPlotActionMenu(target.index);
   }
 });
 
@@ -1787,7 +1940,7 @@ canvas.addEventListener('keydown', (event) => {
   else if (eventMatches(event, 'selectRight') && selectedIndex % COLUMNS < COLUMNS - 1) next += 1;
   else if (eventMatches(event, 'selectUp') && selectedIndex >= COLUMNS) next -= COLUMNS;
   else if (eventMatches(event, 'selectDown') && selectedIndex < PLOT_COUNT - COLUMNS) next += COLUMNS;
-  else if (eventMatches(event, 'plant')) handlePlotAction(selectedIndex);
+  else if (eventMatches(event, 'plant')) openPlotActionMenu(selectedIndex);
   else return;
   event.preventDefault();
   selectedIndex = next;

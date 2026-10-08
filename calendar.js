@@ -1,4 +1,4 @@
-import { eventMatches } from './keybinds.js?v=seasonal-farm-4';
+import { eventMatches } from './keybinds.js?v=farm-economy-2';
 
 const DEFAULT_SPEED = 3;
 const SPEED_LEVELS = [3, 15, 60, 300, 1200];
@@ -54,7 +54,7 @@ const farmhouseModal = document.querySelector('#farmhouse-modal');
 const modalBackdrop = document.querySelector('#modal-backdrop');
 const modalCloseBtn = document.querySelector('#modal-close-btn');
 const modalFooterCloseBtn = document.querySelector('#modal-footer-close-btn');
-const farmhouseHudBtn = document.querySelector('#farmhouse-btn');
+const hudClock = document.querySelector('#hud-clock');
 
 // Events calendar elements
 const eventCalendarMonth = document.querySelector('#event-calendar-month');
@@ -179,7 +179,6 @@ export function cycleGameSpeed() {
 export function openFarmhouseMenu() {
   if (!farmhouseModal) return;
   farmhouseModal.removeAttribute('hidden');
-  farmhouseHudBtn?.setAttribute('aria-expanded', 'true');
   updateCalendar();
   setActiveTab('events');
   modalCloseBtn?.focus();
@@ -206,7 +205,6 @@ function setActiveTab(name) {
 export function closeFarmhouseMenu() {
   if (!farmhouseModal) return;
   farmhouseModal.setAttribute('hidden', '');
-  farmhouseHudBtn?.setAttribute('aria-expanded', 'false');
   document.dispatchEvent(new CustomEvent('farmhouse-modal-close'));
   const canvas = document.querySelector('#field');
   canvas?.focus({ preventScroll: true });
@@ -270,11 +268,17 @@ export function updateCalendar() {
   const dateText = `${months[month]} ${date.getUTCDate()}`;
   const seasonText = `${currentSeason} · Year ${gameYear}`;
   const clockText = `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+  const hour12 = date.getUTCHours() % 12 || 12;
+  const hudClockText = `${hour12}:${pad(date.getUTCMinutes())} ${date.getUTCHours() < 12 ? 'AM' : 'PM'}`;
   const dayText = `Day ${dayOfYear} of ${daysInYear}`;
 
   if (dateLabel) dateLabel.textContent = dateText;
   if (seasonLabel) seasonLabel.textContent = seasonText;
   if (clockLabel) clockLabel.textContent = clockText;
+  if (hudClock && hudClock.textContent !== hudClockText) {
+    hudClock.textContent = hudClockText;
+    hudClock.dateTime = `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+  }
   if (dayLabel) dayLabel.textContent = dayText;
   if (yearLabel) yearLabel.textContent = `Year ${gameYear}`;
   if (yearFill) yearFill.style.width = `${yearProgress}%`;
@@ -293,14 +297,6 @@ export function updateCalendar() {
 
 // Wire up events
 speedBtn?.addEventListener('click', () => cycleGameSpeed());
-// Delegate the HUD trigger so it remains wired even when the module is loaded
-// before the body finishes parsing or is evaluated through the game import.
-document.addEventListener('click', (event) => {
-  const target = event.target?.closest?.('#farmhouse-btn');
-  if (target) {
-    toggleFarmhouseMenu();
-  }
-});
 modalCloseBtn?.addEventListener('click', () => closeFarmhouseMenu());
 modalFooterCloseBtn?.addEventListener('click', () => closeFarmhouseMenu());
 modalBackdrop?.addEventListener('click', () => closeFarmhouseMenu());

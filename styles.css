@@ -1,7 +1,7 @@
 :root {
   color-scheme: light;
-  --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
-  --font-sans: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Cabin', Arial, sans-serif;
+  --font-sans: 'Cabin', Arial, sans-serif;
   
   /* Cozy Farm Palette */
   --wood-dark: #3a2213;
@@ -1737,4 +1737,130 @@ html, body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Farm HUD, economy, and plot actions */
+.farm-hud-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 142px;
+  padding: 8px 12px;
+  background: #fff9eb;
+  border: 1px solid #a78b68;
+  border-radius: 10px;
+  box-shadow: var(--shadow-small);
+  color: #5b4c36;
+  font-size: 12px;
+  font-weight: 600;
+}
+.farm-hud-value strong,
+.farm-hud-value time { font-size: 15px; font-weight: 700; color: #3f3527; }
+.coin-display strong { color: #9a6716; }
+.plot-action-menu {
+  position: absolute;
+  z-index: 30;
+  width: 270px;
+  max-width: calc(100vw - 18px);
+  padding: 11px;
+  transform: translate(-50%, -100%);
+  background: #fffaf0;
+  border: 1px solid #a78b68;
+  border-radius: 12px;
+  box-shadow: 0 12px 35px rgba(29, 25, 17, .35);
+  font-size: 12px;
+}
+.plot-action-menu[hidden] { display: none; }
+.plot-action-header { display: flex; align-items: center; justify-content: space-between; }
+.plot-action-header strong { font-size: 15px; }
+.plot-action-close {
+  border: 0;
+  background: transparent;
+  color: #665440;
+  font-size: 21px;
+  line-height: 1;
+  cursor: pointer;
+}
+.plot-action-state { margin: 2px 0 9px; color: #75664f; }
+.plot-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.plot-action-grid button {
+  min-height: 33px;
+  padding: 5px 6px;
+  border: 1px solid #a3b594;
+  border-radius: 6px;
+  background: #e7f0df;
+  color: #2e5228;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.plot-action-grid button:disabled {
+  border-color: #e4ddd0;
+  background: #f5f0e7;
+  color: #a19686;
+  cursor: default;
+}
+.plot-action-grid button:not(:disabled):hover { background: #d7e8cd; }
+.plot-action-note { margin: 9px 0 0; color: #665440; line-height: 1.25; }
+.inventory-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 22px;
+  border: 1px dashed #c8b99f;
+  border-radius: 9px;
+  color: #75664f;
+  text-align: center;
+}
+.inventory-shop-title { margin: 10px 0 0; font-size: 15px; color: #3f5b34; }
+.farm-shop { display: grid; gap: 7px; }
+.shop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid #ddd0bb;
+  border-radius: 9px;
+  background: #fffcf6;
+  font-size: 12px;
+  font-weight: 600;
+}
+.shop-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+.shop-buttons button {
+  padding: 6px 8px;
+  border: 1px solid #a78b68;
+  border-radius: 7px;
+  background: #f5ebd7;
+  color: #463b2d;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.shop-buttons button:disabled { opacity: .42; cursor: default; }
+.shop-buttons button:not(:disabled):hover { background: #ead9b8; }
+
+/* Center the pause and settings screens without decorative icons. */
+.pause-card .modal-header { justify-content: center; position: relative; }
+.pause-card .modal-title-group { flex: 1; justify-content: center; text-align: center; }
+.pause-card .modal-close-btn { position: absolute; right: 14px; }
+.pause-menu-btn { justify-content: center; text-align: center; }
+.pause-menu-text { align-items: center; }
+.pause-view-actions { justify-content: center; }
+#pause-view-settings { align-items: center; text-align: center; }
+#pause-view-settings .settings-block { width: min(100%, 470px); align-items: center; }
+#pause-view-settings .section-heading-row { flex-direction: column; align-items: center; gap: 2px; }
+#pause-view-settings .settings-row { flex-direction: column; justify-content: center; }
+#pause-view-settings .settings-toggle { justify-content: center; text-align: center; }
+#pause-view-settings .settings-toggle-text { align-items: center; }
+#pause-view-settings .keybind-groups { width: 100%; }
+#pause-view-settings .keybind-group { align-items: center; }
+#pause-view-settings .keybind-group-header { justify-content: center; text-align: center; }
+#pause-view-settings .keybind-row { flex-direction: column; justify-content: center; align-items: center; gap: 3px; }
+#pause-view-settings .keybind-keys { justify-content: center; }
+@media (max-width: 640px) {
+  .shop-row { flex-direction: column; align-items: stretch; text-align: center; }
+  .shop-buttons { justify-content: center; }
 }

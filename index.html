@@ -8,30 +8,31 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,600&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=seasonal-farm-4" />
+    <link href="https://fonts.googleapis.com/css2?family=Cabin:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css?v=farm-economy-2" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=seasonal-farm-4"></script>
+    <script type="module" src="./game.js?v=farm-economy-2"></script>
   </head>
   <body>
     <main class="game-shell">
       <section class="farm" aria-label="3D wheat planting field">
         <canvas id="field" tabindex="0" aria-label="3D wheat field. Select a plot and work it during the appropriate season. Press Escape for the menu." aria-describedby="field-help field-status"></canvas>
+        <div id="plot-action-menu" class="plot-action-menu" role="dialog" aria-label="Plot actions" hidden></div>
 
         <!-- Farm controls -->
         <header class="farm-hud farm-hud-left" aria-label="Farm overview">
-          <button id="farmhouse-btn" class="cozy-hud-btn" type="button" aria-haspopup="dialog" aria-expanded="false">Calendar</button>
           <button id="home-btn" class="cozy-hud-btn" type="button" title="Return the camera to the farmhouse">Back to home</button>
         </header>
 
-        <aside class="farm-hud farm-hud-right" aria-label="Time controls">
+        <aside class="farm-hud farm-hud-right" aria-label="Farm time and coins">
+          <div class="farm-hud-value coin-display" aria-label="Coin balance"><span>Coins</span><strong id="hud-coins">100</strong></div>
+          <div class="farm-hud-value clock-display"><span>Farm time</span><time id="hud-clock" datetime="06:00">6:00 AM</time></div>
           <button id="speed-btn" class="cozy-hud-btn time-control" type="button" title="Cycle game time speed" aria-label="Game time speed">
             <span>Time</span> <strong id="speed-btn-label">3× Speed</strong>
           </button>
         </aside>
-        <p class="field-status" id="field-status" role="status">Clear, test, and cultivate empty plots. Winter wheat drilling begins in September.</p>
 
         <!-- Farmhouse Calendar Menu (Modal Dialog) -->
         <div id="farmhouse-modal" class="farmhouse-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-modal-title" hidden>
@@ -66,8 +67,10 @@
               </div>
 
               <div id="tab-inventory-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-inventory" hidden>
-                <p class="inventory-intro">Supplies for the field and what your harvest has brought in.</p>
+                <p class="inventory-intro">What is in the barn</p>
                 <div class="inventory-grid" id="farm-inventory" aria-live="polite"></div>
+                <h3 class="inventory-shop-title">Farm supplies</h3>
+                <div id="farm-shop" class="farm-shop"></div>
                 <p class="inventory-field" id="farm-planted-count">9 weedy · 0 cleared · 0 ready · 0 drilled</p>
               </div>
             </div>
@@ -80,7 +83,6 @@
           <div class="modal-card pause-card">
             <header class="modal-header">
               <div class="modal-title-group">
-                <div class="modal-house-icon" aria-hidden="true">🌾</div>
                 <div>
                   <h2 id="pause-title">Farm Hands</h2>
                   <p class="modal-subtitle">Willow Creek Homestead · Menu</p>
@@ -94,21 +96,18 @@
               <div id="pause-view-root" class="pause-view">
                 <nav class="pause-menu" aria-label="Menu options">
                   <button id="pause-resume-btn" class="cozy-btn pause-menu-btn" type="button">
-                    <span class="pause-menu-icon" aria-hidden="true">▶️</span>
                     <span class="pause-menu-text">
                       <strong>Resume Farming</strong>
                       <small>Back to the wheat field</small>
                     </span>
                   </button>
                   <button id="pause-credits-btn" class="cozy-btn pause-menu-btn" type="button">
-                    <span class="pause-menu-icon" aria-hidden="true">🌟</span>
                     <span class="pause-menu-text">
                       <strong>Credits</strong>
                       <small>Who grew this little farm</small>
                     </span>
                   </button>
                   <button id="pause-settings-btn" class="cozy-btn pause-menu-btn" type="button">
-                    <span class="pause-menu-icon" aria-hidden="true">⚙️</span>
                     <span class="pause-menu-text">
                       <strong>Settings</strong>
                       <small>Change keybinds &amp; camera memory</small>
@@ -120,7 +119,6 @@
               <!-- Credits -->
               <section id="pause-view-credits" class="pause-view" tabindex="-1" hidden aria-label="Credits">
                 <div class="credits-hero">
-                  <span class="credits-crest" aria-hidden="true">🌾</span>
                   <h3 class="credits-title">Farm Hands</h3>
                   <p class="credits-tagline">A cozy 3D farming game set at Willow Creek Homestead.</p>
                 </div>
@@ -139,7 +137,7 @@
                   </li>
                   <li class="credits-item">
                     <span class="credits-role">Typefaces</span>
-                    <span class="credits-name">Fraunces &amp; Nunito via Google Fonts (SIL Open Font License)</span>
+                    <span class="credits-name">Cabin via Google Fonts (SIL Open Font License)</span>
                   </li>
                   <li class="credits-item">
                     <span class="credits-role">Weather, calendar &amp; wheat</span>
@@ -148,7 +146,7 @@
                 </ul>
                 <p class="credits-note">Thanks for tending the homestead. The full three.js license text lives in <code>vendor/three/LICENSE</code>.</p>
                 <div class="pause-view-actions">
-                  <button id="credits-back-btn" class="cozy-btn primary-btn" type="button">← Back</button>
+                  <button id="credits-back-btn" class="cozy-btn primary-btn" type="button">Back</button>
                 </div>
               </section>
 
@@ -183,12 +181,12 @@
                   <div id="keybind-groups" class="keybind-groups"></div>
                   <p class="settings-status" id="keybind-status" role="status" aria-live="polite">Choose an option below.</p>
                   <div class="pause-view-actions">
-                    <button id="keybind-reset-btn" class="cozy-btn" type="button">↺ Reset keybinds</button>
+                    <button id="keybind-reset-btn" class="cozy-btn" type="button">Reset keybinds</button>
                   </div>
                 </div>
 
                 <div class="pause-view-actions">
-                  <button id="settings-back-btn" class="cozy-btn primary-btn" type="button">← Back</button>
+                  <button id="settings-back-btn" class="cozy-btn primary-btn" type="button">Back</button>
                 </div>
               </section>
             </div>
@@ -201,7 +199,8 @@
 
         <div class="sr-only">
           <h1>Farm Hands</h1>
-          <p id="field-help">Click or tap a plot to clear weeds, cultivate the seedbed, or drill winter wheat in September and October. Drag to rotate. Scroll or pinch to zoom. Use WASD to move the camera across the farm, arrow keys to select a plot, and Enter / Space to work the soil. Click the farmhouse or press C / H to open the farming calendar. Press Esc for the menu, credits, and keybind settings.</p>
+          <p id="field-help">Click or tap a plot to choose an action for that season. Click the farmhouse or press C / H to open the journal. Press Esc for settings and credits.</p>
+          <p class="field-status" id="field-status" role="status">Choose a plot to see its seasonal actions.</p>
         </div>
       </section>
     </main>

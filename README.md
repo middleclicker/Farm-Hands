@@ -4,9 +4,10 @@ A small, singleplayer 3D farm centered on one winter wheat field. The game opens
 
 ## Play
 
-- Click or tap a plot to perform its available seasonal action. In July and August, clear the field, test the soil, and cultivate it. Drill winter wheat from September 1 through October 10. The later stages follow the schedule below.
-- Drag to orbit, scroll or pinch to zoom, and use WASD to move the camera. **Back to home** focuses the farmhouse. Click the farmhouse or **Calendar** to open the farmhouse journal.
-- The journal has a calendar page, a map page, and an inventory page. The inventory shows seed, fertiliser, crop treatment, harvested grain, and straw. Supplies and plot work are saved locally in the browser.
+- Click or tap a plot to open its action menu above the plot, then choose the available seasonal task. In July and August, clear the field, test the soil, and cultivate it. Drill winter wheat from September 1 through October 10. The later stages follow the schedule below.
+- Drag to orbit, scroll or pinch to zoom, and use WASD to move the camera. **Back to home** smoothly focuses the farmhouse. Click the farmhouse or press `C` / `H` to open the farmhouse journal.
+- The journal has a calendar page, a map page, and an inventory page. The inventory starts empty. The farm starts with 100 coins; buy supplies in the inventory page, then sell harvested grain or straw for more coins. Supplies, coins, and plot work are saved locally in the browser.
+- The top-right clock displays in-game time of day. The whole interface uses the Cabin typeface.
 - Use the **Time** control to cycle through 3×, 15×, 60×, 300×, and 1200× game time. Press `Esc` for settings, credits, and keybindings.
 
 ## Winter wheat year
@@ -23,7 +24,7 @@ A small, singleplayer 3D farm centered on one winter wheat field. The game opens
 | June–July | Grain fills and ripens; the plants turn golden. |
 | July 20–August | Harvest ripe wheat, store grain, bale straw, and retain seed for the next sowing. Clear, test, and cultivate after harvest. |
 
-Seasonal work is enforced when a plot is clicked or activated with the keyboard. If an action is unavailable, the status message explains the current season. After a harvest, the field can be prepared for the next crop in the rotation; the current playable crop is winter wheat.
+The plot menu enables only work allowed by the current date and plot state. If supplies are missing, buy them in the inventory page. After a harvest, the field can be prepared for the next crop in the rotation; the current playable crop is winter wheat.
 
 ## Run locally
 

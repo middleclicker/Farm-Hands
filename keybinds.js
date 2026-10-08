@@ -42,7 +42,7 @@ export const KEYBIND_GROUPS = [
     title: 'Menus & time',
     description: 'Open the journal and menu, or change game time speed.',
     actions: [
-      { id: 'calendar', label: 'Open the farmhouse calendar', slots: ['KeyC', 'KeyH'] },
+      { id: 'calendar', label: 'Open the farmhouse journal', slots: ['KeyC', 'KeyH'] },
       { id: 'openMenu', label: 'Open this menu', slots: ['Escape'] },
       { id: 'speedUp', label: 'Speed up game time', slots: ['KeyT', 'BracketRight'] },
       { id: 'speedDown', label: 'Slow down game time', slots: ['BracketLeft'] },
