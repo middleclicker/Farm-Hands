@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
 import { getGameDate } from './calendar.js';
-import { getGameDate } from './calendar.js';
 
 const COLUMNS = 3;
 const ROWS = 3;

@@ -221,7 +221,14 @@ export function updateCalendar() {
 // Wire up events
 speedBtn?.addEventListener('click', () => cycleGameSpeed());
 modalSpeedBtn?.addEventListener('click', () => cycleGameSpeed());
-farmhouseHudBtn?.addEventListener('click', () => toggleFarmhouseMenu());
+// Delegate the HUD trigger so it remains wired even when the module is loaded
+// before the body finishes parsing or is evaluated through the game import.
+document.addEventListener('click', (event) => {
+  const target = event.target?.closest?.('#farmhouse-btn');
+  if (target) {
+    toggleFarmhouseMenu();
+  }
+});
 modalCloseBtn?.addEventListener('click', () => closeFarmhouseMenu());
 modalFooterCloseBtn?.addEventListener('click', () => closeFarmhouseMenu());
 modalBackdrop?.addEventListener('click', () => closeFarmhouseMenu());
