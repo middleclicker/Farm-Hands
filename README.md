@@ -4,7 +4,7 @@ A cozy singleplayer 3D farming game set in a pastoral countryside with a starter
 
 Use the Weather menu to switch between warm sunlight, light rain, moderate rain, and heavy rain. Rain changes the sky, light, and number and speed of falling drops. The scene keeps its chosen weather while you plant or rotate. Rain and smoke animations pause when reduced motion is requested.
 
-Click the 3D farmhouse (or the top-left Farmhouse button, or press `C`) to open the Farmhouse Almanac & Calendar menu, which displays the live calendar, current year progress, active season, seasonal crop guide, and farm ledger.
+Click the 3D farmhouse (or the top-left Farmhouse button, or press `C`) to open the Farmhouse Calendar menu, which displays the live calendar, current year progress, upcoming farm events, and farm ledger.
 
 Use the developer Speed Up button (`⚡ 3× Speed`, or press `T` / `]`) to cycle game speeds (3×, 15×, 60×, 300×, 1200×) for testing calendar progression across days, months, and seasons.
 

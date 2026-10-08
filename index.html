@@ -76,8 +76,8 @@
               <div class="modal-title-group">
                 <div class="modal-house-icon" aria-hidden="true">🏡</div>
                 <div>
-                  <h2 id="calendar-modal-title">Farmhouse Almanac & Calendar</h2>
-                  <p class="modal-subtitle">Willow Creek Homestead · Seasonal crop ledger & daily records</p>
+                  <h2 id="calendar-modal-title">Farmhouse Calendar</h2>
+                  <p class="modal-subtitle">Willow Creek Homestead · Upcoming events & daily records</p>
                 </div>
               </div>
               <button id="modal-close-btn" class="cozy-icon-btn modal-close-btn" type="button" aria-label="Close farmhouse menu">✕</button>
@@ -124,88 +124,23 @@
                 </div>
               </section>
 
-              <!-- Seasonal Crop Calendar -->
-              <section class="almanac-section" aria-label="Seasonal farming guide">
+              <!-- Events Calendar -->
+              <section class="almanac-section" aria-label="Events calendar">
                 <div class="section-heading-row">
-                  <h3 class="section-title">🌾 Farming Seasons & Planting Guide</h3>
-                  <span class="section-note">Highlight indicates current season</span>
+                  <h3 class="section-title">📅 Event Calendar</h3>
+                  <span class="section-note">Upcoming farm events</span>
                 </div>
-                <div class="season-cards-grid" id="season-cards-grid">
-                  <div class="season-card" data-season="Spring">
-                    <div class="season-card-banner">
-                      <span class="season-icon" aria-hidden="true">🌱</span>
-                      <h4>Spring</h4>
-                      <span class="season-months">Mar · Apr · May</span>
-                    </div>
-                    <div class="season-card-body">
-                      <div class="crop-group">
-                        <span class="crop-badge-label">Primary Crop:</span>
-                        <span class="crop-badge active-crop">🌾 Spring Wheat</span>
-                      </div>
-                      <p class="season-desc">Ground is freshly thawed and moist. Ideal for tilling rows and sowing golden wheat seedlings.</p>
-                      <div class="season-tag-row">
-                        <span class="farm-tag">✨ Sowing Time</span>
-                        <span class="farm-tag">🌧️ Spring Showers</span>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div class="season-card" data-season="Summer">
-                    <div class="season-card-banner">
-                      <span class="season-icon" aria-hidden="true">☀️</span>
-                      <h4>Summer</h4>
-                      <span class="season-months">Jun · Jul · Aug</span>
-                    </div>
-                    <div class="season-card-body">
-                      <div class="crop-group">
-                        <span class="crop-badge-label">Primary Crop:</span>
-                        <span class="crop-badge">🌾 Golden Wheat</span>
-                      </div>
-                      <p class="season-desc">Plentiful warm sunshine ripens the wheat heads to amber gold. Keep soil hydrated during dry spells.</p>
-                      <div class="season-tag-row">
-                        <span class="farm-tag">☀️ Ripening</span>
-                        <span class="farm-tag">🌻 Sunflowers</span>
-                      </div>
-                    </div>
+                <div class="event-calendar-card">
+                  <div class="event-calendar-header">
+                    <span class="event-calendar-month" id="event-calendar-month">March 2001</span>
                   </div>
+                  <div class="event-calendar-grid" id="event-calendar-grid" aria-label="Calendar for the current month"></div>
+                </div>
 
-                  <div class="season-card" data-season="Autumn">
-                    <div class="season-card-banner">
-                      <span class="season-icon" aria-hidden="true">🍂</span>
-                      <h4>Autumn</h4>
-                      <span class="season-months">Sep · Oct · Nov</span>
-                    </div>
-                    <div class="season-card-body">
-                      <div class="crop-group">
-                        <span class="crop-badge-label">Primary Crop:</span>
-                        <span class="crop-badge">🌾 Autumn Rye</span>
-                      </div>
-                      <p class="season-desc">Harvest festival season! Gather your full golden wheat bushels and stack fresh hay bales before frost.</p>
-                      <div class="season-tag-row">
-                        <span class="farm-tag">🎃 Harvest Festival</span>
-                        <span class="farm-tag">🍎 Apple Orchard</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="season-card" data-season="Winter">
-                    <div class="season-card-banner">
-                      <span class="season-icon" aria-hidden="true">❄️</span>
-                      <h4>Winter</h4>
-                      <span class="season-months">Dec · Jan · Feb</span>
-                    </div>
-                    <div class="season-card-body">
-                      <div class="crop-group">
-                        <span class="crop-badge-label">Primary Crop:</span>
-                        <span class="crop-badge">🌿 Winter Greens</span>
-                      </div>
-                      <p class="season-desc">Snow blankets the peaceful pasture. Tend the farmhouse hearth, oil farm tools, and order new seeds.</p>
-                      <div class="season-tag-row">
-                        <span class="farm-tag">🪵 Fireside Rest</span>
-                        <span class="farm-tag">❄️ Frosty Ground</span>
-                      </div>
-                    </div>
-                  </div>
+                <div class="upcoming-events-box">
+                  <div class="upcoming-events-title">📌 Upcoming events</div>
+                  <ul class="upcoming-events-list" id="upcoming-events-list"></ul>
                 </div>
               </section>
 

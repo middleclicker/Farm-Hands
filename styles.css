@@ -644,145 +644,163 @@ html, body {
   font-weight: 700;
 }
 
-.season-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.season-card {
+/* Events Calendar */
+.event-calendar-card {
   background: #ffffff;
-  border: 1.5px solid var(--parchment-border);
-  border-radius: 11px;
-  overflow: hidden;
+  border: 2px solid var(--parchment-border);
+  border-radius: 12px;
+  padding: 10px 12px;
   box-shadow: 0 2px 5px rgba(50, 30, 10, 0.06);
   display: flex;
   flex-direction: column;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  gap: 8px;
 }
 
-.season-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--wood-light);
-  box-shadow: 0 5px 12px rgba(50, 30, 10, 0.12);
-}
-
-.season-card.active-season {
-  border: 2px solid var(--amber-gold);
-  background: #fffcf4;
-  box-shadow: 0 0 12px rgba(229, 167, 59, 0.3), 0 3px 8px rgba(50, 30, 10, 0.1);
-}
-
-.season-card-banner {
-  position: relative;
+.event-calendar-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 9px;
-  background: #f7eedc;
-  border-bottom: 1.5px solid var(--parchment-border);
+  justify-content: space-between;
 }
 
-.season-card[data-season="Spring"] .season-card-banner {
-  background: #e9f4e3;
-  color: #2e5922;
-}
-
-.season-card[data-season="Summer"] .season-card-banner {
-  background: #fdf2d0;
-  color: #79580b;
-}
-
-.season-card[data-season="Autumn"] .season-card-banner {
-  background: #fae7d4;
-  color: #7a3a14;
-}
-
-.season-card[data-season="Winter"] .season-card-banner {
-  background: #e3eff6;
-  color: #2b556f;
-}
-
-.season-icon {
-  font-size: 14px;
-}
-
-.season-card-banner h4 {
-  margin: 0;
+.event-calendar-month {
   font-family: var(--font-serif);
   font-size: 13px;
   font-weight: 700;
+  color: var(--wood-dark);
 }
 
-.season-months {
-  margin-left: auto;
-  font-size: 9.5px;
-  font-weight: 700;
-  opacity: 0.8;
+.event-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  text-align: center;
 }
 
-.active-ribbon {
+.event-cal-weekday {
   font-size: 9px;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  padding: 2px 0;
+}
+
+.event-cal-day {
+  position: relative;
+  min-height: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--wood-dark);
+  background: #fbf6ea;
+  border-radius: 7px;
+}
+
+.event-cal-day.is-empty {
+  background: transparent;
+}
+
+.event-cal-day.is-today {
+  background: var(--amber-glow);
+  box-shadow: inset 0 0 0 2px var(--amber-gold);
+}
+
+.event-cal-dot {
+  font-size: 9px;
+  line-height: 1;
+}
+
+.upcoming-events-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.upcoming-events-title {
+  font-family: var(--font-serif);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--wood-dark);
+}
+
+.upcoming-events-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.upcoming-event {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  background: #ffffff;
+  border: 1.5px solid var(--parchment-border);
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(50, 30, 10, 0.05);
+}
+
+.upcoming-event-emoji {
+  font-size: 18px;
+}
+
+.upcoming-event-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.upcoming-event-title {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--wood-dark);
+}
+
+.upcoming-today {
+  display: inline-block;
+  font-size: 8.5px;
   font-weight: 800;
   background: var(--amber-gold);
   color: #fff;
   padding: 1px 5px;
-  border-radius: 5px;
+  border-radius: 4px;
+  margin-left: 5px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  letter-spacing: 0.03em;
+  vertical-align: middle;
 }
 
-.season-card-body {
-  padding: 7px 9px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 11px;
-}
-
-.crop-group {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.crop-badge-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-muted);
-}
-
-.crop-badge {
+.upcoming-event-desc {
   font-size: 10.5px;
-  font-weight: 800;
-  color: var(--forest-green);
-  background: #edf5e8;
-  padding: 1px 5px;
-  border-radius: 5px;
-  border: 1px solid #c9dfbf;
-}
-
-.season-desc {
-  margin: 0;
   color: var(--text-muted);
   line-height: 1.3;
+}
+
+.upcoming-event-date {
   font-size: 10.5px;
-}
-
-.season-tag-row {
-  display: flex;
-  gap: 4px;
-  margin-top: 2px;
-}
-
-.farm-tag {
-  font-size: 9px;
   font-weight: 700;
-  background: #f5eedb;
-  color: var(--wood-main);
-  padding: 1px 5px;
-  border-radius: 4px;
+  color: var(--forest-green);
+  white-space: nowrap;
+}
+
+.upcoming-events-empty {
+  list-style: none;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: #ffffff;
+  border: 1.5px dashed var(--parchment-border);
+  border-radius: 10px;
+  text-align: center;
 }
 
 /* Farm Ledger */
@@ -913,9 +931,6 @@ html, body {
   }
   .modal-dev-box {
     width: 100%;
-  }
-  .season-cards-grid {
-    grid-template-columns: 1fr;
   }
   .ledger-box {
     grid-template-columns: 1fr;

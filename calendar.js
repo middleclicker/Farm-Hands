@@ -9,6 +9,19 @@ const STORAGE_SPEED_KEY = 'farm-hands-calendar-speed-v2';
 const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const seasons = ['Winter', 'Winter', 'Spring', 'Spring', 'Spring', 'Summer', 'Summer', 'Summer', 'Autumn', 'Autumn', 'Autumn', 'Winter'];
 
+// Recurring farm events (month is 0-indexed, matching Date#getUTCMonth).
+const events = [
+  { month: 2, day: 1, emoji: '🌱', title: 'Spring Sowing Day', description: 'Plant the first seeds of the year in freshly thawed soil.' },
+  { month: 2, day: 20, emoji: '🌷', title: 'Spring Equinox', description: 'Flower buds open across the pasture as winter fades away.' },
+  { month: 5, day: 21, emoji: '☀️', title: 'Midsummer Fair', description: 'The longest day of the year — hay is cut and the village gathers.' },
+  { month: 8, day: 22, emoji: '🌾', title: 'Harvest Festival', description: 'Gather the ripe wheat bushels and celebrate the autumn harvest.' },
+  { month: 9, day: 31, emoji: '🎃', title: 'Lantern Night', description: 'Carved lanterns glow along the farm lane at dusk.' },
+  { month: 11, day: 21, emoji: '❄️', title: 'Winter Solstice', description: 'The shortest day — rest by the hearth and plan for spring.' },
+];
+const eventByDate = new Map(events.map((event) => [`${event.month}-${event.day}`, event]));
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const LOOKAHEAD_DAYS = 30;
+
 let currentSpeedIndex = 0;
 let gameSpeed = SPEED_LEVELS[0];
 let accumulatedGameMs = 0;
@@ -29,7 +42,6 @@ const modalSpeedBtn = document.querySelector('#modal-speed-btn');
 const modalSpeedText = document.querySelector('#modal-speed-text');
 const hudSeason = document.querySelector('#hud-season');
 const hudDateTime = document.querySelector('#hud-date-time');
-const seasonCards = document.querySelectorAll('.season-card');
 
 // Farmhouse modal elements
 const farmhouseModal = document.querySelector('#farmhouse-modal');
@@ -37,6 +49,11 @@ const modalBackdrop = document.querySelector('#modal-backdrop');
 const modalCloseBtn = document.querySelector('#modal-close-btn');
 const modalFooterCloseBtn = document.querySelector('#modal-footer-close-btn');
 const farmhouseHudBtn = document.querySelector('#farmhouse-btn');
+
+// Events calendar elements
+const eventCalendarMonth = document.querySelector('#event-calendar-month');
+const eventCalendarGrid = document.querySelector('#event-calendar-grid');
+const upcomingEventsList = document.querySelector('#upcoming-events-list');
 
 const pad = (value) => String(value).padStart(2, '0');
 
@@ -162,7 +179,76 @@ export function toggleFarmhouseMenu() {
   }
 }
 
-let lastActiveSeason = '';
+let lastRenderedDayKey = '';
+
+function upcomingEvents(date) {
+  const start = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const end = start + LOOKAHEAD_DAYS * DAY_MS;
+  const results = [];
+  for (let time = start; time <= end; time += DAY_MS) {
+    const day = new Date(time);
+    const event = eventByDate.get(`${day.getUTCMonth()}-${day.getUTCDate()}`);
+    if (event) {
+      results.push({
+        ...event,
+        year: day.getUTCFullYear(),
+        month: day.getUTCMonth(),
+        day: day.getUTCDate(),
+      });
+    }
+  }
+  return results;
+}
+
+function renderEventCalendar(date) {
+  const month = date.getUTCMonth();
+  const year = date.getUTCFullYear();
+  const today = date.getUTCDate();
+
+  if (eventCalendarMonth) eventCalendarMonth.textContent = `${months[month]} ${year}`;
+
+  if (eventCalendarGrid) {
+    const firstWeekday = new Date(Date.UTC(year, month, 1)).getUTCDay();
+    const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    const cells = WEEKDAY_LABELS.map((label) => `<span class="event-cal-weekday">${label}</span>`);
+    for (let i = 0; i < firstWeekday; i += 1) cells.push('<span class="event-cal-day is-empty"></span>');
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const event = eventByDate.get(`${month}-${day}`);
+      const classes = ['event-cal-day'];
+      if (day === today) classes.push('is-today');
+      if (event) classes.push('has-event');
+      const marker = event ? `<span class="event-cal-dot">${event.emoji}</span>` : '';
+      cells.push(`<span class="${classes.join(' ')}">${day}${marker}</span>`);
+    }
+    // Pad the trailing cells so the last week is complete.
+    const totalCells = firstWeekday + daysInMonth;
+    const trailingBlanks = (7 - (totalCells % 7)) % 7;
+    for (let i = 0; i < trailingBlanks; i += 1) cells.push('<span class="event-cal-day is-empty"></span>');
+    eventCalendarGrid.innerHTML = cells.join('');
+  }
+}
+
+function renderUpcomingEvents(date) {
+  if (!upcomingEventsList) return;
+  const upcoming = upcomingEvents(date);
+  if (upcoming.length === 0) {
+    upcomingEventsList.innerHTML = '<li class="upcoming-events-empty">No upcoming events in the next 30 days.</li>';
+    return;
+  }
+  upcomingEventsList.innerHTML = upcoming.map((event) => {
+    const isToday = event.month === date.getUTCMonth() && event.day === date.getUTCDate();
+    const yearSuffix = event.year !== date.getUTCFullYear() ? `, ${event.year}` : '';
+    const todayBadge = isToday ? '<span class="upcoming-today">Today</span>' : '';
+    return `<li class="upcoming-event">
+      <span class="upcoming-event-emoji" aria-hidden="true">${event.emoji}</span>
+      <div class="upcoming-event-body">
+        <div class="upcoming-event-title">${event.title}${todayBadge}</div>
+        <div class="upcoming-event-desc">${event.description}</div>
+      </div>
+      <time class="upcoming-event-date">${months[event.month]} ${event.day}${yearSuffix}</time>
+    </li>`;
+  }).join('');
+}
 
 export function updateCalendar() {
   advanceGameTime();
@@ -197,24 +283,12 @@ export function updateCalendar() {
   if (hudSeason) hudSeason.textContent = seasonText;
   if (hudDateTime) hudDateTime.textContent = `${months[month].slice(0, 3)} ${date.getUTCDate()} · ${shortClockText}`;
 
-  // Highlight active season card
-  if (currentSeason !== lastActiveSeason && seasonCards.length > 0) {
-    lastActiveSeason = currentSeason;
-    seasonCards.forEach((card) => {
-      const isCurrent = card.dataset.season === currentSeason;
-      card.classList.toggle('active-season', isCurrent);
-      const banner = card.querySelector('.season-card-banner');
-      if (banner) {
-        if (isCurrent && !banner.querySelector('.active-ribbon')) {
-          const ribbon = document.createElement('span');
-          ribbon.className = 'active-ribbon';
-          ribbon.textContent = 'Current';
-          banner.appendChild(ribbon);
-        } else if (!isCurrent) {
-          banner.querySelector('.active-ribbon')?.remove();
-        }
-      }
-    });
+  // Re-render the events calendar only when the in-game day changes.
+  const dayKey = `${date.getUTCFullYear()}-${month}-${date.getUTCDate()}`;
+  if (dayKey !== lastRenderedDayKey) {
+    lastRenderedDayKey = dayKey;
+    renderEventCalendar(date);
+    renderUpcomingEvents(date);
   }
 }
 
