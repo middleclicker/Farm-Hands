@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { getGameDate } from './calendar.js?v=farm-economy-2';
-import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=farm-economy-2';
-import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=farm-economy-2';
+import { getGameDate } from './calendar.js?v=storybook-farm-1';
+import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=storybook-farm-1';
+import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=storybook-farm-1';
 // Importing the menu wires up the Escape menu (credits + keybind settings).
-import './menu.js?v=farm-economy-2';
+import './menu.js?v=storybook-farm-1';
 
 const COLUMNS = 3;
 const ROWS = 3;
@@ -82,6 +82,7 @@ controls.update();
 
 const STORAGE_CAMERA_KEY = 'farm-hands-camera-v1';
 const STORAGE_CAMERA_MEMORY_KEY = 'farm-hands-camera-memory-v1';
+const STORAGE_PLOT_FOCUS_KEY = 'farm-hands-plot-focus-v1';
 const DEFAULT_CAMERA_POSITION = camera.position.clone();
 const DEFAULT_CAMERA_TARGET = controls.target.clone();
 let lastSavedCameraState = '';
@@ -144,6 +145,7 @@ function applyCameraState(state) {
 }
 
 function saveCameraState(force = false) {
+  if (window.__farmHandsResetting) return;
   if (!isCameraMemoryEnabled()) return;
   const snapshot = JSON.stringify(cameraStateSnapshot());
   if (!force && snapshot === lastSavedCameraState) return;
@@ -171,6 +173,7 @@ function setCameraMemoryEnabled(enabled) {
 }
 
 function resetCameraToDefault() {
+  homeTransition = null;
   // Reproduce the framing a fresh visit gets: the starting view direction at
   // the same fit-to-window distance the resize handler would choose.
   const direction = DEFAULT_CAMERA_POSITION.clone().sub(DEFAULT_CAMERA_TARGET);
@@ -186,10 +189,26 @@ function resetCameraToDefault() {
 
 let homeTransition = null;
 
-function focusFarmhouse() {
-  closePlotActionMenu();
-  const target = new THREE.Vector3(-5.8, groundHeight(-5.8, -5.1) + 1.1, -5.1);
-  const position = target.clone().add(new THREE.Vector3(5.5, 5.2, 8));
+function isPlotFocusEnabled() {
+  try {
+    return localStorage.getItem(STORAGE_PLOT_FOCUS_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function setPlotFocusEnabled(enabled) {
+  try {
+    if (enabled) localStorage.removeItem(STORAGE_PLOT_FOCUS_KEY);
+    else localStorage.setItem(STORAGE_PLOT_FOCUS_KEY, 'off');
+  } catch {
+    // The option still works for this visit if storage is unavailable.
+  }
+  plotFocusEnabled = Boolean(enabled);
+}
+let plotFocusEnabled = isPlotFocusEnabled();
+
+function transitionCamera(target, position) {
   if (reducedMotion.matches) {
     controls.target.copy(target);
     camera.position.copy(position);
@@ -199,13 +218,27 @@ function focusFarmhouse() {
     return;
   }
   homeTransition = {
-    start: performance.now(),
-    duration: 1000,
-    fromPosition: camera.position.clone(),
-    fromTarget: controls.target.clone(),
-    position,
-    target,
+    start: performance.now(), duration: 1000,
+    fromPosition: camera.position.clone(), fromTarget: controls.target.clone(),
+    position, target,
   };
+}
+
+function focusFarmhouse() {
+  closePlotActionMenu();
+  const target = new THREE.Vector3(-5.8, groundHeight(-5.8, -5.1) + 1.1, -5.1);
+  const position = target.clone().add(new THREE.Vector3(5.5, 5.2, 8));
+  transitionCamera(target, position);
+}
+
+function focusPlot(index) {
+  if (!plotFocusEnabled) return;
+  const { x, z } = plotPositions[index];
+  const target = new THREE.Vector3(x, groundHeight(x, z) + 0.25, z);
+  const offset = camera.position.clone().sub(controls.target);
+  const distance = THREE.MathUtils.clamp(offset.length(), 8.5, 12);
+  const position = target.clone().addScaledVector(offset.normalize(), distance);
+  transitionCamera(target, position);
 }
 
 document.querySelector('#home-btn')?.addEventListener('click', focusFarmhouse);
@@ -626,7 +659,16 @@ addWildflowers();
 // ==========================================================================
 const farmhouseGroup = new THREE.Group();
 const chimneyPuffs = [];
+const warmLightSources = [];
+const glowMaterials = [];
 let houseHitbox;
+
+function addWarmLight(parent, x, y, z, intensity, distance) {
+  const light = new THREE.PointLight(0xffbd6b, 0, distance, 2);
+  light.position.set(x, y, z);
+  parent.add(light);
+  warmLightSources.push({ light, intensity });
+}
 
 function addFarmhouse() {
   const house = farmhouseGroup;
@@ -642,9 +684,11 @@ function addFarmhouse() {
   const warmGlass = new THREE.MeshStandardMaterial({
     color: 0xffe9a6,
     emissive: 0x8a5e18,
+    emissiveIntensity: 0.45,
     roughness: 0.25,
     metalness: 0.1,
   });
+  glowMaterials.push(warmGlass);
 
   box(house, 2.9, 0.22, 2.7, foundation, 0, 0.08, 0);
   box(house, 2.58, 1.82, 2.38, siding, 0, 1.07, 0);
@@ -694,10 +738,14 @@ function addFarmhouse() {
   const lanternBracket = box(house, 0.06, 0.15, 0.12, material(0x2d1f14), 0.46, 1.25, 1.25);
   const lanternLight = new THREE.Mesh(
     new THREE.BoxGeometry(0.1, 0.14, 0.1),
-    new THREE.MeshStandardMaterial({ color: 0xffe285, emissive: 0xffaa2b, roughness: 0.3 })
+    new THREE.MeshStandardMaterial({ color: 0xffe285, emissive: 0xffaa2b, emissiveIntensity: 0.6, roughness: 0.3 })
   );
   lanternLight.position.set(0.46, 1.18, 1.31);
   house.add(lanternLight);
+  glowMaterials.push(lanternLight.material);
+  addWarmLight(house, 0.46, 1.13, 1.7, 8, 5.5);
+  addWarmLight(house, -0.88, 1.25, 1.55, 3.5, 3.5);
+  addWarmLight(house, 1.5, 1.25, -0.12, 3.5, 3.5);
 
   // Front windows
   for (const x of [-0.87, 0.87]) {
@@ -750,6 +798,21 @@ function addFarmhouse() {
   }
 }
 addFarmhouse();
+
+function addPathLantern(x, z) {
+  const group = new THREE.Group();
+  group.position.set(x, groundHeight(x, z), z);
+  box(group, 0.09, 1.05, 0.09, material(0x5a3820), 0, 0.53, 0);
+  box(group, 0.24, 0.07, 0.24, material(0x422a1b), 0, 1.12, 0);
+  const lampMaterial = new THREE.MeshStandardMaterial({ color: 0xffd583, emissive: 0xffa83d, emissiveIntensity: 0.6 });
+  box(group, 0.17, 0.22, 0.17, lampMaterial, 0, 1.26, 0);
+  box(group, 0.27, 0.06, 0.27, material(0x422a1b), 0, 1.40, 0);
+  glowMaterials.push(lampMaterial);
+  addWarmLight(group, 0, 1.28, 0, 5, 4.6);
+  scene.add(group);
+}
+addPathLantern(-4.3, -3.45);
+addPathLantern(-2.4, -2.5);
 
 function updateChimneySmoke(deltaSeconds = 0) {
   for (let i = 0; i < chimneyPuffs.length; i += 1) {
@@ -1179,6 +1242,7 @@ function setWeather(name) {
 const STORAGE_FARM_KEY = 'farm-hands-seasonal-farm-v3';
 
 function saveGameProgress() {
+  if (window.__farmHandsResetting) return;
   try {
     localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ plotStates, plotCare, inventory, coins }));
   } catch {
@@ -1234,8 +1298,8 @@ restoreGameProgress();
 // Fields: sky, fog colour, fog far distance, ambient intensity,
 //         sun colour, sun intensity, sun position [x,y,z].
 const daylightKeyframes = [
-  { hour:  0,   sky: 0x0c1524, fog: 0x0c1524, fogFar: 55,  ambient: 0.35, sunColor: 0x8899bb, sunIntensity: 0.0,  sunPos: [-5, -4,  7] },
-  { hour:  5,   sky: 0x1a2438, fog: 0x1a2438, fogFar: 60,  ambient: 0.4,  sunColor: 0x99aabb, sunIntensity: 0.05, sunPos: [-8,  0,  7] },
+  { hour:  0,   sky: 0x050a14, fog: 0x081020, fogFar: 48,  ambient: 0.09, sunColor: 0x8899bb, sunIntensity: 0.0,  sunPos: [-5, -4,  7] },
+  { hour:  5,   sky: 0x101a2d, fog: 0x101a2d, fogFar: 54,  ambient: 0.12, sunColor: 0x99aabb, sunIntensity: 0.05, sunPos: [-8,  0,  7] },
   { hour:  6,   sky: 0x5e4a5e, fog: 0x5e4a5e, fogFar: 75,  ambient: 0.85, sunColor: 0xffb87a, sunIntensity: 0.9,  sunPos: [-9,  2,  7] },
   { hour:  7,   sky: 0xe8a87a, fog: 0xdaa07a, fogFar: 90,  ambient: 1.4,  sunColor: 0xffc88e, sunIntensity: 1.8,  sunPos: [-8,  5,  7] },
   { hour:  8.5, sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 150, ambient: 2.4,  sunColor: 0xfff1cd, sunIntensity: 3.2,  sunPos: [-5, 11,  7] },
@@ -1243,8 +1307,8 @@ const daylightKeyframes = [
   { hour: 16,   sky: 0xb8e1df, fog: 0xb8e1df, fogFar: 150, ambient: 2.3,  sunColor: 0xfff1cd, sunIntensity: 3.0,  sunPos: [ 5, 11, -5] },
   { hour: 18,   sky: 0xe8a87a, fog: 0xdaa07a, fogFar: 90,  ambient: 1.4,  sunColor: 0xffad6e, sunIntensity: 1.6,  sunPos: [ 8,  4, -7] },
   { hour: 19.5, sky: 0x6e4a5e, fog: 0x6e4a5e, fogFar: 75,  ambient: 0.7,  sunColor: 0xe08855, sunIntensity: 0.5,  sunPos: [ 9,  1, -7] },
-  { hour: 20.5, sky: 0x1a2438, fog: 0x1a2438, fogFar: 60,  ambient: 0.4,  sunColor: 0x8899bb, sunIntensity: 0.05, sunPos: [ 8, -1, -7] },
-  { hour: 24,   sky: 0x0c1524, fog: 0x0c1524, fogFar: 55,  ambient: 0.35, sunColor: 0x8899bb, sunIntensity: 0.0,  sunPos: [-5, -4,  7] },
+  { hour: 20.5, sky: 0x101a2d, fog: 0x101a2d, fogFar: 54,  ambient: 0.12, sunColor: 0x8899bb, sunIntensity: 0.05, sunPos: [ 8, -1, -7] },
+  { hour: 24,   sky: 0x050a14, fog: 0x081020, fogFar: 48,  ambient: 0.09, sunColor: 0x8899bb, sunIntensity: 0.0,  sunPos: [-5, -4,  7] },
 ];
 
 // Weather acts as a multiplier on top of the daylight base values.
@@ -1318,6 +1382,11 @@ function updateDaylight() {
   scene.fog.color.copy(_fogA);
   scene.fog.far = baseFogFar * wm.fogFar;
   ambientLight.intensity = baseAmbient * wm.ambient;
+  const night = 1 - THREE.MathUtils.clamp((baseSunInt - 0.05) / 0.85, 0, 1);
+  ambientLight.color.setHex(0xe8f4ff).lerp(_skyB.setHex(0x8395bf), night);
+  ambientLight.groundColor.setHex(0x6e945c).lerp(_fogB.setHex(0x19271e), night);
+  for (const { light, intensity } of warmLightSources) light.intensity = intensity * night;
+  for (const glow of glowMaterials) glow.emissiveIntensity = 0.45 + night * 2.3;
   sunlight.color.copy(_sunA);
   sunlight.intensity = baseSunInt * wm.sun;
   sunlight.position.set(sunX, sunY, sunZ);
@@ -1919,6 +1988,7 @@ canvas.addEventListener('click', (event) => {
     selectedIndex = target.index;
     canvas.focus({ preventScroll: true });
     openPlotActionMenu(target.index);
+    focusPlot(target.index);
   }
 });
 
@@ -1984,6 +2054,7 @@ window.addEventListener('farm-hands:camera-memory-change', (event) => {
   setCameraMemoryEnabled(event.detail?.enabled !== false);
 });
 window.addEventListener('farm-hands:camera-reset', () => resetCameraToDefault());
+window.addEventListener('farm-hands:plot-focus-change', (event) => setPlotFocusEnabled(event.detail?.enabled !== false));
 
 // Remember the camera when the page is hidden or closed.
 window.addEventListener('pagehide', () => saveCameraState(true));
@@ -2138,6 +2209,20 @@ if (restoredCameraState) applyCameraState(restoredCameraState);
 lastSavedCameraState = JSON.stringify(cameraStateSnapshot());
 buildFarmMap();
 
+function resetEverything() {
+  window.__farmHandsResetting = true;
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('farm-hands-')) localStorage.removeItem(key);
+    }
+  } catch {
+    window.__farmHandsResetting = false;
+    return false;
+  }
+  window.location.reload();
+  return true;
+}
+
 // Expose on window for debugging and test verification
 window.FarmGame = {
   scene,
@@ -2168,6 +2253,10 @@ window.FarmGame = {
   resetCameraToDefault,
   isCameraMemoryEnabled,
   setCameraMemoryEnabled,
+  isPlotFocusEnabled: () => plotFocusEnabled,
+  setPlotFocusEnabled,
+  focusPlot,
   buildFarmMap,
   updateMapPlots,
+  resetEverything,
 };

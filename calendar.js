@@ -1,7 +1,7 @@
-import { eventMatches } from './keybinds.js?v=farm-economy-2';
+import { eventMatches } from './keybinds.js?v=storybook-farm-1';
 
 const DEFAULT_SPEED = 3;
-const SPEED_LEVELS = [3, 15, 60, 300, 1200];
+const SPEED_LEVELS = [3, 300, 1000, 10000];
 const GAME_START = Date.UTC(2001, 6, 1, 6); // July 1, Year 1, 06:00:00 UTC
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STORAGE_TIME_KEY = 'farm-hands-calendar-time-v3';
@@ -55,6 +55,9 @@ const modalBackdrop = document.querySelector('#modal-backdrop');
 const modalCloseBtn = document.querySelector('#modal-close-btn');
 const modalFooterCloseBtn = document.querySelector('#modal-footer-close-btn');
 const hudClock = document.querySelector('#hud-clock');
+const hudDate = document.querySelector('#hud-date');
+const clockHourHand = document.querySelector('#clock-hour-hand');
+const clockMinuteHand = document.querySelector('#clock-minute-hand');
 
 // Events calendar elements
 const eventCalendarMonth = document.querySelector('#event-calendar-month');
@@ -108,6 +111,7 @@ function initGameTime() {
 }
 
 function saveGameTime() {
+  if (window.__farmHandsResetting) return;
   try {
     localStorage.setItem(STORAGE_TIME_KEY, String(Math.floor(accumulatedGameMs)));
     localStorage.setItem(STORAGE_LAST_REAL_KEY, String(Date.now()));
@@ -154,13 +158,10 @@ function updateSpeedUI() {
 }
 
 export function setGameSpeed(speed) {
+  if (!SPEED_LEVELS.includes(speed)) return;
   advanceGameTime();
-  if (SPEED_LEVELS.includes(speed)) {
-    gameSpeed = speed;
-    currentSpeedIndex = SPEED_LEVELS.indexOf(speed);
-  } else {
-    gameSpeed = speed;
-  }
+  gameSpeed = speed;
+  currentSpeedIndex = SPEED_LEVELS.indexOf(speed);
   updateSpeedUI();
   updateCalendar();
   saveGameTime();
@@ -279,6 +280,17 @@ export function updateCalendar() {
     hudClock.textContent = hudClockText;
     hudClock.dateTime = `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
   }
+  if (hudDate) {
+    const dateValue = date.toISOString().slice(0, 10);
+    if (hudDate.dateTime !== dateValue) {
+      hudDate.dateTime = dateValue;
+      hudDate.textContent = `${months[month]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
+    }
+  }
+  const minute = date.getUTCMinutes() + date.getUTCSeconds() / 60;
+  const hour = date.getUTCHours() % 12 + minute / 60;
+  if (clockHourHand) clockHourHand.style.transform = `translateX(-50%) rotate(${hour * 30}deg)`;
+  if (clockMinuteHand) clockMinuteHand.style.transform = `translateX(-50%) rotate(${minute * 6}deg)`;
   if (dayLabel) dayLabel.textContent = dayText;
   if (yearLabel) yearLabel.textContent = `Year ${gameYear}`;
   if (yearFill) yearFill.style.width = `${yearProgress}%`;

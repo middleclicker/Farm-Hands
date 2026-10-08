@@ -8,12 +8,12 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cabin:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=farm-economy-2" />
+    <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600;700;800&family=Alegreya+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css?v=storybook-farm-1" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=farm-economy-2"></script>
+    <script type="module" src="./game.js?v=storybook-farm-1"></script>
   </head>
   <body>
     <main class="game-shell">
@@ -28,7 +28,10 @@
 
         <aside class="farm-hud farm-hud-right" aria-label="Farm time and coins">
           <div class="farm-hud-value coin-display" aria-label="Coin balance"><span>Coins</span><strong id="hud-coins">100</strong></div>
-          <div class="farm-hud-value clock-display"><span>Farm time</span><time id="hud-clock" datetime="06:00">6:00 AM</time></div>
+          <div class="clock-display" aria-label="Farm clock and date">
+            <div class="clock-face" aria-hidden="true"><span class="clock-hand clock-hour" id="clock-hour-hand"></span><span class="clock-hand clock-minute" id="clock-minute-hand"></span><span class="clock-pivot"></span></div>
+            <div class="clock-copy"><span class="clock-caption">Farm time</span><time id="hud-clock" datetime="06:00">6:00 AM</time><time id="hud-date" datetime="2001-07-01">July 1, 2001</time></div>
+          </div>
           <button id="speed-btn" class="cozy-hud-btn time-control" type="button" title="Cycle game time speed" aria-label="Game time speed">
             <span>Time</span> <strong id="speed-btn-label">3× Speed</strong>
           </button>
@@ -110,7 +113,7 @@
                   <button id="pause-settings-btn" class="cozy-btn pause-menu-btn" type="button">
                     <span class="pause-menu-text">
                       <strong>Settings</strong>
-                      <small>Change keybinds &amp; camera memory</small>
+                      <small>Camera, keybinds, and farm data</small>
                     </span>
                   </button>
                 </nav>
@@ -137,7 +140,7 @@
                   </li>
                   <li class="credits-item">
                     <span class="credits-role">Typefaces</span>
-                    <span class="credits-name">Cabin via Google Fonts (SIL Open Font License)</span>
+                    <span class="credits-name">Alegreya &amp; Alegreya Sans via Google Fonts (SIL Open Font License)</span>
                   </li>
                   <li class="credits-item">
                     <span class="credits-role">Weather, calendar &amp; wheat</span>
@@ -166,7 +169,21 @@
                       </span>
                     </label>
                     <button id="camera-reset-btn" class="cozy-btn" type="button">Recenter camera</button>
+                    <label class="settings-toggle" for="plot-focus-toggle">
+                      <input type="checkbox" id="plot-focus-toggle" checked />
+                      <span class="settings-toggle-text">
+                        <strong>Center on selected plots</strong>
+                        <small>Gently move the view to a plot when it is clicked.</small>
+                      </span>
+                    </label>
                   </div>
+                </div>
+
+                <div class="settings-block developer-settings">
+                  <div class="section-heading-row"><h3 class="section-title">Developer</h3></div>
+                  <p class="settings-hint">Start a fresh farm with the original date, field, coins, inventory, camera, and keybinds.</p>
+                  <button id="developer-reset-btn" class="cozy-btn reset-everything-btn" type="button">Reset everything</button>
+                  <p id="developer-reset-status" class="settings-status" role="status" aria-live="polite"></p>
                 </div>
 
                 <div class="settings-block">

@@ -18,8 +18,8 @@ import {
   onKeybindsChange,
   resetKeybinds,
   setBinding,
-} from './keybinds.js?v=farm-economy-2';
-import { closeFarmhouseMenu, isFarmhouseMenuOpen, setGamePaused } from './calendar.js?v=farm-economy-2';
+} from './keybinds.js?v=storybook-farm-1';
+import { closeFarmhouseMenu, isFarmhouseMenuOpen, setGamePaused } from './calendar.js?v=storybook-farm-1';
 
 const pauseModal = document.querySelector('#pause-modal');
 const pauseBackdrop = document.querySelector('#pause-backdrop');
@@ -39,6 +39,9 @@ const keybindResetBtn = document.querySelector('#keybind-reset-btn');
 const keybindCustomNote = document.querySelector('#keybind-custom-note');
 const cameraMemoryToggle = document.querySelector('#camera-memory-toggle');
 const cameraResetBtn = document.querySelector('#camera-reset-btn');
+const plotFocusToggle = document.querySelector('#plot-focus-toggle');
+const developerResetBtn = document.querySelector('#developer-reset-btn');
+const developerResetStatus = document.querySelector('#developer-reset-status');
 
 const VIEWS = {
   root: { element: viewRoot, focus: () => pauseResumeBtn, hint: 'Press Esc to return to the farm.' },
@@ -47,6 +50,7 @@ const VIEWS = {
 };
 
 let currentView = 'root';
+let developerResetArmed = false;
 // { actionId, slotIndex } while the player is choosing a new key.
 let capturing = null;
 
@@ -59,6 +63,9 @@ function setStatus(message) {
 }
 
 function showView(name) {
+  developerResetArmed = false;
+  if (developerResetBtn) developerResetBtn.textContent = 'Reset everything';
+  if (developerResetStatus) developerResetStatus.textContent = '';
   currentView = VIEWS[name] ? name : 'root';
   capturing = null;
   for (const [key, view] of Object.entries(VIEWS)) {
@@ -233,6 +240,7 @@ function syncCameraControls() {
     enabled = true;
   }
   cameraMemoryToggle.checked = enabled;
+  if (plotFocusToggle) plotFocusToggle.checked = window.FarmGame?.isPlotFocusEnabled?.() ?? true;
 }
 
 cameraMemoryToggle?.addEventListener('change', () => {
@@ -246,6 +254,21 @@ cameraMemoryToggle?.addEventListener('change', () => {
 cameraResetBtn?.addEventListener('click', () => {
   window.dispatchEvent(new CustomEvent('farm-hands:camera-reset'));
   setStatus('Camera moved back to the starting view.');
+});
+
+plotFocusToggle?.addEventListener('change', () => {
+  window.dispatchEvent(new CustomEvent('farm-hands:plot-focus-change', { detail: { enabled: plotFocusToggle.checked } }));
+  setStatus(plotFocusToggle.checked ? 'Plot centering is on.' : 'Plot centering is off.');
+});
+
+developerResetBtn?.addEventListener('click', () => {
+  if (!developerResetArmed) {
+    developerResetArmed = true;
+    developerResetBtn.textContent = 'Confirm reset everything';
+    if (developerResetStatus) developerResetStatus.textContent = 'Click again to clear all farm data saved in this browser.';
+    return;
+  }
+  window.FarmGame?.resetEverything?.();
 });
 
 // ─── Open / close ────────────────────────────────────────────────────────

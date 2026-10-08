@@ -5,10 +5,10 @@ A small, singleplayer 3D farm centered on one winter wheat field. The game opens
 ## Play
 
 - Click or tap a plot to open its action menu above the plot, then choose the available seasonal task. In July and August, clear the field, test the soil, and cultivate it. Drill winter wheat from September 1 through October 10. The later stages follow the schedule below.
-- Drag to orbit, scroll or pinch to zoom, and use WASD to move the camera. **Back to home** smoothly focuses the farmhouse. Click the farmhouse or press `C` / `H` to open the farmhouse journal.
+- Drag to orbit, scroll or pinch to zoom, and use WASD to move the camera. Clicking a plot gently centers the view on it; this can be switched off in Settings. **Back to home** smoothly focuses the farmhouse. Click the farmhouse or press `C` / `H` to open the farmhouse journal.
 - The journal has a calendar page, a map page, and an inventory page. The inventory starts empty. The farm starts with 100 coins; buy supplies in the inventory page, then sell harvested grain or straw for more coins. Supplies, coins, and plot work are saved locally in the browser.
-- The top-right clock displays in-game time of day. The whole interface uses the Cabin typeface.
-- Use the **Time** control to cycle through 3×, 15×, 60×, 300×, and 1200× game time. Press `Esc` for settings, credits, and keybindings.
+- The top-right clock face shows the in-game time and date. The hand-painted, timber-framed interface uses Alegreya and Alegreya Sans.
+- Use the **Time** control to cycle through 3×, 300×, 1000×, and 10000× game time. At night, the sky and fields darken while the farmhouse and path lamps illuminate their surroundings. Press `Esc` for settings, credits, and keybindings. Settings also has a two-step developer reset that clears all saved farm data in this browser.
 
 ## Winter wheat year
 

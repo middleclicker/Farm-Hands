@@ -1,7 +1,7 @@
 :root {
   color-scheme: light;
-  --font-serif: 'Cabin', Arial, sans-serif;
-  --font-sans: 'Cabin', Arial, sans-serif;
+  --font-serif: 'Alegreya', Georgia, serif;
+  --font-sans: 'Alegreya Sans', Arial, sans-serif;
   
   /* Cozy Farm Palette */
   --wood-dark: #3a2213;
@@ -1863,4 +1863,113 @@ html, body {
 @media (max-width: 640px) {
   .shop-row { flex-direction: column; align-items: stretch; text-align: center; }
   .shop-buttons { justify-content: center; }
+}
+
+/* Storybook farm furniture: painted timber, warm paper, and a clock face. */
+:root {
+  --wood-dark: #38251b;
+  --wood-rim: #5e3924;
+  --wood-main: #855330;
+  --wood-light: #b57a43;
+  --parchment-light: #fff5d9;
+  --parchment-warm: #f5e6bd;
+  --parchment-border: #b88b57;
+  --parchment-shade: #e6ce9b;
+  --forest-green: #40582f;
+  --text-dark: #392719;
+  --text-muted: #71553a;
+}
+.cozy-hud-btn,
+.farm-hud-value,
+.clock-display,
+.time-control {
+  border: 3px solid #6d4328;
+  border-radius: 7px;
+  background: repeating-linear-gradient(0deg, rgba(125, 80, 36, .035) 0 2px, transparent 2px 7px), #f7e9c5;
+  box-shadow: inset 0 0 0 2px #d3ae72, 0 4px 0 #4a2f20, 0 7px 15px rgba(27, 18, 10, .27);
+  color: #3e291d;
+}
+.farm-hud-left .cozy-hud-btn,
+.time-control { font-family: var(--font-serif); font-size: 17px; font-weight: 800; }
+.farm-hud-value { font-family: var(--font-serif); font-size: 16px; min-width: 174px; }
+.farm-hud-value strong { font-size: 19px; }
+.clock-display {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 215px;
+  min-height: 90px;
+  padding: 9px;
+}
+.clock-face {
+  position: relative;
+  flex: 0 0 66px;
+  width: 66px;
+  height: 66px;
+  border: 4px solid #73502c;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, #8c5d2e 0 2px, transparent 3px),
+    repeating-conic-gradient(from 0deg, #765333 0 2deg, transparent 2deg 30deg),
+    #fff6dc;
+  box-shadow: inset 0 0 0 5px #f3deb4, inset 0 2px 5px rgba(55, 30, 10, .24);
+}
+.clock-hand { position: absolute; left: 50%; bottom: 50%; transform-origin: 50% 100%; border-radius: 4px; background: #4b3022; }
+.clock-hour { width: 4px; height: 19px; }
+.clock-minute { width: 2px; height: 25px; }
+.clock-pivot { position: absolute; top: 50%; left: 50%; width: 7px; height: 7px; transform: translate(-50%, -50%); border-radius: 50%; background: #9b6330; }
+.clock-copy { display: flex; flex-direction: column; line-height: 1.06; white-space: nowrap; }
+.clock-caption { color: #6d5034; font-family: var(--font-serif); font-size: 13px; font-weight: 700; }
+#hud-clock { margin: 3px 0; color: #432b1d; font-family: var(--font-serif); font-size: 20px; font-weight: 800; }
+#hud-date { color: #715032; font-family: var(--font-sans); font-size: 13px; font-weight: 700; }
+.farm-journal,
+.pause-card {
+  border: 6px solid #6d4328;
+  border-radius: 8px;
+  background: #f4e4bc;
+  box-shadow: inset 0 0 0 2px #c29254, 0 7px 0 #39251b, 0 20px 60px rgba(14, 16, 11, .5);
+}
+.farm-journal .modal-header,
+.farm-journal .modal-body,
+.pause-card .modal-header,
+.pause-card .modal-body {
+  background: repeating-linear-gradient(0deg, rgba(119, 80, 36, .025) 0 2px, transparent 2px 8px), #f4e4bc;
+}
+.farm-journal .modal-header { border-bottom: 2px solid #b88b57; }
+.farm-journal .modal-title-group h2,
+.pause-card .modal-title-group h2 { font-family: var(--font-serif); font-size: 29px; font-weight: 800; }
+.farm-journal .event-calendar-card,
+.farm-journal .farm-map-card,
+.inventory-item,
+.shop-row,
+.inventory-empty { border: 2px solid #c19a67; border-radius: 4px; background: #fff2d5; }
+.farm-journal .modal-tab { font-family: var(--font-serif); font-size: 18px; }
+.farm-journal .event-cal-day { border-radius: 3px; background: #f5e6c7; }
+.farm-journal .event-cal-day.is-today { background: #61753a; }
+.plot-action-menu {
+  width: 282px;
+  border: 5px solid #70472b;
+  border-radius: 7px;
+  background: repeating-linear-gradient(0deg, rgba(119, 80, 36, .025) 0 2px, transparent 2px 8px), #f8e9c7;
+  box-shadow: inset 0 0 0 2px #c79a5d, 0 7px 0 #49301f, 0 15px 28px rgba(25, 16, 9, .4);
+}
+.plot-action-header strong { font-family: var(--font-serif); font-size: 20px; }
+.plot-action-grid button,
+.shop-buttons button,
+.cozy-btn { border: 2px solid #78502f; border-radius: 4px; background: #e8cf9c; color: #3c2b1e; box-shadow: inset 0 1px 0 #fff3d3, 0 2px 0 #795335; }
+.plot-action-grid button:not(:disabled):hover,
+.shop-buttons button:not(:disabled):hover { background: #f5dea8; }
+.plot-action-grid button:disabled { background: #e9dec6; color: #968775; box-shadow: none; }
+.pause-menu-btn { border-radius: 5px; }
+.settings-block { border-color: #b88b57; border-radius: 5px; }
+.reset-everything-btn { background: #e8bc96; }
+.developer-settings .settings-status { min-height: 0; }
+@media (max-width: 640px) {
+  .clock-display { width: 155px; min-height: 74px; gap: 6px; padding: 5px; }
+  .clock-face { flex-basis: 49px; width: 49px; height: 49px; border-width: 3px; }
+  .clock-hour { height: 14px; }
+  .clock-minute { height: 18px; }
+  #hud-clock { font-size: 16px; }
+  #hud-date { font-size: 11px; }
+  .farm-hud-value { min-width: 155px; }
 }
