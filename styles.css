@@ -67,6 +67,8 @@ html, body {
 #field:focus-visible {
   outline: none;
 }
+.dirt-mound-label { position: absolute; z-index: 9; transform: translate(-50%, -125%); padding: 0.28rem 0.55rem; border: 2px solid #5e3f25; border-radius: 0.35rem; background: #e6ca91; color: #3d2a1b; box-shadow: 0 3px 0 #6d4b2f; font: 700 0.78rem Alegreya, Georgia, serif; pointer-events: none; white-space: nowrap; }
+.dirt-mound-label[hidden] { display: none; }
 
 /* ==========================================================================
    COZY HUD PANELS & HEADERS

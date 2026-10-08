@@ -1,4 +1,4 @@
-import { eventMatches } from './keybinds.js?v=cleanup-4';
+import { eventMatches } from './keybinds.js?v=night-5';
 
 const DEFAULT_SPEED = 120;
 const SPEED_LEVELS = [120, 300, 1000, 10000];
@@ -152,6 +152,20 @@ export function isGamePaused() {
 export function getGameDate() {
   advanceGameTime();
   return new Date(GAME_START + accumulatedGameMs);
+}
+
+export function advanceToMorning(targetTimestamp = null) {
+  advanceGameTime();
+  const current = new Date(GAME_START + accumulatedGameMs);
+  const nextDay = current.getUTCHours() >= 8 ? 1 : 0;
+  const morning = Number.isFinite(targetTimestamp) && targetTimestamp >= GAME_START
+    ? targetTimestamp
+    : Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), current.getUTCDate() + nextDay, 8);
+  accumulatedGameMs = morning - GAME_START;
+  lastRealTick = Date.now();
+  updateCalendar();
+  saveGameTime();
+  return new Date(morning);
 }
 
 function updateSpeedUI() {

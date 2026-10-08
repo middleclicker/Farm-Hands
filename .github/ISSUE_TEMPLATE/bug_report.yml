@@ -1,0 +1,35 @@
+name: Bug report
+description: Report broken gameplay or an interface problem
+title: "Bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "For security vulnerabilities, use the private reporting link in SECURITY.md."
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the result you saw and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include whether this was a new or saved farm and the in-game date.
+      placeholder: "1. Open a new farm...\n2. ..."
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and operating system
+      placeholder: "Firefox 131 on macOS 15"
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or extra details
+      description: Optional. Please remove private information from screenshots.

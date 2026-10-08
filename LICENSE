@@ -1,0 +1,14 @@
+Farm Hands source code and original assets
+Copyright (c) 2026 Middleclicker. All rights reserved.
+
+No license is granted to reproduce, modify, distribute, sublicense, sell, or
+create derivative works from the original Farm Hands source code or assets
+without prior written permission from the copyright holder. The rights to
+view and fork a public repository under GitHub's Terms of Service still apply;
+this notice grants no broader reuse rights. The public game may be played
+through its hosted website.
+
+Third-party code has its own terms. In particular, the vendored Three.js code
+under vendor/three/ is licensed under the MIT License in vendor/three/LICENSE.
+This notice does not supersede that license or claim ownership of third-party
+contributions.

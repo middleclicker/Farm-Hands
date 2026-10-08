@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest a new farm feature or improvement
+title: "Feature: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Player need
+      description: What should the player be able to do, and why?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed behavior
+      description: Describe how it would work in the game.
+    validations:
+      required: true
+  - type: textarea
+    id: accessibility
+    attributes:
+      label: Accessibility considerations
+      description: How could this work with keyboard or assistive technology?

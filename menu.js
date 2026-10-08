@@ -18,8 +18,8 @@ import {
   onKeybindsChange,
   resetKeybinds,
   setBinding,
-} from './keybinds.js?v=cleanup-4';
-import { closeFarmhouseMenu, isFarmhouseMenuOpen, isDeveloperTimeEnabled, setDeveloperTimeEnabled, setGamePaused } from './calendar.js?v=cleanup-4';
+} from './keybinds.js?v=night-5';
+import { closeFarmhouseMenu, isFarmhouseMenuOpen, isDeveloperTimeEnabled, setDeveloperTimeEnabled, setGamePaused } from './calendar.js?v=night-5';
 
 const pauseModal = document.querySelector('#pause-modal');
 const pauseBackdrop = document.querySelector('#pause-backdrop');
@@ -295,7 +295,7 @@ export function closePauseMenu() {
   if (!pauseModal || !isPauseMenuOpen()) return;
   capturing = null;
   pauseModal.setAttribute('hidden', '');
-  setGamePaused(false);
+  setGamePaused(Boolean(window.FarmGame?.isJohnSleeping?.()));
   syncCameraControls();
   window.dispatchEvent(new CustomEvent('farm-hands:menu-close'));
   document.querySelector('#field')?.focus({ preventScroll: true });

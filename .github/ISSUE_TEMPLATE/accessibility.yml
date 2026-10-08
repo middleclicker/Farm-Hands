@@ -1,0 +1,29 @@
+name: Accessibility problem
+description: Report a barrier in the game or its menus
+title: "Accessibility: "
+labels: [accessibility]
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: What were you trying to do?
+      description: Describe the game action or menu task.
+    validations:
+      required: true
+  - type: textarea
+    id: barrier
+    attributes:
+      label: What made it difficult?
+      description: Describe what happened and what would help.
+    validations:
+      required: true
+  - type: input
+    id: setup
+    attributes:
+      label: Browser and assistive technology
+      description: Optional. Include only details you are comfortable sharing.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional notes
+      description: Please leave out private information.

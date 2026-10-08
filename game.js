@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { getGameDate, setGamePaused } from './calendar.js?v=cleanup-4';
-import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=cleanup-4';
-import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=cleanup-4';
+import { advanceToMorning, getGameDate, setGamePaused } from './calendar.js?v=night-5';
+import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=night-5';
+import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=night-5';
 // Importing the menu wires up the Escape menu (credits + keybind settings).
-import './menu.js?v=cleanup-4';
+import './menu.js?v=night-5';
 
 const CELL_SIZE = 1.25;
 const MAX_GRID = 6;
@@ -50,6 +50,9 @@ let cleanupWork = null;
 const terrainEdits = [];
 const cleanupRocks = [];
 const cleanupPatches = [];
+const blockedPlots = new Set();
+let temporaryTerrainEdit = null;
+let lastTerrainRefresh = 0;
 
 let renderer;
 try {
@@ -479,6 +482,11 @@ const HILL = { x: 2, z: -9, height: 3.4, spread: 7 };
 const PINE_POSITIONS = [
   [-12.0, -7.0], [-11.5, -9.0], [-12.8, -8.6], [-10.6, -10.2], [-13.4, -5.8],
 ];
+const ORCHARD_POSITIONS = [[-10.7, -7.4], [3.8, -5.6]];
+const TREE_POSITIONS = [...PINE_POSITIONS.map(([x, z]) => ({ x, z, radius: 0.65 })), ...ORCHARD_POSITIONS.map(([x, z]) => ({ x, z, radius: 0.85 }))];
+function cellBlockedByTree(x, z, halfWidth = CELL_SIZE / 2, halfDepth = CELL_SIZE / 2) {
+  return TREE_POSITIONS.some((tree) => Math.hypot(tree.x - THREE.MathUtils.clamp(tree.x, x - halfWidth, x + halfWidth), tree.z - THREE.MathUtils.clamp(tree.z, z - halfDepth, z + halfDepth)) < tree.radius);
+}
 const ROCK_POSITIONS = [
   [-3.4, 3.2], [4.2, 3.6], [3.8, -3.2], [-3.8, -3.4],
   [7.3, 5.9], [9.6, 5.8], [8.2, 8.3], [10.3, 7.3],
@@ -510,10 +518,13 @@ function groundHeight(x, z) {
   // The house sits in a graded clearing, with a soft edge into the meadow.
   const houseDistance = Math.hypot(Math.max(0, Math.abs(x + 5.8) - 2.5), Math.max(0, Math.abs(z + 5.1) - 2.35));
   const graded = THREE.MathUtils.lerp(-0.18, natural, THREE.MathUtils.smoothstep(houseDistance, 0, 2));
-  return graded + terrainEdits.reduce((sum, edit) => {
+  const savedOffset = terrainEdits.reduce((sum, edit) => {
     const radius = Math.hypot(x - edit.x, z - edit.z);
     return sum + edit.delta * Math.max(0, 1 - radius / (CELL_SIZE * 1.2));
   }, 0);
+  const edit = temporaryTerrainEdit;
+  const liveOffset = edit ? edit.delta * Math.max(0, 1 - Math.hypot(x - edit.x, z - edit.z) / (CELL_SIZE * 1.2)) : 0;
+  return graded + savedOffset + liveOffset;
 }
 
 function grassTexture() {
@@ -592,6 +603,43 @@ function refreshRanchTerrain() {
   for (let index = 0; index < ranchPositions.count; index += 1) ranchPositions.setY(index, groundHeight(ranchPositions.getX(index), ranchPositions.getZ(index)) + 0.035);
   ranchPositions.needsUpdate = true;
   ranchGeometry.computeVertexNormals();
+}
+const dirtMound = new THREE.Mesh(new THREE.ConeGeometry(0.72, 0.48, 9), new THREE.MeshStandardMaterial({ color: 0x98704b, roughness: 1 }));
+dirtMound.castShadow = true;
+dirtMound.receiveShadow = true;
+dirtMound.visible = false;
+scene.add(dirtMound);
+const dirtMoundLabel = document.querySelector('#dirt-mound-label');
+function dirtMoundPoint() {
+  if (!fieldBounds) return null;
+  const x = fieldBounds.maxX + 1.05 < RANCH.maxX ? fieldBounds.maxX + 1.05 : fieldBounds.minX - 1.05;
+  return { x, z: (fieldBounds.minZ + fieldBounds.maxZ) / 2 };
+}
+function updateDirtMound() {
+  const point = dirtMoundPoint();
+  const work = cleanupWork;
+  const progress = work?.kind === 'high' || work?.kind === 'low' ? Math.max(0, Math.min(1, (performance.now() - work.started - (work.fetchShovel ? 4300 : 2400)) / (work.duration - (work.fetchShovel ? 4300 : 2400)))) : 0;
+  const amount = (cleanup?.dirt ?? 0) + (work?.kind === 'high' ? progress : work?.kind === 'low' ? -progress : 0);
+  dirtMound.visible = Boolean(point && amount > 0.025);
+  if (dirtMoundLabel) dirtMoundLabel.hidden = !dirtMound.visible;
+  if (!dirtMound.visible) return;
+  dirtMound.position.set(point.x, groundHeight(point.x, point.z) + 0.12 + amount * 0.08, point.z);
+  dirtMound.scale.setScalar(0.45 + amount * 0.25);
+  if (dirtMoundLabel) {
+    dirtMoundLabel.textContent = `Soil nearby: ${amount.toFixed(1)}`;
+    const projected = dirtMound.position.clone().add(new THREE.Vector3(0, 0.55, 0)).project(camera);
+    const rect = canvas.getBoundingClientRect();
+    dirtMoundLabel.style.left = `${(projected.x + 1) * rect.width / 2}px`;
+    dirtMoundLabel.style.top = `${(1 - projected.y) * rect.height / 2}px`;
+  }
+}
+function spreadExcessDirt() {
+  if (!cleanup || cleanup.dirt <= 0 || !cleanupReady()) return;
+  const point = dirtMoundPoint();
+  if (point) terrainEdits.push({ ...point, delta: Math.min(0.45, cleanup.dirt * 0.12) });
+  cleanup.dirt = 0;
+  refreshRanchTerrain();
+  status.textContent = 'John spread the extra soil into the nearby ground.';
 }
 
 const RANCH = { minX: -11, maxX: 11, minZ: -11, maxZ: 11 };
@@ -846,13 +894,20 @@ const johnShirt = material(0x587b70);
 const johnPants = material(0x544832);
 const johnSkin = material(0xd7a674);
 const johnHat = material(0x9e7143);
-box(farmerJohn, 0.52, 0.75, 0.32, johnShirt, 0, 1.02, 0);
-box(farmerJohn, 0.19, 0.58, 0.22, johnPants, -0.15, 0.36, 0);
-box(farmerJohn, 0.19, 0.58, 0.22, johnPants, 0.15, 0.36, 0);
+const johnTorso = box(farmerJohn, 0.52, 0.75, 0.32, johnShirt, 0, 1.02, 0);
+const johnLeftLeg = box(farmerJohn, 0.19, 0.58, 0.22, johnPants, -0.15, 0.36, 0);
+const johnRightLeg = box(farmerJohn, 0.19, 0.58, 0.22, johnPants, 0.15, 0.36, 0);
 const johnHead = new THREE.Mesh(new THREE.SphereGeometry(0.29, 8, 6), johnSkin);
 johnHead.position.y = 1.62;
 johnHead.castShadow = true;
 farmerJohn.add(johnHead);
+const johnEyes = [];
+for (const x of [-0.105, 0.105]) {
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.027, 6, 4), material(0x382b22));
+  eye.position.set(x, 1.67, 0.265);
+  farmerJohn.add(eye);
+  johnEyes.push(eye);
+}
 box(farmerJohn, 0.82, 0.08, 0.7, johnHat, 0, 1.9, 0);
 box(farmerJohn, 0.48, 0.26, 0.48, johnHat, 0, 2.06, 0);
 const johnLeftArm = box(farmerJohn, 0.17, 0.62, 0.2, johnShirt, -0.37, 1.02, 0);
@@ -866,6 +921,10 @@ farmerJohn.add(johnShovel);
 farmerJohn.position.set(-5.15, groundHeight(-5.15, -3.05), -3.05);
 scene.add(farmerJohn);
 let johnTravel = null;
+let johnSleeping = false;
+let sleepWakeAt = 0;
+let sleepMorningAt = null;
+let pendingJobs = [];
 
 function sendJohnToPlot(index, duration) {
   const { x, z } = plotPositions[index];
@@ -877,17 +936,24 @@ function sendJohnToPoint(x, z, duration) {
 }
 
 function updateFarmerJohn(now) {
-  if (!johnTravel) {
-    johnLeftArm.rotation.x = 0;
-    johnRightArm.rotation.x = 0;
-    return;
+  const walking = Boolean(johnTravel);
+  if (johnTravel) {
+    const t = THREE.MathUtils.clamp((now - johnTravel.started) / johnTravel.duration, 0, 1);
+    farmerJohn.position.lerpVectors(johnTravel.from, johnTravel.to, t);
+    farmerJohn.rotation.y = Math.atan2(johnTravel.to.x - johnTravel.from.x, johnTravel.to.z - johnTravel.from.z);
+    if (t >= 1) { johnTravel = null; saveGameProgress(); }
   }
-  const t = THREE.MathUtils.clamp((now - johnTravel.started) / johnTravel.duration, 0, 1);
-  farmerJohn.position.lerpVectors(johnTravel.from, johnTravel.to, t);
-  farmerJohn.rotation.y = Math.atan2(johnTravel.to.x - johnTravel.from.x, johnTravel.to.z - johnTravel.from.z);
-  johnLeftArm.rotation.x = Math.sin(t * 35) * 0.48;
-  johnRightArm.rotation.x = -johnLeftArm.rotation.x;
-  if (t >= 1) johnTravel = null;
+  const working = Boolean(cleanupWork || activeWork.size);
+  const stride = Math.sin(now * 0.013);
+  johnLeftLeg.rotation.x = walking ? stride * 0.62 : 0;
+  johnRightLeg.rotation.x = walking ? -stride * 0.62 : 0;
+  johnLeftArm.rotation.x = walking ? -stride * 0.56 : working ? Math.sin(now * 0.012) * 0.28 : Math.sin(now * 0.0018) * 0.035;
+  johnRightArm.rotation.x = walking ? stride * 0.56 : working ? -Math.sin(now * 0.012) * 0.42 : -Math.sin(now * 0.0018) * 0.035;
+  johnTorso.scale.y = 1 + Math.sin(now * 0.003) * 0.012;
+  johnHead.rotation.z = Math.sin(now * 0.0013) * 0.035;
+  const blink = Math.sin(now * 0.0021) > 0.997 ? 0.16 : 1;
+  johnEyes.forEach((eye) => { eye.scale.y = blink; });
+  if (!johnSleeping) farmerJohn.position.y = groundHeight(farmerJohn.position.x, farmerJohn.position.z) + (walking ? Math.abs(stride) * 0.07 : Math.sin(now * 0.002) * 0.012);
 }
 
 function addPathLantern(x, z) {
@@ -1230,6 +1296,9 @@ function cleanupPlan(bounds, columns, rows) {
   const average = heights.reduce((sum, h) => sum + h, 0) / heights.length;
   const high = [], low = [];
   heights.forEach((height, index) => {
+    const col = index % columns, row = Math.floor(index / columns);
+    const x = bounds.minX + (col + 0.5) * CELL_SIZE, z = bounds.minZ + (row + 0.5) * CELL_SIZE;
+    if (cellBlockedByTree(x, z)) return;
     if (height > average + 0.13) high.push(index);
     else if (height < average - 0.13) low.push(index);
   });
@@ -1315,6 +1384,7 @@ function placeField(bounds, savedCleanup = null) {
   cleanup = savedCleanup ?? cleanupPlan(bounds, COLUMNS, ROWS);
   const centerX = (bounds.minX + bounds.maxX) / 2;
   const centerZ = (bounds.minZ + bounds.maxZ) / 2;
+  blockedPlots.clear();
   fieldSoil.visible = false;
   if (fieldBorder) { scene.remove(fieldBorder); fieldBorder.geometry.dispose(); fieldBorder.material.dispose(); }
   fieldBorder = dottedRectangle(bounds, 0xffe2a1, 0.19);
@@ -1346,6 +1416,9 @@ function placeField(bounds, savedCleanup = null) {
     const z = bounds.minZ + (row + 0.5) * depth / ROWS;
     const lift = groundHeight(x, z) + 0.18;
     plotPositions[index] = { x, z };
+    const halfWidth = width / COLUMNS / 2;
+    const halfDepth = depth / ROWS / 2;
+    if (cellBlockedByTree(x, z, halfWidth, halfDepth)) blockedPlots.add(index);
     plotMeshes[index].position.set(x, -0.11 + lift, z);
     plotMeshes[index].scale.set((width / COLUMNS) / 1.06, 1, (depth / ROWS) / 1.06);
     ridgeGroups[index].position.set(x, lift, z);
@@ -1365,10 +1438,7 @@ function fieldAreaIsValid(bounds) {
   const depth = bounds.maxZ - bounds.minZ;
   if (width < CELL_SIZE * 2 || depth < CELL_SIZE * 2 || width > CELL_SIZE * MAX_GRID || depth > CELL_SIZE * MAX_GRID) return false;
   if (bounds.minX < RANCH.minX || bounds.maxX > RANCH.maxX || bounds.minZ < RANCH.minZ || bounds.maxZ > RANCH.maxZ) return false;
-  const obstacles = [
-    { x: -5.8, z: -5.1, radius: 3.2 },
-    ...PINE_POSITIONS.map(([x, z]) => ({ x, z, radius: 1.5 })),
-  ];
+  const obstacles = [{ x: -5.8, z: -5.1, radius: 3.2 }];
   if (obstacles.some(({ x, z, radius }) => x + radius > bounds.minX && x - radius < bounds.maxX && z + radius > bounds.minZ && z - radius < bounds.maxZ)) return false;
   return true;
 }
@@ -1504,7 +1574,7 @@ const STORAGE_FARM_KEY = 'farm-hands-seasonal-farm-v3';
 function saveGameProgress() {
   if (window.__farmHandsResetting) return;
   try {
-    localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ layoutVersion: 3, fieldBounds, cleanup, terrainEdits, plotStates, plotCare, inventory, coins, energy }));
+    localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ layoutVersion: 4, fieldBounds, cleanup, terrainEdits, plotStates, plotCare, inventory, coins, energy, johnPosition: { x: farmerJohn.position.x, z: farmerJohn.position.z, facing: farmerJohn.rotation.y }, johnSleeping, sleepMorningAt, pendingJobs }));
   } catch {
     // Storage unavailable (e.g. private browsing); the game keeps running.
   }
@@ -1524,7 +1594,7 @@ function restoreGameProgress() {
       const bounds = saved.fieldBounds;
       if (bounds && ['minX', 'maxX', 'minZ', 'maxZ'].every((key) => Number.isFinite(bounds[key])) && fieldAreaIsValid(bounds)) {
         const legacyCleanup = { rocks: [], high: [], low: [], removed: [], dug: [], filled: [], dirt: 0, shovel: true };
-        placeField(bounds, saved.layoutVersion === 3 && saved.cleanup ? saved.cleanup : legacyCleanup);
+        placeField(bounds, saved.layoutVersion >= 3 && saved.cleanup ? saved.cleanup : legacyCleanup);
       }
     } else if (saved || Array.isArray(legacyStates)) {
       placeField({ minX: -1.9, maxX: 1.9, minZ: -1.9, maxZ: 1.9 }, { rocks: [], high: [], low: [], removed: [], dug: [], filled: [], dirt: 0, shovel: true });
@@ -1546,6 +1616,18 @@ function restoreGameProgress() {
       }
       if (Number.isInteger(saved?.coins) && saved.coins >= 0) coins = saved.coins;
       if (Number.isFinite(saved?.energy)) energy = THREE.MathUtils.clamp(saved.energy, 0, 100);
+      const savedJohn = saved?.johnPosition;
+      if (savedJohn && Number.isFinite(savedJohn.x) && Number.isFinite(savedJohn.z) && Math.abs(savedJohn.x) < 100 && Math.abs(savedJohn.z) < 100) {
+        farmerJohn.position.set(savedJohn.x, groundHeight(savedJohn.x, savedJohn.z), savedJohn.z);
+        if (Number.isFinite(savedJohn.facing)) farmerJohn.rotation.y = savedJohn.facing;
+      }
+      if (Array.isArray(saved?.pendingJobs)) pendingJobs = saved.pendingJobs.filter((job) => job && ['plot', 'cleanup'].includes(job.kind)).slice(0, 4);
+      if (saved?.johnSleeping === true) {
+        johnSleeping = true;
+        farmerJohn.visible = false;
+        sleepWakeAt = performance.now() + 1400;
+        if (Number.isFinite(saved.sleepMorningAt)) sleepMorningAt = saved.sleepMorningAt;
+      }
     }
   } catch {
     // Fall through to a fresh field.
@@ -1553,6 +1635,7 @@ function restoreGameProgress() {
 
   for (let index = 0; index < PLOT_COUNT; index += 1) {
     applyPlotVisual(index);
+    if (blockedPlots.has(index)) { plotStates[index] = PLOT_STATE.WEEDY; plotCare[index] = {}; }
     if (fieldBounds && plotStates[index] === PLOT_STATE.PLANTED) addWheatSeedlings(index, false);
   }
 
@@ -1563,7 +1646,7 @@ function restoreGameProgress() {
   updateCoins();
   updateEnergy();
   saveGameProgress();
-  if (fieldBounds) setGamePaused(false);
+  if (fieldBounds && !johnSleeping) setGamePaused(false);
 }
 
 reducedMotion.addEventListener('change', () => setWeather(currentWeatherName));
@@ -1733,6 +1816,7 @@ function updateCameraMemory(deltaSeconds) {
   if (cameraSaveCooldown < 0.6) return;
   cameraSaveCooldown = 0;
   saveCameraState();
+  if (johnTravel) saveGameProgress();
 }
 
 // Unified Animation Loop
@@ -1743,10 +1827,11 @@ function animateScene(now) {
   lastTickTime = now;
 
   updateHomeTransition(now);
+  updateNightRoutine(now, getGameDate(), deltaSeconds);
   updateFarmerJohn(now);
-  updatePlotWork(now);
-  updateCleanupWork(now);
-  if (energy < 100 && !cleanupWork) {
+  if (!johnSleeping) { updatePlotWork(now); updateCleanupWork(now); }
+  updateDirtMound();
+  if (energy < 100 && !johnSleeping && !cleanupWork && !activeWork.size && getGameDate().getUTCHours() < 22) {
     const before = Math.floor(energy);
     energy = Math.min(100, energy + deltaSeconds * 0.55);
     if (Math.floor(energy) !== before) updateEnergy();
@@ -1779,6 +1864,7 @@ requestAnimationFrame(animateScene);
 // ==========================================================================
 
 function addWheatSeedlings(index, animateGrowth = true) {
+  if (blockedPlots.has(index)) return;
   if (wheatGroups[index]) return;
   const { x, z } = plotPositions[index];
   const cluster = new THREE.Group();
@@ -1988,9 +2074,14 @@ function updatePlacementPreview(from, to) {
   placementGrid.visible = true;
   pendingFieldBounds = valid ? bounds : null;
   if (placementConfirm) placementConfirm.disabled = !valid;
+  const blockedCount = Array.from({ length: columns * rows }, (_, index) => {
+    const x = bounds.minX + (index % columns + 0.5) * CELL_SIZE;
+    const z = bounds.minZ + (Math.floor(index / columns) + 0.5) * CELL_SIZE;
+    return cellBlockedByTree(x, z);
+  }).filter(Boolean).length;
   if (placementStatus) placementStatus.textContent = valid
-    ? `${columns} × ${rows} crop cells · ${plan.rocks.length} stones · ${plan.high.length} high and ${plan.low.length} low patches. About ${(plan.rocks.length + plan.high.length + Math.min(plan.high.length, plan.low.length)) * 2} coins and ${(plan.rocks.length + plan.high.length + Math.min(plan.high.length, plan.low.length)) * 4 + (plan.high.length ? 2 : 0)} seconds of work.${plan.low.length > plan.high.length ? ` ${plan.low.length - plan.high.length} low spots may remain.` : ''}`
-    : 'Draw 2–6 cells per side inside the ranch boundary, clear of the house and trees.';
+    ? `${columns} × ${rows} crop cells · ${blockedCount} tree-blocked cells stay empty · ${plan.rocks.length} stones · ${plan.high.length} high and ${plan.low.length} low patches. About ${(plan.rocks.length + plan.high.length + Math.min(plan.high.length, plan.low.length)) * 2} coins and ${(plan.rocks.length + plan.high.length + Math.min(plan.high.length, plan.low.length)) * 4 + (plan.high.length ? 2 : 0)} seconds of work.${plan.low.length > plan.high.length ? ` ${plan.low.length - plan.high.length} low spots may remain.` : ''}`
+    : 'Draw 2–6 cells per side inside the ranch boundary, clear of the house. Tree cells stay empty.';
 }
 
 function beginFieldPlacement() {
@@ -2080,9 +2171,71 @@ const activeWork = new Map();
 const plotCooldownUntil = new Array(PLOT_COUNT).fill(0);
 const plotStopwatch = document.querySelector('#plot-stopwatch');
 const plotStopwatchTime = document.querySelector('#plot-stopwatch-time');
+let lastLateNoticeDay = '';
+
+function putJohnToBed(now) {
+  if (johnSleeping) return;
+  if (cleanupWork) {
+    pendingJobs.push({ kind: 'cleanup', taskKind: cleanupWork.kind, id: cleanupWork.id });
+    cleanupWork = null;
+    temporaryTerrainEdit = null;
+    refreshRanchTerrain();
+  }
+  for (const [index, work] of activeWork) {
+    pendingJobs.push({ kind: 'plot', index, action: work.action });
+    scene.remove(work.effect);
+    work.effect.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); });
+  }
+  activeWork.clear();
+  johnSleeping = true;
+  sleepWakeAt = now + 3600;
+  const bedtime = getGameDate();
+  sleepMorningAt = Date.UTC(bedtime.getUTCFullYear(), bedtime.getUTCMonth(), bedtime.getUTCDate() + (bedtime.getUTCHours() >= 8 ? 1 : 0), 8);
+  setGamePaused(true);
+  sendJohnToPoint(-5.15, -3.05, 1400);
+  if (plotStopwatch) plotStopwatch.hidden = true;
+  status.textContent = pendingJobs.length ? 'John is going home to sleep. He will resume this job at 8 AM.' : 'John is going home to sleep until 8 AM.';
+  updateEnergy();
+  saveGameProgress();
+}
+
+function updateNightRoutine(now, date, deltaSeconds) {
+  if (johnSleeping) {
+    if (now > sleepWakeAt - 2000 && !johnTravel) farmerJohn.visible = false;
+    if (now < sleepWakeAt) return;
+    if (!document.querySelector('#pause-modal')?.hidden) return;
+    advanceToMorning(sleepMorningAt);
+    sleepMorningAt = null;
+    setGamePaused(false);
+    johnSleeping = false;
+    farmerJohn.position.set(-5.15, groundHeight(-5.15, -3.05), -3.05);
+    farmerJohn.visible = true;
+    energy = 100;
+    updateEnergy();
+    status.textContent = pendingJobs.length ? 'John is rested and returning to his unfinished work.' : 'John is rested and ready for a new day.';
+    saveGameProgress();
+    return;
+  }
+  const hour = date.getUTCHours();
+  const hasWork = Boolean(cleanupWork || activeWork.size);
+  if (hour >= 22 && hasWork) {
+    const day = date.toISOString().slice(0, 10);
+    if (lastLateNoticeDay !== day) { status.textContent = 'It is past 10 PM. John is tiring quickly and needs sleep.'; lastLateNoticeDay = day; }
+    energy = Math.max(0, energy - deltaSeconds * 10);
+    updateEnergy();
+  }
+  if ((hour >= 22 && !hasWork) || (hour < 8 && fieldBounds) || (hasWork && energy <= 0)) putJohnToBed(now);
+  if (!johnSleeping && pendingJobs.length && !hasWork && hour >= 8 && hour < 22) {
+    const job = pendingJobs.shift();
+    if (job.kind === 'cleanup' && ['rock', 'high', 'low'].includes(job.taskKind) && Number.isInteger(job.id)) startCleanupWork(job.taskKind, job.id);
+    if (job.kind === 'plot' && Number.isInteger(job.index) && typeof job.action === 'string') startPlotWork(job.index, job.action);
+    saveGameProgress();
+  }
+}
 
 function startCleanupWork(kind, id) {
-  if (!cleanup || cleanupReady() || cleanupWork) return;
+  if (johnSleeping) { status.textContent = 'John is asleep until 8 AM.'; return; }
+  if (!cleanup || cleanupReady() || cleanupWork || activeWork.size) return;
   if (kind !== 'rock' && cleanup.rocks.some((rockId) => !cleanup.removed.includes(rockId))) { status.textContent = 'Move the field stones before grading the ground.'; return; }
   if (kind === 'low' && cleanup.high.some((patchId) => !cleanup.dug.includes(patchId))) { status.textContent = 'Dig the high ground before filling low patches.'; return; }
   if (kind === 'rock' && (!cleanup.rocks.includes(id) || cleanup.removed.includes(id))) return;
@@ -2108,6 +2261,11 @@ function updateCleanupWork(now) {
   if (!cleanupWork) return;
   const work = cleanupWork;
   const elapsed = now - work.started;
+  if (work.kind !== 'rock' && elapsed > (work.fetchShovel ? 4300 : 2400)) {
+    const progress = THREE.MathUtils.clamp((elapsed - (work.fetchShovel ? 4300 : 2400)) / (work.duration - (work.fetchShovel ? 4300 : 2400)), 0, 1);
+    temporaryTerrainEdit = { x: work.x, z: work.z, delta: (work.kind === 'high' ? -0.18 : 0.18) * progress };
+    if (now - lastTerrainRefresh > 80) { refreshRanchTerrain(); lastTerrainRefresh = now; }
+  }
   if (work.fetchShovel && !work.fetched && elapsed > 1900) {
     work.fetched = true;
     cleanup.shovel = true;
@@ -2126,6 +2284,7 @@ function updateCleanupWork(now) {
   }
   if (elapsed < work.duration) return;
   cleanupWork = null;
+  temporaryTerrainEdit = null;
   if (plotStopwatch) plotStopwatch.hidden = true;
   coins -= work.cost;
   energy = Math.max(0, energy - 8);
@@ -2133,6 +2292,7 @@ function updateCleanupWork(now) {
   else if (work.kind === 'high') { cleanup.dug.push(work.id); cleanup.dirt += 1; terrainEdits.push({ x: work.x, z: work.z, delta: -0.18 }); }
   else { cleanup.filled.push(work.id); cleanup.dirt -= 1; terrainEdits.push({ x: work.x, z: work.z, delta: 0.18 }); }
   if (work.kind !== 'rock') refreshRanchTerrain();
+  spreadExcessDirt();
   updateCoins();
   updateEnergy();
   if (work.kind === 'rock') refreshCleanupVisuals();
@@ -2201,12 +2361,21 @@ function closePlotActionMenu(returnFocus = false) {
 function openPlotActionMenu(index) {
   if (!fieldBounds || !cleanupReady() || !Number.isInteger(index) || index < 0 || index >= PLOT_COUNT) return;
   openPlotIndex = index;
+  if (blockedPlots.has(index)) {
+    plotActionMenu.setAttribute('aria-label', `Plot ${index + 1} blocked by a tree`);
+    plotActionMenu.innerHTML = `<div class="plot-action-header"><strong>Plot ${index + 1}</strong><button type="button" class="plot-action-close" aria-label="Close plot actions">×</button></div><p class="plot-action-note">A standing tree occupies this crop cell. It will stay empty until the farm has tree-removal equipment.</p>`;
+    plotActionMenu.hidden = false;
+    positionPlotActionMenu();
+    plotActionMenu.querySelector('.plot-action-close')?.focus({ preventScroll: true });
+    return;
+  }
   const available = allowedAction(getGameDate(), plotStates[index], plotCare[index]);
   const supply = actionSupply[available];
   const needsStock = supply && inventory[supply] < 1;
   const work = activeWork.get(index);
   const cooldown = Math.max(0, plotCooldownUntil[index] - performance.now());
-  const note = work ? 'Farmer John is working on this plot.'
+  const note = johnSleeping ? 'John is asleep until 8 AM.'
+    : work ? 'Farmer John is working on this plot.'
     : cooldown ? 'Farmer John is getting ready for the next task.'
       : needsStock ? 'Buy supplies in the farmhouse shop before doing this work.'
         : available ? 'Choose the available field action.' : phaseMessage(getGameDate());
@@ -2222,7 +2391,7 @@ function openPlotActionMenu(index) {
   plotActionMenu.setAttribute('aria-label', `Plot ${index + 1} actions`);
   plotActionMenu.innerHTML = `<div class="plot-action-header"><strong>Plot ${index + 1}</strong><button type="button" class="plot-action-close" aria-label="Close plot actions">×</button></div><p class="plot-action-state">${describePlotState(index)}</p><div class="plot-action-grid">${plotActions.map(([action, label]) => {
     const done = completed.has(action);
-    const ready = action === available && !work && !cooldown && !needsStock;
+    const ready = action === available && !johnSleeping && !work && !cooldown && !needsStock;
     const className = done ? 'is-complete' : ready ? 'is-available' : action === available && needsStock ? 'needs-supply' : 'is-future';
     const hint = done ? 'Done' : ready ? 'Do now' : action === available && needsStock ? 'Need supplies' : actionSeason[action];
     return `<button type="button" class="${className}" data-action="${action}" title="${hint}" ${ready ? '' : 'disabled'}><span class="action-label">${label}</span><small>${hint}</small></button>`;
@@ -2245,6 +2414,7 @@ plotActionMenu?.addEventListener('click', (event) => {
 });
 
 function startPlotWork(index, action) {
+  if (blockedPlots.has(index) || johnSleeping || cleanupWork || activeWork.size) return;
   if (activeWork.has(index) || performance.now() < plotCooldownUntil[index]) return;
   if (!cleanupReady() || energy < 5) { status.textContent = energy < 5 ? 'Farmer John needs to rest before working another plot.' : 'Finish ground cleanup first.'; return; }
   if (allowedAction(getGameDate(), plotStates[index], plotCare[index]) !== action) return;
@@ -2386,14 +2556,14 @@ function updateHelpText() {
 function countState(state) {
   let count = 0;
   for (let index = 0; index < PLOT_COUNT; index += 1) {
-    if (plotStates[index] === state) count += 1;
+    if (!blockedPlots.has(index) && plotStates[index] === state) count += 1;
   }
   return count;
 }
 
 function fieldSummary() {
   if (!fieldBounds) return 'No field allocated yet';
-  return `${countState(PLOT_STATE.WEEDY)} weedy · ${countState(PLOT_STATE.CLEARED)} cleared · ${countState(PLOT_STATE.TESTED)} tested · ${countState(PLOT_STATE.CULTIVATED)} ready · ${countState(PLOT_STATE.PLANTED)} drilled · ${countState(PLOT_STATE.HARVESTED)} harvested`;
+  return `${blockedPlots.size} tree-blocked · ${countState(PLOT_STATE.WEEDY)} weedy · ${countState(PLOT_STATE.CLEARED)} cleared · ${countState(PLOT_STATE.TESTED)} tested · ${countState(PLOT_STATE.CULTIVATED)} ready · ${countState(PLOT_STATE.PLANTED)} drilled · ${countState(PLOT_STATE.HARVESTED)} harvested`;
 }
 
 function updateFieldLedger() {
@@ -2405,17 +2575,18 @@ function updateFieldLedger() {
 function applyPlotVisual(index) {
   const state = plotStates[index];
   const ready = Boolean(fieldBounds) && index < PLOT_COUNT && cleanupReady();
+  const usable = ready && !blockedPlots.has(index);
   if (plotMeshes[index]) {
     plotMeshes[index].visible = ready;
-    plotMeshes[index].castShadow = ready && state !== PLOT_STATE.WEEDY;
+    plotMeshes[index].castShadow = usable && state !== PLOT_STATE.WEEDY;
   }
-  if (ridgeGroups[index]) ridgeGroups[index].visible = ready && (state === PLOT_STATE.CULTIVATED || state === PLOT_STATE.PLANTED);
-  if (weedGroups[index]) weedGroups[index].visible = ready && state === PLOT_STATE.WEEDY;
+  if (ridgeGroups[index]) ridgeGroups[index].visible = usable && (state === PLOT_STATE.CULTIVATED || state === PLOT_STATE.PLANTED);
+  if (weedGroups[index]) weedGroups[index].visible = usable && state === PLOT_STATE.WEEDY;
   if (plotMaterials[index]) {
     plotMaterials[index].color.setHex(state === PLOT_STATE.CULTIVATED || state === PLOT_STATE.PLANTED ? 0x774a32 : 0x945f3c);
-    plotMaterials[index].transparent = state === PLOT_STATE.WEEDY;
-    plotMaterials[index].opacity = state === PLOT_STATE.WEEDY ? 0 : 1;
-    plotMaterials[index].depthWrite = state !== PLOT_STATE.WEEDY;
+    plotMaterials[index].transparent = !usable || state === PLOT_STATE.WEEDY;
+    plotMaterials[index].opacity = !usable || state === PLOT_STATE.WEEDY ? 0 : 1;
+    plotMaterials[index].depthWrite = usable && state !== PLOT_STATE.WEEDY;
   }
 }
 
@@ -2462,7 +2633,7 @@ function drillWheat(index) {
   applyPlotVisual(index);
   addWheatSeedlings(index);
   const drilled = countState(PLOT_STATE.PLANTED);
-  status.textContent = drilled === PLOT_COUNT
+  status.textContent = drilled === PLOT_COUNT - blockedPlots.size
     ? 'Every plot has winter wheat drilled.'
     : `Winter wheat drilled in plot ${index + 1}.`;
   updateCanvasLabel();
@@ -2473,6 +2644,7 @@ function drillWheat(index) {
 
 function handlePlotAction(index, requestedAction = null) {
   if (!fieldBounds || !Number.isInteger(index) || index < 0 || index >= PLOT_COUNT) return;
+  if (blockedPlots.has(index)) return;
   const action = allowedAction(getGameDate(), plotStates[index], plotCare[index]);
   if (requestedAction !== null && requestedAction !== action) return;
   if (action === 'clear') return clearWeeds(index);
@@ -2544,7 +2716,7 @@ function updateCoins() {
 function updateEnergy() {
   const display = document.querySelector('#hud-energy');
   const fill = document.querySelector('#energy-fill');
-  if (display) display.textContent = `${Math.round(energy)}%`;
+  if (display) display.textContent = johnSleeping ? `${Math.round(energy)}% · asleep` : `${Math.round(energy)}%`;
   if (fill) fill.style.width = `${Math.round(energy)}%`;
 }
 
@@ -2734,9 +2906,9 @@ window.addEventListener('farm-hands:camera-reset', () => resetCameraToDefault())
 window.addEventListener('farm-hands:plot-focus-change', (event) => setPlotFocusEnabled(event.detail?.enabled !== false));
 
 // Remember the camera when the page is hidden or closed.
-window.addEventListener('pagehide', () => saveCameraState(true));
+window.addEventListener('pagehide', () => { saveCameraState(true); saveGameProgress(); });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') saveCameraState(true);
+  if (document.visibilityState === 'hidden') { saveCameraState(true); saveGameProgress(); }
 });
 
 // ==========================================================================
@@ -2800,9 +2972,9 @@ function updateFarmMap() {
       const colors = { weedy: '#648342', cleared: '#ae8053', tested: '#c19760', cultivated: '#855232', planted: '#59804a', harvested: '#caa56f' };
       if (cleanup?.high.includes(index) && !cleanup.dug.includes(index)) ctx.fillStyle = '#d8914a';
       else if (cleanup?.low.includes(index) && !cleanup.filled.includes(index)) ctx.fillStyle = '#69a7cb';
-      else ctx.fillStyle = colors[plotStates[index]];
+      else ctx.fillStyle = blockedPlots.has(index) ? '#365b38' : colors[plotStates[index]];
       ctx.fillRect(px - pw / 2, py - ph / 2, pw, ph);
-      if (plotStates[index] === PLOT_STATE.CULTIVATED || plotStates[index] === PLOT_STATE.PLANTED) {
+      if (!blockedPlots.has(index) && (plotStates[index] === PLOT_STATE.CULTIVATED || plotStates[index] === PLOT_STATE.PLANTED)) {
         ctx.fillStyle = plotStates[index] === PLOT_STATE.PLANTED ? '#9dbb5e' : '#a86e45';
         for (let stripe = -1; stripe <= 1; stripe += 1) ctx.fillRect(px - pw / 2 + 2, py + stripe * ph / 4, Math.max(1, pw - 4), 1);
       }
@@ -2912,6 +3084,7 @@ window.FarmGame = {
   isCameraMemoryEnabled,
   setCameraMemoryEnabled,
   isPlotFocusEnabled: () => plotFocusEnabled,
+  isJohnSleeping: () => johnSleeping,
   setPlotFocusEnabled,
   focusPlot,
   buildFarmMap,
