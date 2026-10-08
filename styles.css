@@ -65,8 +65,7 @@ html, body {
 }
 
 #field:focus-visible {
-  outline: 4px solid var(--amber-gold);
-  outline-offset: -8px;
+  outline: none;
 }
 
 /* ==========================================================================
