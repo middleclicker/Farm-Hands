@@ -1212,6 +1212,8 @@ html, body {
 .time-control { gap: 8px; }
 .farm-journal {
   max-width: 680px;
+  height: min(670px, calc(100dvh - 32px));
+  min-height: 0;
   border: 1px solid #a99170;
   border-radius: 16px;
   background: #f8f2e6;
@@ -1239,10 +1241,47 @@ html, body {
   font-size: 18px;
 }
 .farm-journal .modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   gap: 17px;
   padding: 0 22px 22px;
   background: #f8f2e6;
 }
+
+.farm-journal .modal-tabs { flex-wrap: wrap; }
+.farm-journal .tab-panel[hidden] { display: none; }
+.knowledge-panel { padding: 14px 4px 22px; color: #493722; }
+.knowledge-panel h3 { margin: 0 0 10px; font: 700 25px var(--font-serif); }
+.knowledge-panel p { margin: 0 0 15px; line-height: 1.45; }
+.knowledge-cycle { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 22px; }
+.knowledge-cycle span { padding: 6px 10px; background: #d8bb82; border: 1px solid #9a754b; box-shadow: 0 2px #745434; font: 700 13px var(--font-serif); }
+.journal-soil-report { padding: 14px; background: #fff0ce; border: 2px solid #8b6745; box-shadow: 3px 4px #b99b72; }
+.journal-soil-report h4 { margin: 0 0 8px; font: 700 20px var(--font-serif); }
+.journal-soil-report dl { display: grid; grid-template-columns: 1fr auto; gap: 5px 14px; margin: 0; }
+.journal-soil-report dt, .journal-soil-report dd { margin: 0; border-bottom: 1px dashed #c2a87c; }
+.journal-soil-report dd { font-weight: 700; }
+.soil-journey-hud { position: absolute; left: 18px; top: 76px; z-index: 20; width: min(270px, calc(100vw - 36px)); display: grid; gap: 7px; padding: 12px 14px; color: #49321c; background: #f6e5bd; border: 3px solid #8c613a; border-radius: 6px; box-shadow: 0 5px 0 #573b25, 0 10px 22px #1f170b55; font: 15px var(--font-serif); }
+.soil-journey-hud[hidden] { display: none; }
+.soil-journey-hud strong { font-size: 19px; }
+.soil-journey-hud button { width: fit-content; padding: 5px 10px; color: #fff3d0; background: #6b7e48; border: 2px solid #43512e; border-radius: 3px; font: 700 14px var(--font-serif); cursor: pointer; }
+.soil-journey-hud button[hidden] { display: none; }
+.soil-journey-hud button:hover, .soil-journey-hud button:focus-visible { background: #8b9e5e; }
+.crop-book-overlay { position: absolute; inset: 0; z-index: 90; display: grid; place-items: center; padding: 20px; background: #171c0dbb; }
+.crop-book-overlay[hidden] { display: none; }
+.crop-book { position: relative; display: grid; grid-template-columns: 1fr 1fr; width: min(770px, 100%); min-height: 390px; color: #503a25; filter: drop-shadow(12px 18px 12px #12100788); transform: perspective(900px) rotateX(4deg); }
+.crop-book-page { padding: 30px 32px; background: repeating-linear-gradient(0deg, #f8eac8, #f8eac8 27px, #efe0ba 28px); border: 5px solid #9e6d40; border-right: 1px solid #aa7b51; border-radius: 8px 1px 1px 8px; box-shadow: inset 8px 0 #e2c796; }
+.crop-book-page-right { border-left: 1px solid #aa7b51; border-right: 5px solid #9e6d40; border-radius: 1px 8px 8px 1px; box-shadow: inset -8px 0 #e2c796; }
+.crop-book-spine { position: absolute; z-index: 2; top: 0; bottom: 0; left: calc(50% - 6px); width: 12px; background: #9f794d; box-shadow: 2px 0 6px #482a1866; }
+.crop-book-kicker { font: 700 12px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; }
+.crop-book h2 { margin: 10px 0 20px; font: 800 38px var(--font-serif); }
+.crop-book h3 { margin: 0 0 14px; font: 700 25px var(--font-serif); }
+.crop-book p { line-height: 1.43; }
+.crop-book ol { padding-left: 18px; line-height: 1.45; }
+.crop-book li { margin-bottom: 5px; }
+.crop-book-art { display: flex; align-items: end; justify-content: center; gap: 24px; min-height: 106px; color: #647c3d; font-size: 64px; }
+.crop-book-footnote { font-size: 13px; }
+@media (max-width: 650px) { .crop-book { grid-template-columns: 1fr; max-height: calc(100dvh - 36px); overflow: auto; transform: none; } .crop-book-spine { display: none; } .crop-book-page, .crop-book-page-right { border: 4px solid #9e6d40; border-radius: 5px; } }
 .farm-journal .modal-tabs {
   gap: 22px;
   padding: 0;

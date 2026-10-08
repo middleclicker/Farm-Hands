@@ -9,11 +9,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600;700;800&family=Alegreya+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=ground-6" />
+    <link rel="stylesheet" href="./styles.css?v=town-7" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=ground-6"></script>
+    <script type="module" src="./game.js?v=town-7"></script>
   </head>
   <body>
     <main class="game-shell">
@@ -53,6 +53,25 @@
           </button>
         </aside>
         <aside id="cleanup-hud" class="cleanup-hud" aria-live="polite" hidden><strong>Prepare the ground</strong><span id="cleanup-instruction">Click each stone to have John remove it.</span><div>Cleanliness <b id="ground-cleanliness">100%</b></div><div>Flatness <b id="ground-flatness">90%</b></div><div>Soil nearby <b id="ground-dirt">0</b></div></aside>
+        <aside id="soil-journey-hud" class="soil-journey-hud" aria-live="polite" hidden><strong id="soil-journey-title">Soil study</strong><span id="soil-journey-status"></span><button id="soil-journey-action" type="button" hidden></button></aside>
+
+        <div id="crop-book" class="crop-book-overlay" role="dialog" aria-modal="true" aria-labelledby="crop-book-title" hidden>
+          <div class="crop-book">
+            <div class="crop-book-spine" aria-hidden="true"></div>
+            <div class="crop-book-page">
+              <span class="crop-book-kicker">Farmer John's field guide · Volume 1</span>
+              <h2 id="crop-book-title">Winter Wheat</h2>
+              <div class="crop-book-art" aria-hidden="true"><span>🌱</span><span>🌾</span></div>
+              <p>Winter wheat is sown in autumn, survives the cold as a young plant, then grows again in spring.</p>
+            </div>
+            <div class="crop-book-page crop-book-page-right">
+              <h3>Our first growing year</h3>
+              <ol><li><strong>July–August</strong> · Clear and prepare the field.</li><li><strong>September–early October</strong> · Drill seed.</li><li><strong>Autumn</strong> · Seedlings establish.</li><li><strong>Winter</strong> · Growth slows.</li><li><strong>Spring</strong> · Tillering, stems, and ears develop.</li><li><strong>Summer</strong> · Grain ripens for harvest.</li></ol>
+              <p class="crop-book-footnote">The soil report will arrive at the farmhouse mailbox after one game day. This guide stays in Journal → Knowledge.</p>
+              <button id="crop-book-close" class="cozy-btn primary-btn" type="button">Back to the farm</button>
+            </div>
+          </div>
+        </div>
 
         <!-- Farmhouse Calendar Menu (Modal Dialog) -->
         <div id="farmhouse-modal" class="farmhouse-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-modal-title" hidden>
@@ -74,6 +93,7 @@
                 <button id="tab-map" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-map-panel">Farm map</button>
                 <button id="tab-inventory" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-inventory-panel">Inventory</button>
                 <button id="tab-shop" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-shop-panel">Shop</button>
+                <button id="tab-knowledge" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-knowledge-panel">Knowledge</button>
               </div>
 
               <div id="tab-events-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-events">
@@ -98,6 +118,12 @@
               <div id="tab-shop-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-shop" hidden>
                 <p class="inventory-intro">Stock the barn or sell what you have grown.</p>
                 <div id="farm-shop" class="farm-shop"></div>
+              </div>
+              <div id="tab-knowledge-panel" class="tab-panel knowledge-panel" role="tabpanel" aria-labelledby="tab-knowledge" hidden>
+                <h3>Winter wheat field guide</h3>
+                <p>Clear the summer field, sample the soil, and cultivate a seedbed. Drill winter wheat from September through early October. It establishes in autumn, rests through winter, tillers in spring, flowers in May–June, and ripens for harvest in July–August.</p>
+                <div class="knowledge-cycle"><span>Prepare</span><span>Drill</span><span>Establish</span><span>Rest</span><span>Grow</span><span>Harvest</span></div>
+                <section id="journal-soil-report" class="journal-soil-report" aria-live="polite"><h4>Field soil report</h4><p>Collect samples after ground cleanup. Results will arrive by mail from the town science center.</p></section>
               </div>
             </div>
           </div>

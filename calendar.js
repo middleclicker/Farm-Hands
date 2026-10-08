@@ -1,4 +1,4 @@
-import { eventMatches } from './keybinds.js?v=ground-6';
+import { eventMatches } from './keybinds.js?v=town-7';
 
 const DEFAULT_SPEED = 120;
 const SPEED_LEVELS = [120, 300, 1000, 10000];
@@ -17,9 +17,9 @@ const seasons = ['Winter', 'Winter', 'Spring', 'Spring', 'Spring', 'Summer', 'Su
 // September–October drilling, autumn germination, winter dormancy, spring
 // tillering and stem extension, and the summer harvest.
 const events = [
-  { month: 6, day: 1, emoji: '🚜', title: 'Field Preparation', description: 'Clear empty plots, test the soil, and cultivate a seedbed.' },
+  { month: 6, day: 1, emoji: '🚜', title: 'Field Preparation', description: 'Clear the site, collect field soil samples, and cultivate a seedbed after the science center report arrives.' },
   { month: 6, day: 20, emoji: '🌾', title: 'Wheat Harvest', description: 'Harvest ripe wheat and store the grain.' },
-  { month: 7, day: 1, emoji: '🚜', title: 'Prepare the Next Seedbed', description: 'Clear harvested plots, test the soil, and cultivate for the next crop.' },
+  { month: 7, day: 1, emoji: '🚜', title: 'Prepare the Next Seedbed', description: 'Clear harvested plots and cultivate for the next crop.' },
   { month: 8, day: 1, emoji: '🌱', title: 'Drill Winter Wheat', description: 'Sow winter wheat into the prepared seedbed — aim to finish by early October.' },
   { month: 9, day: 11, emoji: '🌱', title: 'Germination', description: 'Seedlings establish; check for weeds, slugs, and pests through November.' },
   { month: 11, day: 1, emoji: '❄️', title: 'Winter Dormancy', description: 'Growth slows through December and January.' },
@@ -76,10 +76,12 @@ const tabEventsBtn = document.querySelector('#tab-events');
 const tabMapBtn = document.querySelector('#tab-map');
 const tabInventoryBtn = document.querySelector('#tab-inventory');
 const tabShopBtn = document.querySelector('#tab-shop');
+const tabKnowledgeBtn = document.querySelector('#tab-knowledge');
 const tabEventsPanel = document.querySelector('#tab-events-panel');
 const tabMapPanel = document.querySelector('#tab-map-panel');
 const tabInventoryPanel = document.querySelector('#tab-inventory-panel');
 const tabShopPanel = document.querySelector('#tab-shop-panel');
+const tabKnowledgePanel = document.querySelector('#tab-knowledge-panel');
 const modalTabs = document.querySelector('.modal-tabs');
 
 const pad = (value) => String(value).padStart(2, '0');
@@ -219,18 +221,22 @@ function setActiveTab(name) {
   const isInventory = name === 'inventory';
   const isEvents = name === 'events';
   const isShop = name === 'shop';
+  const isKnowledge = name === 'knowledge';
   tabEventsBtn?.classList.toggle('is-active', isEvents);
   tabMapBtn?.classList.toggle('is-active', isMap);
   tabInventoryBtn?.classList.toggle('is-active', isInventory);
   tabShopBtn?.classList.toggle('is-active', isShop);
+  tabKnowledgeBtn?.classList.toggle('is-active', isKnowledge);
   tabEventsBtn?.setAttribute('aria-selected', String(isEvents));
   tabMapBtn?.setAttribute('aria-selected', String(isMap));
   tabInventoryBtn?.setAttribute('aria-selected', String(isInventory));
   tabShopBtn?.setAttribute('aria-selected', String(isShop));
+  tabKnowledgeBtn?.setAttribute('aria-selected', String(isKnowledge));
   if (tabEventsPanel) tabEventsPanel.hidden = !isEvents;
   if (tabMapPanel) tabMapPanel.hidden = !isMap;
   if (tabInventoryPanel) tabInventoryPanel.hidden = !isInventory;
   if (tabShopPanel) tabShopPanel.hidden = !isShop;
+  if (tabKnowledgePanel) tabKnowledgePanel.hidden = !isKnowledge;
   if (isMap) window.FarmGame?.updateFarmMap?.();
   if (isInventory) window.FarmGame?.updateInventory?.();
   if (isShop) window.FarmGame?.updateInventory?.();
@@ -408,6 +414,7 @@ tabEventsBtn?.addEventListener('click', () => setActiveTab('events'));
 tabMapBtn?.addEventListener('click', () => setActiveTab('map'));
 tabInventoryBtn?.addEventListener('click', () => setActiveTab('inventory'));
 tabShopBtn?.addEventListener('click', () => setActiveTab('shop'));
+tabKnowledgeBtn?.addEventListener('click', () => setActiveTab('knowledge'));
 calendarPrevMonth?.addEventListener('click', () => {
   const now = getGameDate();
   const currentMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
@@ -450,12 +457,12 @@ timeSkipConfirm?.addEventListener('click', () => {
 });
 modalTabs?.addEventListener('keydown', (event) => {
   if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-  const tabs = [tabEventsBtn, tabMapBtn, tabInventoryBtn, tabShopBtn];
+  const tabs = [tabEventsBtn, tabMapBtn, tabInventoryBtn, tabShopBtn, tabKnowledgeBtn];
   const currentIndex = tabs.indexOf(document.activeElement);
   const delta = event.key === 'ArrowRight' ? 1 : -1;
   const nextIndex = (currentIndex + delta + tabs.length) % tabs.length;
   tabs[nextIndex]?.focus();
-  setActiveTab(['events', 'map', 'inventory', 'shop'][nextIndex]);
+  setActiveTab(['events', 'map', 'inventory', 'shop', 'knowledge'][nextIndex]);
   event.preventDefault();
 });
 

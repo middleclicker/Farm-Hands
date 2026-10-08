@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { advanceToMorning, getGameDate, setGamePaused } from './calendar.js?v=ground-6';
-import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=ground-6';
-import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=ground-6';
+import { advanceToMorning, getGameDate, setGamePaused } from './calendar.js?v=town-7';
+import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=town-7';
+import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=town-7';
+import { soilSampleRoute, soilReportDue, soilReportForField } from './soil-study.mjs?v=town-7';
 // Importing the menu wires up the Escape menu (credits + keybind settings).
-import './menu.js?v=ground-6';
+import './menu.js?v=town-7';
 
 const CELL_SIZE = 1.25;
 const MAX_GRID = 6;
@@ -53,6 +54,9 @@ const cleanupPatches = [];
 const blockedPlots = new Set();
 let temporaryTerrainEdit = null;
 let lastTerrainRefresh = 0;
+let soilStudy = { phase: 'not-started', sampleIndex: 0, submittedAt: null, report: null, mailRead: false, bookOpened: false };
+let carTrip = null;
+let labStopUntil = 0;
 
 let renderer;
 try {
@@ -461,7 +465,6 @@ function updateSkyObjects(sunX, sunY, sunZ) {
 const material = (color, roughness = 1, metalness = 0) =>
   new THREE.MeshStandardMaterial({ color, roughness, metalness, flatShading: true });
 
-const soilBaseMaterial = material(0x714831);
 const ridgeMaterial = material(0xa6744a);
 const furrowMaterial = material(0x67432d);
 const stemMaterial = material(0x4a8c54);
@@ -478,7 +481,7 @@ function box(parent, width, height, depth, meshMaterial, x, y, z) {
 }
 
 // Terrain feature placements (shared by the 3D scene and the farmhouse map).
-const HILL = { x: 2, z: -9, height: 3.4, spread: 7 };
+const HILL = { x: 2, z: -9, height: 1.45, spread: 11 };
 const RANCH = { minX: -11, maxX: 11, minZ: -11, maxZ: 11 };
 const PINE_POSITIONS = [
   [-12.0, -7.0], [-11.5, -9.0], [-12.8, -8.6], [-10.6, -10.2], [-13.4, -5.8],
@@ -500,9 +503,9 @@ const GARDEN_PATH_STEPS = [
 function groundHeight(x, z) {
   const distance = Math.hypot(x, z);
   const foothills = THREE.MathUtils.smoothstep(distance, 8, 32) * (
-    0.75 * Math.sin(x * 0.085) * Math.cos(z * 0.07) +
-    0.48 * Math.sin(x * 0.17 + z * 0.11) +
-    0.34 * Math.cos(z * 0.14)
+    0.28 * Math.sin(x * 0.085) * Math.cos(z * 0.07) +
+    0.18 * Math.sin(x * 0.17 + z * 0.11) +
+    0.13 * Math.cos(z * 0.14)
   );
   const hillDist = Math.hypot(x - HILL.x, z - HILL.z);
   const northernHill = HILL.height * Math.exp(-(hillDist * hillDist) / (2 * HILL.spread * HILL.spread));
@@ -510,11 +513,11 @@ function groundHeight(x, z) {
   const farmClearing = THREE.MathUtils.smoothstep(distance, 5, 12);
 
   const angle = Math.atan2(z, x);
-  const ridgeDistance = 72 + 11 * Math.sin(angle * 3 + 0.7) + 6 * Math.cos(angle * 7 - 0.4);
-  const ridge = Math.exp(-(((distance - ridgeDistance) / 27) ** 2));
-  const sharpPeaks = 8 * Math.max(0, Math.sin(angle * 10 + Math.sin(angle * 3))) ** 4;
-  const peaks = 13 + 5 * Math.sin(x * 0.13 + z * 0.04) + 4 * Math.cos(z * 0.11 - x * 0.08) + sharpPeaks;
-  const mountains = THREE.MathUtils.smoothstep(distance, 38, 60) * ridge * peaks;
+  const ridgeDistance = 105 + 12 * Math.sin(angle * 3 + 0.7) + 6 * Math.cos(angle * 7 - 0.4);
+  const ridge = Math.exp(-(((distance - ridgeDistance) / 26) ** 2));
+  const sharpPeaks = 3 * Math.max(0, Math.sin(angle * 10 + Math.sin(angle * 3))) ** 4;
+  const peaks = 6 + 2 * Math.sin(x * 0.13 + z * 0.04) + 1.5 * Math.cos(z * 0.11 - x * 0.08) + sharpPeaks;
+  const mountains = THREE.MathUtils.smoothstep(distance, 68, 95) * ridge * peaks;
   const natural = -0.18 + farmClearing * (foothills + northernHill) + mountains;
   // The house sits in a graded clearing, with a soft edge into the meadow.
   const houseDistance = Math.hypot(Math.max(0, Math.abs(x + 5.8) - 2.5), Math.max(0, Math.abs(z + 5.1) - 2.35));
@@ -677,10 +680,11 @@ let fieldGrid = null;
 
 // A narrow dirt lane leaves the farmhouse and crosses the ranch boundary.
 const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x9a7950, roughness: 1, side: THREE.DoubleSide });
+const TOWN_Z = 52;
 const roadCenter = (z) => z < 8 ? -5.8 : -5.8 - Math.min(4.6, (z - 8) * 0.38);
 const roadVertices = [];
-for (let z = -3.85; z < 23; z += 0.25) {
-  const nextZ = Math.min(23, z + 0.25);
+for (let z = -3.85; z < TOWN_Z; z += 0.25) {
+  const nextZ = Math.min(TOWN_Z, z + 0.25);
   const edge = (atZ, side) => {
     const slope = (roadCenter(atZ + 0.1) - roadCenter(atZ - 0.1)) / 0.2;
     const offset = side * 0.72 / Math.hypot(1, slope);
@@ -696,6 +700,104 @@ roadGeometry.computeVertexNormals();
 const road = new THREE.Mesh(roadGeometry, roadMaterial);
 road.receiveShadow = true;
 scene.add(road);
+
+function townSign(label, width = 3.2) {
+  const signCanvas = document.createElement('canvas');
+  signCanvas.width = 512;
+  signCanvas.height = 128;
+  const ctx = signCanvas.getContext('2d');
+  ctx.fillStyle = '#f3dca8';
+  ctx.fillRect(0, 0, 512, 128);
+  ctx.strokeStyle = '#714b2f';
+  ctx.lineWidth = 12;
+  ctx.strokeRect(6, 6, 500, 116);
+  ctx.fillStyle = '#4d3525';
+  ctx.font = 'bold 55px Georgia';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, 256, 67);
+  const texture = new THREE.CanvasTexture(signCanvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(width, width / 4), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }));
+  sign.rotation.y = Math.PI;
+  return sign;
+}
+
+function addTown() {
+  const centerX = roadCenter(TOWN_Z);
+  const stone = material(0xb8ab90);
+  const wall = material(0xe7d7b7);
+  const timber = material(0x765b3e);
+  const blueRoof = material(0x536f77);
+  const plaza = new THREE.Group();
+  plaza.position.set(centerX - 4.7, groundHeight(centerX - 4.7, TOWN_Z) + 0.04, TOWN_Z);
+  box(plaza, 7.1, 0.14, 7.1, stone, 0, 0, 0);
+  box(plaza, 0.9, 0.65, 0.9, timber, 0, 0.4, 0);
+  box(plaza, 0.46, 1.55, 0.46, wall, 0, 1.45, 0);
+  const clock = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.12, 12), material(0xf4e7c3));
+  clock.rotation.x = Math.PI / 2;
+  clock.position.set(0, 2.32, 0.3);
+  plaza.add(clock);
+  box(plaza, 0.04, 0.3, 0.04, timber, 0, 2.35, 0.39);
+  box(plaza, 0.23, 0.04, 0.04, timber, 0.1, 2.32, 0.39);
+  const centerSign = townSign('TOWN CENTER', 3.6);
+  centerSign.position.set(0, 0.38, 3.75);
+  plaza.add(centerSign);
+  scene.add(plaza);
+
+  const science = new THREE.Group();
+  const scienceX = centerX + 5.2;
+  science.position.set(scienceX, groundHeight(scienceX, TOWN_Z) + 0.13, TOWN_Z);
+  box(science, 4.2, 0.28, 3.5, stone, 0, 0, 0);
+  box(science, 3.9, 2.35, 3.2, wall, 0, 1.23, 0);
+  box(science, 4.4, 0.34, 3.7, blueRoof, 0, 2.55, 0);
+  box(science, 0.9, 1.65, 0.07, timber, 0, 0.92, -1.65);
+  for (const x of [-1.25, 1.25]) box(science, 0.7, 0.9, 0.08, material(0x9bc7c4), x, 1.45, -1.66);
+  const labSign = townSign('SCIENCE CENTER', 3.3);
+  labSign.position.set(0, 2.19, -1.84);
+  science.add(labSign);
+  const flask = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.58, 8), material(0x88b5aa));
+  flask.position.set(-1.55, 2.99, 0);
+  science.add(flask);
+  scene.add(science);
+  const walkway = new THREE.Group();
+  walkway.position.set(centerX + 2.3, groundHeight(centerX + 2.3, TOWN_Z - 1.4) + 0.07, TOWN_Z - 1.4);
+  box(walkway, 5.8, 0.07, 1.3, roadMaterial, 0, 0, 0);
+  scene.add(walkway);
+}
+addTown();
+
+const car = new THREE.Group();
+const carPaint = material(0x8e5541, 0.55, 0.15);
+const carTrim = material(0x4d4538);
+const carGlass = material(0x9fc5be, 0.3, 0.12);
+box(car, 1.48, 0.42, 2.4, carPaint, 0, 0.42, 0);
+box(car, 1.13, 0.55, 1.14, carPaint, 0, 0.91, -0.16);
+box(car, 1.05, 0.39, 0.06, carGlass, 0, 0.94, 0.43);
+box(car, 1.05, 0.36, 0.06, carGlass, 0, 0.94, -0.75);
+for (const x of [-0.77, 0.77]) for (const z of [-0.75, 0.75]) {
+  const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.13, 12), carTrim);
+  wheel.rotation.z = Math.PI / 2;
+  wheel.position.set(x, 0.26, z);
+  car.add(wheel);
+}
+for (const x of [-0.46, 0.46]) box(car, 0.22, 0.12, 0.05, material(0xffdd91), x, 0.44, 1.23);
+car.position.set(roadCenter(-1.8), groundHeight(roadCenter(-1.8), -1.8) + 0.12, -1.8);
+car.traverse((child) => { if (child.isMesh) child.castShadow = true; });
+scene.add(car);
+
+const mailbox = new THREE.Group();
+const MAILBOX_X = -3.1;
+const MAILBOX_Z = -2.05;
+mailbox.position.set(MAILBOX_X, groundHeight(MAILBOX_X, MAILBOX_Z), MAILBOX_Z);
+box(mailbox, 0.12, 1.04, 0.12, material(0x795537), 0, 0.54, 0);
+box(mailbox, 0.62, 0.38, 0.85, material(0x54735c), 0, 1.16, 0);
+box(mailbox, 0.65, 0.06, 0.9, material(0x304d3f), 0, 1.4, 0);
+box(mailbox, 0.08, 0.35, 0.25, material(0xb46343), 0.35, 1.4, 0);
+const mailboxFlag = mailbox.children.at(-1);
+const mailboxHitbox = new THREE.Mesh(new THREE.BoxGeometry(1, 1.7, 1.1), new THREE.MeshBasicMaterial({ visible: false }));
+mailboxHitbox.position.set(MAILBOX_X, groundHeight(MAILBOX_X, MAILBOX_Z) + 0.9, MAILBOX_Z);
+scene.add(mailbox, mailboxHitbox);
 
 let grassSeed = 317;
 const randomGrass = () => ((grassSeed = (grassSeed * 1664525 + 1013904223) >>> 0) / 4294967296);
@@ -950,6 +1052,13 @@ function updateFarmerJohn(now) {
     farmerJohn.rotation.y = Math.atan2(johnTravel.to.x - johnTravel.from.x, johnTravel.to.z - johnTravel.from.z);
     if (t >= 1) {
       if (johnTravel.reason === 'summoned') status.textContent = 'Farmer John reached the spot you chose.';
+      if (johnTravel.reason === 'soil-sample') {
+        soilStudy.sampleIndex += 1;
+        energy = Math.max(0, energy - 1);
+        updateEnergy();
+        status.textContent = `John collected soil sample ${soilStudy.sampleIndex} of 5.`;
+        refreshSoilStudyHud();
+      }
       johnTravel = null;
       saveGameProgress();
     }
@@ -965,6 +1074,191 @@ function updateFarmerJohn(now) {
   const blink = Math.sin(now * 0.0021) > 0.997 ? 0.16 : 1;
   johnEyes.forEach((eye) => { eye.scale.y = blink; });
   if (!johnSleeping) farmerJohn.position.y = groundHeight(farmerJohn.position.x, farmerJohn.position.z) + (walking ? Math.abs(stride) * 0.07 : Math.sin(now * 0.002) * 0.012);
+}
+
+const soilJourneyHud = document.querySelector('#soil-journey-hud');
+const soilJourneyTitle = document.querySelector('#soil-journey-title');
+const soilJourneyStatus = document.querySelector('#soil-journey-status');
+const soilJourneyAction = document.querySelector('#soil-journey-action');
+const cropBook = document.querySelector('#crop-book');
+const cropBookClose = document.querySelector('#crop-book-close');
+
+function updateKnowledge() {
+  const reportEl = document.querySelector('#journal-soil-report');
+  if (!reportEl) return;
+  if (!soilStudy.mailRead || !soilStudy.report) {
+    reportEl.innerHTML = '<h4>Field soil report</h4><p>Collect samples after ground cleanup. Results arrive by mail from the town science center after one game day.</p>';
+    return;
+  }
+  const { ph, phosphorus, potassium, magnesium } = soilStudy.report;
+  reportEl.innerHTML = `<h4>Science center soil report</h4><p>Samples collected across the field. These are simulated readings for this game field.</p><dl><dt>pH</dt><dd>${ph}</dd><dt>Phosphorus</dt><dd>${phosphorus} mg/kg</dd><dt>Potassium</dt><dd>${potassium} mg/kg</dd><dt>Magnesium</dt><dd>${magnesium} mg/kg</dd></dl><p>Keep this report in mind as you prepare the winter wheat seedbed.</p>`;
+}
+
+function refreshSoilStudyHud() {
+  if (!soilJourneyHud) return;
+  updateKnowledge();
+  updateCleanupHUD();
+  soilJourneyHud.hidden = !fieldBounds || !cleanupReady() || soilStudy.phase === 'received';
+  if (soilJourneyHud.hidden) return;
+  const phase = soilStudy.phase;
+  const messages = {
+    sampling: `John is walking a W across the field to collect soil samples (${soilStudy.sampleIndex}/5).`,
+    'to-car': 'Samples collected. John is taking them to the car.',
+    'driving-out': 'John is driving to the town science center.',
+    'lab-stop': 'The science center has received the samples.',
+    'driving-back': 'John is driving home from town.',
+    processing: 'The science center is testing the soil. Results arrive by mail after one game day.',
+    'mail-ready': 'The soil report has arrived. Click the farmhouse mailbox to read it.',
+    received: 'Soil report received. Open Journal → Knowledge to review the results.',
+  };
+  soilJourneyTitle.textContent = phase === 'mail-ready' ? 'You have mail' : 'Soil study';
+  soilJourneyStatus.textContent = messages[phase] ?? 'Preparing to collect soil samples.';
+  soilJourneyAction.hidden = !['processing', 'mail-ready', 'received'].includes(phase);
+  soilJourneyAction.textContent = phase === 'processing' ? 'Read wheat guide' : phase === 'mail-ready' ? 'Read mailbox' : 'View soil report';
+  mailboxFlag.rotation.z = phase === 'mail-ready' ? -0.65 : 0;
+}
+
+function showCropBook() {
+  if (!cropBook) return;
+  cropBook.hidden = false;
+  cropBookClose?.focus({ preventScroll: true });
+}
+
+function readMailbox() {
+  if (soilStudy.phase !== 'mail-ready' && soilStudy.phase !== 'received') {
+    status.textContent = 'The mailbox is empty. The science center will send the soil report tomorrow.';
+    return;
+  }
+  if (soilStudy.phase === 'mail-ready') {
+    soilStudy.phase = 'received';
+    soilStudy.mailRead = true;
+    for (let index = 0; index < PLOT_COUNT; index += 1) {
+      if (plotStates[index] === PLOT_STATE.CLEARED) { plotStates[index] = PLOT_STATE.TESTED; applyPlotVisual(index); }
+    }
+    status.textContent = 'The science center soil report is in your journal. Cleared plots are ready to cultivate.';
+    updateFieldLedger();
+    updateCanvasLabel();
+    saveGameProgress();
+  }
+  refreshSoilStudyHud();
+  window.FarmCalendar?.openFarmhouseMenu?.();
+  document.querySelector('#tab-knowledge')?.click();
+}
+
+cropBookClose?.addEventListener('click', () => { cropBook.hidden = true; canvas.focus({ preventScroll: true }); });
+document.addEventListener('farmhouse-modal-open', () => { if (cropBook) cropBook.hidden = true; });
+window.addEventListener('farm-hands:menu-open', () => { if (cropBook) cropBook.hidden = true; });
+window.addEventListener('keydown', (event) => {
+  if (!cropBook?.hidden && event.key === 'Escape') {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    cropBook.hidden = true;
+    canvas.focus({ preventScroll: true });
+  }
+}, true);
+soilJourneyAction?.addEventListener('click', () => {
+  if (soilStudy.phase === 'processing') showCropBook();
+  else readMailbox();
+});
+
+function startSoilStudy() {
+  if (!fieldBounds || !cleanupReady() || soilStudy.phase !== 'not-started') return;
+  soilStudy.phase = 'sampling';
+  soilStudy.sampleIndex = 0;
+  status.textContent = 'Ground cleanup is done. John is collecting soil samples in a W pattern.';
+  refreshSoilStudyHud();
+  saveGameProgress();
+}
+
+function carRoutePoint(progress) {
+  const along = THREE.MathUtils.clamp(progress, 0, 1);
+  if (along < 0.88) {
+    const z = -1.8 + (TOWN_Z - 2 + 1.8) * along / 0.88;
+    return { x: roadCenter(z), z, turn: false };
+  }
+  const branch = (along - 0.88) / 0.12;
+  return { x: roadCenter(TOWN_Z) + 5.2 * branch, z: TOWN_Z - 2 + 0.6 * branch, turn: true };
+}
+
+function updateSoilStudy(now) {
+  if (!fieldBounds || !cleanupReady()) return;
+  if (soilStudy.phase === 'not-started') startSoilStudy();
+  if (soilStudy.phase === 'sampling' && !johnSleeping && !johnTravel) {
+    const route = soilSampleRoute(fieldBounds);
+    if (soilStudy.sampleIndex < route.length) {
+      const point = route[soilStudy.sampleIndex];
+      const distance = Math.hypot(point.x - farmerJohn.position.x, point.z - farmerJohn.position.z);
+      sendJohnToPoint(point.x, point.z, THREE.MathUtils.clamp(distance * 460, 950, 3300), 'soil-sample');
+    } else {
+      soilStudy.phase = 'to-car';
+      sendJohnToPoint(car.position.x + 0.9, car.position.z, 2200, 'board-car');
+      status.textContent = 'Samples collected. John is walking to his car.';
+      refreshSoilStudyHud();
+      saveGameProgress();
+    }
+  }
+  if (soilStudy.phase === 'to-car' && !johnSleeping && !johnTravel) {
+    const boardingX = car.position.x + 0.9;
+    if (Math.hypot(farmerJohn.position.x - boardingX, farmerJohn.position.z - car.position.z) > 0.25) {
+      sendJohnToPoint(boardingX, car.position.z, 2200, 'board-car');
+    } else {
+      soilStudy.phase = 'driving-out';
+      farmerJohn.visible = false;
+      carTrip = { direction: 'out', started: now, duration: 11500 };
+      status.textContent = 'John is driving the soil samples to the science center.';
+      refreshSoilStudyHud();
+      saveGameProgress();
+    }
+  }
+  if (soilStudy.phase === 'driving-out' || soilStudy.phase === 'driving-back') {
+    if (!carTrip) carTrip = { direction: soilStudy.phase === 'driving-out' ? 'out' : 'back', started: now, duration: 11500 };
+    const t = THREE.MathUtils.clamp((now - carTrip.started) / carTrip.duration, 0, 1);
+    const along = carTrip.direction === 'out' ? t : 1 - t;
+    const { x, z, turn } = carRoutePoint(along);
+    car.position.set(x, groundHeight(x, z) + 0.12, z);
+    car.rotation.y = carTrip.direction === 'out' ? (turn ? Math.PI / 2 : 0) : (turn ? -Math.PI / 2 : Math.PI);
+    const target = new THREE.Vector3(x, groundHeight(x, z) + 0.7, z + (carTrip.direction === 'out' ? 3 : -3));
+    controls.target.lerp(target, 0.075);
+    camera.position.lerp(target.clone().add(new THREE.Vector3(8, 7, carTrip.direction === 'out' ? 11 : -11)), 0.075);
+    controls.update();
+    if (t >= 1 && carTrip.direction === 'out') {
+      soilStudy.phase = 'lab-stop';
+      soilStudy.submittedAt = getGameDate().getTime();
+      soilStudy.report = soilReportForField(fieldBounds);
+      labStopUntil = now + 2200;
+      carTrip = null;
+      status.textContent = 'The science center has the samples. Its test takes one game day.';
+      refreshSoilStudyHud();
+      saveGameProgress();
+    } else if (t >= 1) {
+      soilStudy.phase = 'processing';
+      carTrip = null;
+      farmerJohn.visible = true;
+      farmerJohn.position.set(car.position.x + 1.3, groundHeight(car.position.x + 1.3, car.position.z - 1.4), car.position.z - 1.4);
+      focusFarmhouse();
+      status.textContent = 'John is home. Read about winter wheat while the science center runs the test.';
+      if (!soilStudy.bookOpened) { soilStudy.bookOpened = true; showCropBook(); }
+      refreshSoilStudyHud();
+      saveGameProgress();
+    }
+  }
+  if (soilStudy.phase === 'lab-stop' && now >= labStopUntil) {
+    soilStudy.phase = 'driving-back';
+    carTrip = { direction: 'back', started: now, duration: 11500 };
+    refreshSoilStudyHud();
+    saveGameProgress();
+  }
+  if (soilStudy.phase === 'processing' && !soilStudy.bookOpened) {
+    soilStudy.bookOpened = true;
+    showCropBook();
+    saveGameProgress();
+  }
+  if (soilStudy.phase === 'processing' && soilReportDue(soilStudy.submittedAt, getGameDate().getTime())) {
+    soilStudy.phase = 'mail-ready';
+    status.textContent = 'Mail has arrived! Click the farmhouse mailbox for the soil report.';
+    refreshSoilStudyHud();
+    saveGameProgress();
+  }
 }
 
 function addPathLantern(x, z) {
@@ -1206,22 +1500,32 @@ ROCK_POSITIONS.forEach(([x, z], index) => {
 // SOIL AND PLANTING FIELD
 // ==========================================================================
 
-const fieldOutline = new THREE.Shape();
-fieldOutline.moveTo(-1.7, -1.9);
-fieldOutline.lineTo(1.7, -1.9);
-fieldOutline.quadraticCurveTo(1.9, -1.9, 1.9, -1.7);
-fieldOutline.lineTo(1.9, 1.7);
-fieldOutline.quadraticCurveTo(1.9, 1.9, 1.7, 1.9);
-fieldOutline.lineTo(-1.7, 1.9);
-fieldOutline.quadraticCurveTo(-1.9, 1.9, -1.9, 1.7);
-fieldOutline.lineTo(-1.9, -1.7);
-fieldOutline.quadraticCurveTo(-1.9, -1.9, -1.7, -1.9);
-const fieldSoil = new THREE.Mesh(new THREE.ShapeGeometry(fieldOutline), soilBaseMaterial);
-fieldSoil.rotation.x = -Math.PI / 2;
-fieldSoil.position.y = -0.17;
-fieldSoil.receiveShadow = true;
-fieldSoil.visible = false;
-scene.add(fieldSoil);
+const workedGroundPatches = [];
+function refreshWorkedGroundPatches() {
+  for (const patch of workedGroundPatches) { scene.remove(patch); patch.geometry.dispose(); patch.material.dispose(); }
+  workedGroundPatches.length = 0;
+  if (!cleanup) return;
+  const marks = [
+    ...cleanup.dug.map((id) => ({ ...plotPositions[id], color: 0x886744, radius: 0.64 })),
+    ...cleanup.filled.map((id) => ({ ...plotPositions[id], color: 0xa3825a, radius: 0.64 })),
+    ...cleanup.removed.map((id) => ({ x: ROCK_POSITIONS[id]?.[0], z: ROCK_POSITIONS[id]?.[1], color: 0x927452, radius: 0.42 })),
+  ];
+  for (const mark of marks) {
+    if (!Number.isFinite(mark.x) || !Number.isFinite(mark.z)) continue;
+    const geometry = new THREE.CircleGeometry(mark.radius, 14);
+    geometry.rotateX(-Math.PI / 2);
+    const positions = geometry.attributes.position;
+    for (let index = 0; index < positions.count; index += 1) {
+      positions.setY(index, groundHeight(mark.x + positions.getX(index), mark.z + positions.getZ(index)) + 0.062);
+    }
+    geometry.computeVertexNormals();
+    const patch = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: mark.color, roughness: 1, side: THREE.DoubleSide, transparent: true, opacity: 0.86, depthWrite: false }));
+    patch.position.set(mark.x, 0, mark.z);
+    patch.receiveShadow = true;
+    scene.add(patch);
+    workedGroundPatches.push(patch);
+  }
+}
 
 const plotMeshes = [];
 const plotMaterials = [];
@@ -1424,7 +1728,7 @@ function updateCleanupHUD() {
   const instruction = document.querySelector('#cleanup-instruction');
   const remainingLows = cleanup.low.length - cleanup.filled.length;
   if (instruction) instruction.textContent = cleanupReady()
-    ? remainingLows ? `${remainingLows} shallow spots remain without enough dirt. The field is ready for hand preparation.` : 'Ground prepared by hand. Select a plot to begin field work.'
+    ? `${remainingLows ? `${remainingLows} shallow spots remain without enough dirt.` : 'Ground prepared by hand.'} ${soilStudy.phase === 'mail-ready' ? 'The soil report is in the mailbox.' : soilStudy.phase === 'received' ? 'Continue plot work.' : 'John is collecting samples for the science center.'}`
     : rockTotal > removed ? 'Click highlighted stones: 2 coins and energy each.'
     : cleanup.high.length > cleanup.dug.length ? 'Click orange high ground. John will fetch a shovel, then dig: 2 coins each.'
       : cleanup.dirt > 0 && cleanup.low.length > cleanup.filled.length ? 'Click blue low ground to fill it with dug soil: 2 coins each.'
@@ -1442,7 +1746,6 @@ function placeField(bounds, savedCleanup = null) {
   const centerX = (bounds.minX + bounds.maxX) / 2;
   const centerZ = (bounds.minZ + bounds.maxZ) / 2;
   blockedPlots.clear();
-  fieldSoil.visible = false;
   if (fieldBorder) { scene.remove(fieldBorder); fieldBorder.geometry.dispose(); fieldBorder.material.dispose(); }
   fieldBorder = dottedRectangle(bounds, 0xffe2a1, 0.19);
   if (fieldGrid) { scene.remove(fieldGrid); fieldGrid.geometry.dispose(); fieldGrid.material.dispose(); }
@@ -1492,6 +1795,7 @@ function placeField(bounds, savedCleanup = null) {
     }
     applyPlotVisual(index);
   }
+  refreshWorkedGroundPatches();
   refreshCleanupVisuals();
   updateFarmMap();
   render();
@@ -1639,7 +1943,7 @@ const STORAGE_FARM_KEY = 'farm-hands-seasonal-farm-v3';
 function saveGameProgress() {
   if (window.__farmHandsResetting) return;
   try {
-    localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ layoutVersion: 4, fieldBounds, cleanup, terrainEdits, plotStates, plotCare, inventory, coins, energy, johnPosition: { x: farmerJohn.position.x, z: farmerJohn.position.z, facing: farmerJohn.rotation.y }, johnSleeping, sleepMorningAt, pendingJobs }));
+    localStorage.setItem(STORAGE_FARM_KEY, JSON.stringify({ layoutVersion: 5, fieldBounds, cleanup, terrainEdits, plotStates, plotCare, inventory, coins, energy, soilStudy, johnPosition: { x: farmerJohn.position.x, z: farmerJohn.position.z, facing: farmerJohn.rotation.y }, johnSleeping, sleepMorningAt, pendingJobs }));
   } catch {
     // Storage unavailable (e.g. private browsing); the game keeps running.
   }
@@ -1674,6 +1978,21 @@ function restoreGameProgress() {
         }
       }
     }
+    if (saved?.soilStudy && ['not-started', 'sampling', 'to-car', 'driving-out', 'lab-stop', 'driving-back', 'processing', 'mail-ready', 'received'].includes(saved.soilStudy.phase)) {
+      soilStudy = {
+        phase: saved.soilStudy.phase,
+        sampleIndex: THREE.MathUtils.clamp(Math.floor(Number(saved.soilStudy.sampleIndex) || 0), 0, 5),
+        submittedAt: Number.isFinite(saved.soilStudy.submittedAt) ? saved.soilStudy.submittedAt : null,
+        report: fieldBounds && saved.soilStudy.report ? soilReportForField(fieldBounds) : null,
+        mailRead: saved.soilStudy.mailRead === true,
+        bookOpened: saved.soilStudy.bookOpened === true,
+      };
+      if (soilStudy.phase === 'driving-out') soilStudy.phase = 'to-car';
+      if (['lab-stop', 'driving-back'].includes(soilStudy.phase)) soilStudy.phase = 'driving-back';
+    } else if (fieldBounds && plotStates.slice(0, PLOT_COUNT).some((state) => ![PLOT_STATE.WEEDY, PLOT_STATE.CLEARED].includes(state))) {
+      // Keep older farms playable without retroactively requiring a lab trip.
+      soilStudy = { phase: 'received', sampleIndex: 5, submittedAt: null, report: soilReportForField(fieldBounds), mailRead: true, bookOpened: true };
+    }
     if (raw) {
       for (const key of Object.keys(inventory)) {
         const value = saved?.inventory?.[key];
@@ -1686,6 +2005,7 @@ function restoreGameProgress() {
         farmerJohn.position.set(savedJohn.x, groundHeight(savedJohn.x, savedJohn.z), savedJohn.z);
         if (Number.isFinite(savedJohn.facing)) farmerJohn.rotation.y = savedJohn.facing;
       }
+      if (soilStudy.phase === 'driving-back') farmerJohn.visible = false;
       if (Array.isArray(saved?.pendingJobs)) pendingJobs = saved.pendingJobs.filter((job) => job && ['plot', 'cleanup'].includes(job.kind)).slice(0, 4);
       if (saved?.johnSleeping === true) {
         johnSleeping = true;
@@ -1710,6 +2030,7 @@ function restoreGameProgress() {
   updateInventory();
   updateCoins();
   updateEnergy();
+  refreshSoilStudyHud();
   saveGameProgress();
   if (fieldBounds && !johnSleeping) setGamePaused(false);
 }
@@ -1894,6 +2215,7 @@ function animateScene(now) {
   updateHomeTransition(now);
   updateNightRoutine(now, getGameDate(), deltaSeconds);
   updateFarmerJohn(now);
+  updateSoilStudy(now);
   if (!johnSleeping) { updatePlotWork(now); updateCleanupWork(now); }
   updateDirtMound();
   if (energy < 100 && !johnSleeping && !cleanupWork && !activeWork.size && getGameDate().getUTCHours() < 22) {
@@ -2283,8 +2605,9 @@ function updateNightRoutine(now, date, deltaSeconds) {
     saveGameProgress();
     return;
   }
+  if (['driving-out', 'lab-stop', 'driving-back'].includes(soilStudy.phase)) return;
   const hour = date.getUTCHours();
-  const hasWork = Boolean(cleanupWork || activeWork.size);
+  const hasWork = Boolean(cleanupWork || activeWork.size || ['sampling', 'to-car'].includes(soilStudy.phase));
   if (hour >= 22 && hasWork) {
     const day = date.toISOString().slice(0, 10);
     if (lastLateNoticeDay !== day) { status.textContent = 'It is past 10 PM. John is tiring quickly and needs sleep.'; lastLateNoticeDay = day; }
@@ -2362,10 +2685,10 @@ function updateCleanupWork(now) {
   spreadExcessDirt();
   updateCoins();
   updateEnergy();
-  if (work.kind === 'rock') refreshCleanupVisuals();
+  if (work.kind === 'rock') { refreshWorkedGroundPatches(); refreshCleanupVisuals(); }
   else placeField(fieldBounds, cleanup);
   updateFarmMap();
-  status.textContent = cleanupReady() ? 'Ground cleanup is complete. Select a plot to start clearing and testing the soil.' : 'Cleanup progress saved. Click the next highlighted area.';
+  status.textContent = cleanupReady() ? 'Ground cleanup is complete. John will collect soil samples across the field.' : 'Cleanup progress saved. Click the next highlighted area.';
   saveGameProgress();
 }
 let openPlotIndex = null;
@@ -2386,8 +2709,8 @@ function pickTarget(event) {
 
   // Interactive objects take priority; the ground is the fallback destination.
   const targets = fieldBounds && !cleanupReady()
-    ? [houseHitbox, ...cleanup.rocks.filter((id) => !cleanup.removed.includes(id)).map((id) => cleanupRocks[id]), ...cleanupPatches]
-    : fieldBounds ? [houseHitbox, ...plotMeshes.slice(0, PLOT_COUNT)] : [houseHitbox];
+    ? [mailboxHitbox, houseHitbox, ...cleanup.rocks.filter((id) => !cleanup.removed.includes(id)).map((id) => cleanupRocks[id]), ...cleanupPatches]
+    : fieldBounds ? [mailboxHitbox, houseHitbox, ...plotMeshes.slice(0, PLOT_COUNT)] : [mailboxHitbox, houseHitbox];
   const hits = raycaster.intersectObjects(targets, false);
   if (!hits.length) {
     const ground = raycaster.intersectObject(ranchGround, false)[0]
@@ -2396,6 +2719,7 @@ function pickTarget(event) {
   }
 
   const first = hits[0].object;
+  if (first === mailboxHitbox) return { type: 'mailbox' };
   if (first.userData.isFarmhouse) {
     return { type: 'farmhouse' };
   }
@@ -2409,6 +2733,7 @@ function pickTarget(event) {
 
 function summonJohnToGround(point) {
   if (johnSleeping) { status.textContent = 'John is asleep until 8 AM.'; return; }
+  if (['sampling', 'to-car', 'driving-out', 'lab-stop', 'driving-back'].includes(soilStudy.phase)) { status.textContent = 'John is busy with the soil samples.'; return; }
   if (cleanupWork || activeWork.size || pendingJobs.length) { status.textContent = 'John will be free to walk after his current job.'; return; }
   const distance = Math.hypot(point.x - farmerJohn.position.x, point.z - farmerJohn.position.z);
   if (distance < 0.4) { status.textContent = 'Farmer John is already at that spot.'; return; }
@@ -2449,12 +2774,16 @@ function openPlotActionMenu(index) {
     plotActionMenu.querySelector('.plot-action-close')?.focus({ preventScroll: true });
     return;
   }
-  const available = allowedAction(getGameDate(), plotStates[index], plotCare[index]);
+  const rawAvailable = allowedAction(getGameDate(), plotStates[index], plotCare[index]);
+  const available = rawAvailable === 'test' && !soilStudy.mailRead ? null : rawAvailable;
+  const missionBusy = ['sampling', 'to-car', 'driving-out', 'lab-stop', 'driving-back'].includes(soilStudy.phase);
   const supply = actionSupply[available];
   const needsStock = supply && inventory[supply] < 1;
   const work = activeWork.get(index);
   const cooldown = Math.max(0, plotCooldownUntil[index] - performance.now());
-  const note = johnSleeping ? 'John is asleep until 8 AM.'
+  const note = missionBusy ? 'John is collecting and delivering the field soil samples.'
+    : rawAvailable === 'test' && !soilStudy.mailRead ? 'The field soil report must arrive by mail before cultivation.'
+    : johnSleeping ? 'John is asleep until 8 AM.'
     : work ? 'Farmer John is working on this plot.'
     : cooldown ? 'Farmer John is getting ready for the next task.'
       : needsStock ? 'Buy supplies in the farmhouse shop before doing this work.'
@@ -2471,9 +2800,9 @@ function openPlotActionMenu(index) {
   plotActionMenu.setAttribute('aria-label', `Plot ${index + 1} actions`);
   plotActionMenu.innerHTML = `<div class="plot-action-header"><strong>Plot ${index + 1}</strong><button type="button" class="plot-action-close" aria-label="Close plot actions">×</button></div><p class="plot-action-state">${describePlotState(index)}</p><div class="plot-action-grid">${plotActions.map(([action, label]) => {
     const done = completed.has(action);
-    const ready = action === available && !johnSleeping && !work && !cooldown && !needsStock;
+    const ready = action === available && !missionBusy && !johnSleeping && !work && !cooldown && !needsStock;
     const className = done ? 'is-complete' : ready ? 'is-available' : action === available && needsStock ? 'needs-supply' : 'is-future';
-    const hint = done ? 'Done' : ready ? 'Do now' : action === available && needsStock ? 'Need supplies' : actionSeason[action];
+    const hint = done ? 'Done' : action === 'test' && !soilStudy.mailRead ? 'Await report' : ready ? 'Do now' : action === available && needsStock ? 'Need supplies' : actionSeason[action];
     return `<button type="button" class="${className}" data-action="${action}" title="${hint}" ${ready ? '' : 'disabled'}><span class="action-label">${label}</span><small>${hint}</small></button>`;
   }).join('')}</div><p class="plot-action-note">${note}</p>`;
   plotActionMenu.hidden = false;
@@ -2495,6 +2824,7 @@ plotActionMenu?.addEventListener('click', (event) => {
 
 function startPlotWork(index, action) {
   if (blockedPlots.has(index) || johnSleeping || cleanupWork || activeWork.size) return;
+  if (['sampling', 'to-car', 'driving-out', 'lab-stop', 'driving-back'].includes(soilStudy.phase) || (action === 'test' && !soilStudy.mailRead)) return;
   if (activeWork.has(index) || performance.now() < plotCooldownUntil[index]) return;
   if (!cleanupReady() || energy < 5) { status.textContent = energy < 5 ? 'Farmer John needs to rest before working another plot.' : 'Finish ground cleanup first.'; return; }
   if (allowedAction(getGameDate(), plotStates[index], plotCare[index]) !== action) return;
@@ -2593,7 +2923,7 @@ function updateHighlights() {
 function describePlotState(index) {
   const state = plotStates[index];
   if (state === PLOT_STATE.WEEDY) return 'overgrown with weeds';
-  if (state === PLOT_STATE.CLEARED) return 'cleared, ready for soil testing';
+  if (state === PLOT_STATE.CLEARED) return 'cleared, awaiting the field soil report';
   if (state === PLOT_STATE.TESTED) return 'soil tested, ready to cultivate';
   if (state === PLOT_STATE.CULTIVATED) return 'cultivated, ready to drill';
   if (state === PLOT_STATE.HARVESTED) return 'harvested, ready to clear';
@@ -2625,7 +2955,7 @@ function updateHelpText() {
     return;
   }
   const movementKeys = MOVE_ACTIONS.map((action) => bindingLabel(action)).join('');
-  helpEl.textContent = `Click or tap a plot to choose its seasonal field action: clear, test, cultivate, drill, tend, fertilise, treat, or harvest. Click bare ground to send Farmer John there. Drag to rotate. Scroll or pinch to zoom. `
+  helpEl.textContent = `After site cleanup, John collects soil samples and drives them to the town science center. Read the report at the mailbox after one game day. Click or tap a plot for its seasonal field action. Click bare ground to send Farmer John there. Drag to rotate. Scroll or pinch to zoom. `
     + `Use ${movementKeys} to move the camera across the farm, `
     + `${bindingSummary('selectLeft')}/${bindingSummary('selectRight')}/${bindingSummary('selectUp')}/${bindingSummary('selectDown')} `
     + `to select a plot, and ${bindingSummary('plant')} to open plot actions. `
@@ -2671,21 +3001,23 @@ function applyPlotVisual(index) {
 }
 
 function refreshStatus() {
-  status.textContent = fieldBounds ? '' : 'Help Farmer John choose a place for the first field.';
+  status.textContent = !fieldBounds ? 'Help Farmer John choose a place for the first field.'
+    : soilStudy.phase === 'mail-ready' ? 'Mail has arrived! Click the farmhouse mailbox for the soil report.' : '';
 }
 
 function clearWeeds(index) {
   if (allowedAction(getGameDate(), plotStates[index], plotCare[index]) !== 'clear') return;
-  plotStates[index] = PLOT_STATE.CLEARED;
+  plotStates[index] = soilStudy.mailRead ? PLOT_STATE.TESTED : PLOT_STATE.CLEARED;
   plotCare[index] = {};
   applyPlotVisual(index);
-  status.textContent = `Plot ${index + 1} cleared. Test the soil before cultivation.`;
+  status.textContent = soilStudy.mailRead ? `Plot ${index + 1} cleared. The field soil report is ready; cultivate next.` : `Plot ${index + 1} cleared. Await the field soil report before cultivation.`;
   updateCanvasLabel();
   updateFieldLedger();
   saveGameProgress();
 }
 
 function testSoil(index) {
+  if (!soilStudy.mailRead) return;
   if (allowedAction(getGameDate(), plotStates[index], plotCare[index]) !== 'test') return;
   plotStates[index] = PLOT_STATE.TESTED;
   status.textContent = `Soil tested in plot ${index + 1}. Cultivate the seedbed next.`;
@@ -2853,7 +3185,7 @@ canvas.addEventListener('pointermove', (event) => {
       hoveredPlotIndex = -1;
       updateHighlights();
     }
-  } else if (target?.type === 'cleanup') {
+  } else if (target?.type === 'mailbox' || target?.type === 'cleanup') {
     canvas.style.cursor = 'pointer';
     if (hoveredPlotIndex !== -1) { hoveredPlotIndex = -1; updateHighlights(); }
   } else if (target?.type === 'plot') {
@@ -2907,6 +3239,11 @@ canvas.addEventListener('click', (event) => {
   if (target.type === 'farmhouse') {
     updateFieldLedger();
     window.FarmCalendar?.openFarmhouseMenu?.();
+    return;
+  }
+
+  if (target.type === 'mailbox') {
+    readMailbox();
     return;
   }
 
@@ -3033,11 +3370,18 @@ function updateFarmMap() {
   ctx.strokeStyle = '#94714c';
   ctx.lineWidth = Math.max(3, mapView.zoom * 1.4);
   ctx.beginPath();
-  for (let z = -3.85; z <= 23; z += 0.65) {
+  for (let z = -3.85; z <= TOWN_Z; z += 0.65) {
     if (z === -3.85) ctx.moveTo(sx(roadCenter(z)), sy(z));
     else ctx.lineTo(sx(roadCenter(z)), sy(z));
   }
   ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(sx(roadCenter(TOWN_Z)), sy(TOWN_Z - 1.4));
+  ctx.lineTo(sx(roadCenter(TOWN_Z) + 5.2), sy(TOWN_Z - 1.4));
+  ctx.stroke();
+  square(roadCenter(TOWN_Z) - 4.7, TOWN_Z, Math.max(12, mapView.zoom * 3), '#bcb08f');
+  square(roadCenter(TOWN_Z) + 5.2, TOWN_Z, Math.max(12, mapView.zoom * 3), '#587b83');
+  square(car.position.x, car.position.z, 7, '#985b43');
   for (const [x, z] of PINE_POSITIONS) {
     square(x, z, 12, '#335c39'); square(x, z - 0.3, 6, '#4d7d43');
   }
@@ -3062,10 +3406,15 @@ function updateFarmMap() {
       else if (cleanup?.low.includes(index) && !cleanup.filled.includes(index)) ctx.fillStyle = '#69a7cb';
       else ctx.fillStyle = blockedPlots.has(index) ? '#365b38' : colors[plotStates[index]];
       ctx.fillRect(px - pw / 2, py - ph / 2, pw, ph);
+      if (cleanup?.dug.includes(index) || cleanup?.filled.includes(index)) square(plotPositions[index].x, plotPositions[index].z, Math.max(3, Math.min(pw, ph) / 3), '#9a734b');
       if (!blockedPlots.has(index) && (plotStates[index] === PLOT_STATE.CULTIVATED || plotStates[index] === PLOT_STATE.PLANTED)) {
         ctx.fillStyle = plotStates[index] === PLOT_STATE.PLANTED ? '#9dbb5e' : '#a86e45';
         for (let stripe = -1; stripe <= 1; stripe += 1) ctx.fillRect(px - pw / 2 + 2, py + stripe * ph / 4, Math.max(1, pw - 4), 1);
       }
+    }
+    for (const id of cleanup?.removed ?? []) {
+      const point = ROCK_POSITIONS[id];
+      if (point) square(point[0], point[1], 4, '#9a734b');
     }
   }
   square(-5.8, -5.1, Math.max(16, Math.round(mapView.zoom * 2.6)), '#5b3928');
@@ -3075,6 +3424,9 @@ function updateFarmMap() {
   ctx.fillStyle = '#453d2b'; ctx.font = 'bold 9px monospace';
   ctx.fillText('HOME', sx(-5.8) - 12, sy(-5.1) + 24);
   ctx.fillText('JOHN', sx(farmerJohn.position.x) + 5, sy(farmerJohn.position.z) - 4);
+  ctx.fillText('TOWN', sx(roadCenter(TOWN_Z) - 4.7) - 14, sy(TOWN_Z) + 18);
+  ctx.fillText('SCIENCE', sx(roadCenter(TOWN_Z) + 5.2) - 18, sy(TOWN_Z) + 18);
+  if (soilStudy.phase === 'mail-ready') { square(MAILBOX_X, MAILBOX_Z, 6, '#f5d36b'); ctx.fillText('MAIL', sx(MAILBOX_X) + 5, sy(MAILBOX_Z) - 4); }
   ctx.strokeStyle = '#594c2d'; ctx.lineWidth = 3; ctx.strokeRect(1.5, 1.5, width - 3, height - 3);
   mapCanvas.setAttribute('aria-label', `Interactive farm map. ${fieldSummary()}. Farmer John is near ${fieldBounds ? 'the field' : 'the farmhouse'}. Drag to pan; use the buttons or scroll to zoom.`);
 }
