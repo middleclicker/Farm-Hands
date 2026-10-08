@@ -1,4 +1,4 @@
-import { eventMatches } from './keybinds.js';
+import { eventMatches } from './keybinds.js?v=cozy-farm-winter-wheat-3';
 
 const DEFAULT_SPEED = 3;
 const SPEED_LEVELS = [3, 15, 60, 300, 1200];

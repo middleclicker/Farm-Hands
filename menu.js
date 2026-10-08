@@ -18,8 +18,8 @@ import {
   onKeybindsChange,
   resetKeybinds,
   setBinding,
-} from './keybinds.js';
-import { closeFarmhouseMenu, isFarmhouseMenuOpen, setGamePaused } from './calendar.js';
+} from './keybinds.js?v=cozy-farm-winter-wheat-3';
+import { closeFarmhouseMenu, isFarmhouseMenuOpen, setGamePaused } from './calendar.js?v=cozy-farm-winter-wheat-3';
 
 const pauseModal = document.querySelector('#pause-modal');
 const pauseBackdrop = document.querySelector('#pause-backdrop');
