@@ -18,8 +18,8 @@ import {
   onKeybindsChange,
   resetKeybinds,
   setBinding,
-} from './keybinds.js?v=storybook-farm-1';
-import { closeFarmhouseMenu, isFarmhouseMenuOpen, setGamePaused } from './calendar.js?v=storybook-farm-1';
+} from './keybinds.js?v=field-craft-1';
+import { closeFarmhouseMenu, isFarmhouseMenuOpen, isDeveloperTimeEnabled, setDeveloperTimeEnabled, setGamePaused } from './calendar.js?v=field-craft-1';
 
 const pauseModal = document.querySelector('#pause-modal');
 const pauseBackdrop = document.querySelector('#pause-backdrop');
@@ -42,6 +42,7 @@ const cameraResetBtn = document.querySelector('#camera-reset-btn');
 const plotFocusToggle = document.querySelector('#plot-focus-toggle');
 const developerResetBtn = document.querySelector('#developer-reset-btn');
 const developerResetStatus = document.querySelector('#developer-reset-status');
+const developerTimeToggle = document.querySelector('#developer-time-toggle');
 
 const VIEWS = {
   root: { element: viewRoot, focus: () => pauseResumeBtn, hint: 'Press Esc to return to the farm.' },
@@ -241,6 +242,7 @@ function syncCameraControls() {
   }
   cameraMemoryToggle.checked = enabled;
   if (plotFocusToggle) plotFocusToggle.checked = window.FarmGame?.isPlotFocusEnabled?.() ?? true;
+  if (developerTimeToggle) developerTimeToggle.checked = isDeveloperTimeEnabled();
 }
 
 cameraMemoryToggle?.addEventListener('change', () => {
@@ -259,6 +261,11 @@ cameraResetBtn?.addEventListener('click', () => {
 plotFocusToggle?.addEventListener('change', () => {
   window.dispatchEvent(new CustomEvent('farm-hands:plot-focus-change', { detail: { enabled: plotFocusToggle.checked } }));
   setStatus(plotFocusToggle.checked ? 'Plot centering is on.' : 'Plot centering is off.');
+});
+
+developerTimeToggle?.addEventListener('change', () => {
+  setDeveloperTimeEnabled(developerTimeToggle.checked);
+  setStatus(developerTimeToggle.checked ? 'Calendar time skip is available.' : 'Calendar time skip is off.');
 });
 
 developerResetBtn?.addEventListener('click', () => {

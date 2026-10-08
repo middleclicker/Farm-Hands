@@ -1,4 +1,4 @@
-import { eventMatches } from './keybinds.js?v=storybook-farm-1';
+import { eventMatches } from './keybinds.js?v=field-craft-1';
 
 const DEFAULT_SPEED = 3;
 const SPEED_LEVELS = [3, 300, 1000, 10000];
@@ -7,6 +7,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const STORAGE_TIME_KEY = 'farm-hands-calendar-time-v3';
 const STORAGE_LAST_REAL_KEY = 'farm-hands-calendar-lastreal-v3';
 const STORAGE_SPEED_KEY = 'farm-hands-calendar-speed-v3';
+const STORAGE_DEV_TIME_KEY = 'farm-hands-developer-time-v1';
 
 const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const seasons = ['Winter', 'Winter', 'Spring', 'Spring', 'Spring', 'Summer', 'Summer', 'Summer', 'Autumn', 'Autumn', 'Autumn', 'Winter'];
@@ -62,14 +63,22 @@ const clockMinuteHand = document.querySelector('#clock-minute-hand');
 // Events calendar elements
 const eventCalendarMonth = document.querySelector('#event-calendar-month');
 const eventCalendarGrid = document.querySelector('#event-calendar-grid');
+const calendarTimeTools = document.querySelector('#calendar-time-tools');
+const calendarPrevMonth = document.querySelector('#calendar-prev-month');
+const calendarNextMonth = document.querySelector('#calendar-next-month');
+const timeSkipPrompt = document.querySelector('#time-skip-prompt');
+const timeSkipSelection = document.querySelector('#time-skip-selection');
+const timeSkipConfirm = document.querySelector('#time-skip-confirm');
 
 // Tab elements
 const tabEventsBtn = document.querySelector('#tab-events');
 const tabMapBtn = document.querySelector('#tab-map');
 const tabInventoryBtn = document.querySelector('#tab-inventory');
+const tabShopBtn = document.querySelector('#tab-shop');
 const tabEventsPanel = document.querySelector('#tab-events-panel');
 const tabMapPanel = document.querySelector('#tab-map-panel');
 const tabInventoryPanel = document.querySelector('#tab-inventory-panel');
+const tabShopPanel = document.querySelector('#tab-shop-panel');
 const modalTabs = document.querySelector('.modal-tabs');
 
 const pad = (value) => String(value).padStart(2, '0');
@@ -180,6 +189,9 @@ export function cycleGameSpeed() {
 export function openFarmhouseMenu() {
   if (!farmhouseModal) return;
   farmhouseModal.removeAttribute('hidden');
+  viewedMonth = null;
+  selectedSkipDate = null;
+  lastRenderedDayKey = '';
   updateCalendar();
   setActiveTab('events');
   modalCloseBtn?.focus();
@@ -190,17 +202,22 @@ function setActiveTab(name) {
   const isMap = name === 'map';
   const isInventory = name === 'inventory';
   const isEvents = name === 'events';
+  const isShop = name === 'shop';
   tabEventsBtn?.classList.toggle('is-active', isEvents);
   tabMapBtn?.classList.toggle('is-active', isMap);
   tabInventoryBtn?.classList.toggle('is-active', isInventory);
+  tabShopBtn?.classList.toggle('is-active', isShop);
   tabEventsBtn?.setAttribute('aria-selected', String(isEvents));
   tabMapBtn?.setAttribute('aria-selected', String(isMap));
   tabInventoryBtn?.setAttribute('aria-selected', String(isInventory));
+  tabShopBtn?.setAttribute('aria-selected', String(isShop));
   if (tabEventsPanel) tabEventsPanel.hidden = !isEvents;
   if (tabMapPanel) tabMapPanel.hidden = !isMap;
   if (tabInventoryPanel) tabInventoryPanel.hidden = !isInventory;
+  if (tabShopPanel) tabShopPanel.hidden = !isShop;
   if (isMap) window.FarmGame?.updateFarmMap?.();
   if (isInventory) window.FarmGame?.updateInventory?.();
+  if (isShop) window.FarmGame?.updateInventory?.();
 }
 
 export function closeFarmhouseMenu() {
@@ -220,13 +237,42 @@ export function toggleFarmhouseMenu() {
 }
 
 let lastRenderedDayKey = '';
+let viewedMonth = null;
+let selectedSkipDate = null;
+let developerTimeEnabled = false;
+try { developerTimeEnabled = localStorage.getItem(STORAGE_DEV_TIME_KEY) === 'on'; } catch {}
+
+export function isDeveloperTimeEnabled() { return developerTimeEnabled; }
+
+export function setDeveloperTimeEnabled(enabled) {
+  developerTimeEnabled = Boolean(enabled);
+  try {
+    if (developerTimeEnabled) localStorage.setItem(STORAGE_DEV_TIME_KEY, 'on');
+    else localStorage.removeItem(STORAGE_DEV_TIME_KEY);
+  } catch {}
+  viewedMonth = null;
+  selectedSkipDate = null;
+  lastRenderedDayKey = '';
+  updateCalendar();
+}
 
 function renderEventCalendar(date) {
-  const month = date.getUTCMonth();
-  const year = date.getUTCFullYear();
-  const today = date.getUTCDate();
+  const currentMonth = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+  const shownMonth = viewedMonth ?? currentMonth;
+  const shown = new Date(shownMonth);
+  const month = shown.getUTCMonth();
+  const year = shown.getUTCFullYear();
+  const todayKey = date.toISOString().slice(0, 10);
 
   if (eventCalendarMonth) eventCalendarMonth.textContent = `${months[month]} ${year}`;
+  if (calendarTimeTools) calendarTimeTools.hidden = !developerTimeEnabled;
+  if (calendarPrevMonth) calendarPrevMonth.disabled = shownMonth <= currentMonth;
+  if (calendarNextMonth) calendarNextMonth.disabled = shownMonth >= Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 12, 1);
+  if (timeSkipPrompt) timeSkipPrompt.hidden = !developerTimeEnabled || !selectedSkipDate;
+  if (timeSkipSelection && selectedSkipDate) {
+    const selected = new Date(`${selectedSkipDate}T06:00:00Z`);
+    timeSkipSelection.textContent = `${months[selected.getUTCMonth()]} ${selected.getUTCDate()}, ${selected.getUTCFullYear()} · 6:00 AM`;
+  }
 
   if (eventCalendarGrid) {
     const firstWeekday = new Date(Date.UTC(year, month, 1)).getUTCDay();
@@ -236,11 +282,16 @@ function renderEventCalendar(date) {
     for (let day = 1; day <= daysInMonth; day += 1) {
       const event = eventByDate.get(`${month}-${day}`);
       const classes = ['event-cal-day'];
-      if (day === today) classes.push('is-today');
+      const dateKey = new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
+      if (dateKey === todayKey) classes.push('is-today');
+      if (dateKey === selectedSkipDate) classes.push('is-selected');
       if (event) classes.push('has-event');
       const marker = event ? `<span class="event-cal-dot">${event.emoji}</span>` : '';
       const description = event ? ` title="${event.title}: ${event.description}"` : '';
-      cells.push(`<span class="${classes.join(' ')}"${description}>${day}${marker}</span>`);
+      const canSkip = developerTimeEnabled && Date.UTC(year, month, day, 6) > date.getTime();
+      cells.push(canSkip
+        ? `<button type="button" class="${classes.join(' ')} is-skippable" data-skip-date="${dateKey}" aria-label="Select ${months[month]} ${day}, ${year} for time skip"${description}>${day}${marker}</button>`
+        : `<span class="${classes.join(' ')}"${description}>${day}${marker}</span>`);
     }
     // Pad the trailing cells so the last week is complete.
     const totalCells = firstWeekday + daysInMonth;
@@ -331,14 +382,53 @@ function pauseMenuIsOpen() {
 tabEventsBtn?.addEventListener('click', () => setActiveTab('events'));
 tabMapBtn?.addEventListener('click', () => setActiveTab('map'));
 tabInventoryBtn?.addEventListener('click', () => setActiveTab('inventory'));
+tabShopBtn?.addEventListener('click', () => setActiveTab('shop'));
+calendarPrevMonth?.addEventListener('click', () => {
+  if (!developerTimeEnabled) return;
+  const now = getGameDate();
+  const currentMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+  const shown = new Date(viewedMonth ?? currentMonth);
+  viewedMonth = Math.max(currentMonth, Date.UTC(shown.getUTCFullYear(), shown.getUTCMonth() - 1, 1));
+  selectedSkipDate = null;
+  renderEventCalendar(now);
+});
+calendarNextMonth?.addEventListener('click', () => {
+  if (!developerTimeEnabled) return;
+  const now = getGameDate();
+  const shown = new Date(viewedMonth ?? Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  viewedMonth = Math.min(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 12, 1), Date.UTC(shown.getUTCFullYear(), shown.getUTCMonth() + 1, 1));
+  selectedSkipDate = null;
+  renderEventCalendar(now);
+});
+eventCalendarGrid?.addEventListener('click', (event) => {
+  const day = event.target.closest('button[data-skip-date]');
+  if (!developerTimeEnabled || !day) return;
+  selectedSkipDate = day.dataset.skipDate;
+  renderEventCalendar(getGameDate());
+  timeSkipConfirm?.focus();
+});
+timeSkipConfirm?.addEventListener('click', () => {
+  if (!developerTimeEnabled || !selectedSkipDate) return;
+  const target = Date.parse(`${selectedSkipDate}T06:00:00Z`);
+  const now = getGameDate().getTime();
+  if (!Number.isFinite(target) || target <= now || target > now + 366 * DAY_MS) return;
+  accumulatedGameMs = target - GAME_START;
+  lastRealTick = Date.now();
+  selectedSkipDate = null;
+  viewedMonth = null;
+  lastRenderedDayKey = '';
+  updateCalendar();
+  saveGameTime();
+  document.dispatchEvent(new CustomEvent('farm-hands:time-skip'));
+});
 modalTabs?.addEventListener('keydown', (event) => {
   if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-  const tabs = [tabEventsBtn, tabMapBtn, tabInventoryBtn];
+  const tabs = [tabEventsBtn, tabMapBtn, tabInventoryBtn, tabShopBtn];
   const currentIndex = tabs.indexOf(document.activeElement);
   const delta = event.key === 'ArrowRight' ? 1 : -1;
   const nextIndex = (currentIndex + delta + tabs.length) % tabs.length;
   tabs[nextIndex]?.focus();
-  setActiveTab(['events', 'map', 'inventory'][nextIndex]);
+  setActiveTab(['events', 'map', 'inventory', 'shop'][nextIndex]);
   event.preventDefault();
 });
 
@@ -398,4 +488,6 @@ window.FarmCalendar = {
     lastRealTick = Date.now();
     updateCalendar();
   },
+  isDeveloperTimeEnabled,
+  setDeveloperTimeEnabled,
 };

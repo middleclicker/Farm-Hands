@@ -9,11 +9,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600;700;800&family=Alegreya+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=storybook-farm-1" />
+    <link rel="stylesheet" href="./styles.css?v=field-craft-1" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
-    <script type="module" src="./game.js?v=storybook-farm-1"></script>
+    <script type="module" src="./game.js?v=field-craft-1"></script>
   </head>
   <body>
     <main class="game-shell">
@@ -56,12 +56,14 @@
                 <button id="tab-events" class="modal-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="tab-events-panel">Calendar</button>
                 <button id="tab-map" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-map-panel">Farm map</button>
                 <button id="tab-inventory" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-inventory-panel">Inventory</button>
+                <button id="tab-shop" class="modal-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-shop-panel">Shop</button>
               </div>
 
               <div id="tab-events-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-events">
                 <div class="event-calendar-card">
-                  <div class="event-calendar-header"><span class="event-calendar-month" id="event-calendar-month">July 2001</span></div>
+                  <div class="event-calendar-header"><span class="event-calendar-month" id="event-calendar-month">July 2001</span><div class="calendar-time-tools" id="calendar-time-tools" hidden><button id="calendar-prev-month" type="button" aria-label="Previous month">‹</button><button id="calendar-next-month" type="button" aria-label="Next month">›</button></div></div>
                   <div class="event-calendar-grid" id="event-calendar-grid" aria-label="Calendar for the current month"></div>
+                  <div id="time-skip-prompt" class="time-skip-prompt" hidden><span id="time-skip-selection"></span><button id="time-skip-confirm" type="button">Fast-forward to this date</button></div>
                 </div>
               </div>
 
@@ -72,9 +74,12 @@
               <div id="tab-inventory-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-inventory" hidden>
                 <p class="inventory-intro">What is in the barn</p>
                 <div class="inventory-grid" id="farm-inventory" aria-live="polite"></div>
-                <h3 class="inventory-shop-title">Farm supplies</h3>
-                <div id="farm-shop" class="farm-shop"></div>
                 <p class="inventory-field" id="farm-planted-count">9 weedy · 0 cleared · 0 ready · 0 drilled</p>
+              </div>
+
+              <div id="tab-shop-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-shop" hidden>
+                <p class="inventory-intro">Stock the barn or sell what you have grown.</p>
+                <div id="farm-shop" class="farm-shop"></div>
               </div>
             </div>
           </div>
@@ -181,6 +186,7 @@
 
                 <div class="settings-block developer-settings">
                   <div class="section-heading-row"><h3 class="section-title">Developer</h3></div>
+                  <label class="settings-toggle" for="developer-time-toggle"><input type="checkbox" id="developer-time-toggle" /><span class="settings-toggle-text"><strong>Enable calendar time skip</strong><small>Choose a future date in the calendar to fast-forward.</small></span></label>
                   <p class="settings-hint">Start a fresh farm with the original date, field, coins, inventory, camera, and keybinds.</p>
                   <button id="developer-reset-btn" class="cozy-btn reset-everything-btn" type="button">Reset everything</button>
                   <p id="developer-reset-status" class="settings-status" role="status" aria-live="polite"></p>

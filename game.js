@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { getGameDate } from './calendar.js?v=storybook-farm-1';
-import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=storybook-farm-1';
-import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=storybook-farm-1';
+import { getGameDate } from './calendar.js?v=field-craft-1';
+import { allowedAction, farmPhase, phaseMessage } from './farming.mjs?v=field-craft-1';
+import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './keybinds.js?v=field-craft-1';
 // Importing the menu wires up the Escape menu (credits + keybind settings).
-import './menu.js?v=storybook-farm-1';
+import './menu.js?v=field-craft-1';
 
 const COLUMNS = 3;
 const ROWS = 3;
@@ -445,7 +445,8 @@ const material = (color, roughness = 1, metalness = 0) =>
   new THREE.MeshStandardMaterial({ color, roughness, metalness, flatShading: true });
 
 const soilBaseMaterial = material(0x714831);
-const ridgeMaterial = material(0xb37648);
+const ridgeMaterial = material(0xa6744a);
+const furrowMaterial = material(0x67432d);
 const stemMaterial = material(0x4a8c54);
 const leafMaterial = material(0x6fae63);
 const headMaterial = material(0xd9b85c); // Warm golden wheat heads
@@ -499,25 +500,23 @@ function grassTexture() {
   tile.width = 128;
   tile.height = 128;
   const context = tile.getContext('2d');
-  context.fillStyle = '#ffffff';
+  context.fillStyle = '#f8faed';
   context.fillRect(0, 0, 128, 128);
   let seed = 19;
   const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
-  for (let index = 0; index < 450; index += 1) {
+  for (let index = 0; index < 190; index += 1) {
     const x = random() * 128;
     const y = random() * 128;
-    context.strokeStyle = random() > 0.4 ? '#b0ce9e' : '#d2e4c2';
-    context.lineWidth = random() > 0.7 ? 1.5 : 1;
+    context.fillStyle = random() > 0.25 ? 'rgba(100, 135, 78, 0.09)' : 'rgba(157, 133, 83, 0.07)';
     context.beginPath();
-    context.moveTo(x, y + 2);
-    context.lineTo(x + (random() - 0.5) * 4, y - 2 - random() * 4);
-    context.stroke();
+    context.ellipse(x, y, 1 + random() * 2, 1 + random() * 1.5, random() * Math.PI, 0, Math.PI * 2);
+    context.fill();
   }
   const texture = new THREE.CanvasTexture(tile);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(135, 135);
+  texture.repeat.set(85, 85);
   texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
   return texture;
 }
@@ -551,59 +550,8 @@ const terrain = new THREE.Mesh(
 terrain.receiveShadow = true;
 scene.add(terrain);
 
-function grassClumpGeometry() {
-  const vertices = [];
-  for (let blade = 0; blade < 5; blade += 1) {
-    const angle = (blade * Math.PI * 2) / 5;
-    const spread = 0.11 + (blade % 2) * 0.04;
-    const sideX = -Math.sin(angle) * 0.026;
-    const sideZ = Math.cos(angle) * 0.026;
-    const tipX = Math.cos(angle) * spread;
-    const tipZ = Math.sin(angle) * spread;
-    vertices.push(
-      sideX, 0, sideZ,
-      -sideX, 0, -sideZ,
-      tipX, 0.36 + (blade % 3) * 0.045, tipZ,
-    );
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
 let grassSeed = 317;
 const randomGrass = () => ((grassSeed = (grassSeed * 1664525 + 1013904223) >>> 0) / 4294967296);
-const tuftCount = 2600;
-const tufts = new THREE.InstancedMesh(
-  grassClumpGeometry(),
-  new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide }),
-  tuftCount,
-);
-const tuftTransform = new THREE.Object3D();
-for (let index = 0; index < tuftCount; index += 1) {
-  let x;
-  let z;
-  do {
-    const angle = randomGrass() * Math.PI * 2;
-    const radius = index < 1900 ? 5.5 + randomGrass() * 26 : 26 + Math.sqrt(randomGrass()) * 36;
-    x = Math.cos(angle) * radius;
-    z = Math.sin(angle) * radius;
-  } while (
-    (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2) // Farmhouse
-  );
-  const height = 0.65 + randomGrass() * 1.05;
-  const width = 0.8 + randomGrass() * 0.7;
-  tuftTransform.position.set(x, groundHeight(x, z) + 0.012, z);
-  tuftTransform.rotation.set(0, randomGrass() * Math.PI * 2, 0);
-  tuftTransform.scale.set(width, height, width);
-  tuftTransform.updateMatrix();
-  tufts.setMatrixAt(index, tuftTransform.matrix);
-  tufts.setColorAt(index, new THREE.Color().setHSL(0.27 + randomGrass() * 0.055, 0.34 + randomGrass() * 0.13, 0.43 + randomGrass() * 0.13));
-}
-tufts.instanceMatrix.needsUpdate = true;
-tufts.instanceColor.needsUpdate = true;
-scene.add(tufts);
 
 // ==========================================================================
 // WILDFLOWERS (COZY PASTORAL MEADOW)
@@ -611,7 +559,7 @@ scene.add(tufts);
 function addWildflowers() {
   const flowerGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.04, 6);
   const flowerMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  const flowerCount = 420;
+  const flowerCount = 240;
   const flowers = new THREE.InstancedMesh(flowerGeo, flowerMat, flowerCount);
   const transform = new THREE.Object3D();
 
@@ -1099,10 +1047,22 @@ for (let row = 0; row < ROWS; row += 1) {
     plotMaterials.push(soilMaterial);
     plotPositions.push({ x, z });
 
-    // Cultivated seedbed furrows — hidden until the plot is cultivated.
+    // Raised rows and shadowed grooves give the seedbed readable depth.
     const ridges = new THREE.Group();
-    for (let furrow = -1; furrow <= 1; furrow += 1) {
-      box(ridges, 0.88, 0.035, 0.09, ridgeMaterial, 0, -0.04, furrow * 0.28);
+    for (let furrow = -2; furrow <= 2; furrow += 1) {
+      const mound = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.11, 0.91, 8), ridgeMaterial);
+      mound.rotation.z = Math.PI / 2;
+      mound.position.set(0, -0.032, furrow * 0.19);
+      mound.castShadow = true;
+      mound.receiveShadow = true;
+      ridges.add(mound);
+      if (furrow < 2) box(ridges, 0.88, 0.018, 0.055, furrowMaterial, 0, -0.049, furrow * 0.19 + 0.095);
+    }
+    for (let clump = 0; clump < 7; clump += 1) {
+      const pebble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.025 + (clump % 3) * 0.009, 0), clump % 2 ? ridgeMaterial : furrowMaterial);
+      pebble.position.set(((clump * 37 + index * 17) % 75) / 100 - 0.37, 0.035, ((clump * 23 + index * 11) % 80) / 100 - 0.4);
+      pebble.castShadow = true;
+      ridges.add(pebble);
     }
     ridges.position.set(x, 0, z);
     ridges.visible = false;
@@ -1466,6 +1426,7 @@ function animateScene(now) {
   lastTickTime = now;
 
   updateHomeTransition(now);
+  updatePlotWork(now);
   positionPlotActionMenu();
   updateDaylight();
   const gameDay = getGameDate().toISOString().slice(0, 10);
@@ -1608,6 +1569,9 @@ const plotActions = [
   ['harvest', 'Harvest'],
 ];
 const actionSupply = { drill: 'seed', fertilize: 'fertiliser', treat: 'treatment' };
+const actionDurations = { clear: 1800, test: 1400, cultivate: 2200, drill: 1800, protect: 1400, fertilize: 1500, treat: 1500, harvest: 2300 };
+const activeWork = new Map();
+const plotCooldownUntil = new Array(PLOT_COUNT).fill(0);
 let openPlotIndex = null;
 let hoveredPlotIndex = -1;
 let selectedIndex = 0;
@@ -1667,11 +1631,14 @@ function openPlotActionMenu(index) {
   const available = allowedAction(getGameDate(), plotStates[index], plotCare[index]);
   const supply = actionSupply[available];
   const needsStock = supply && inventory[supply] < 1;
-  const note = needsStock
-    ? 'Buy supplies in the farmhouse inventory before doing this work.'
-    : available ? 'Choose the available field action.' : phaseMessage(getGameDate());
+  const work = activeWork.get(index);
+  const cooldown = Math.max(0, plotCooldownUntil[index] - performance.now());
+  const note = work ? `${plotActions.find(([key]) => key === work.action)?.[1]} in progress`
+    : cooldown ? `Ready for the next task in ${(cooldown / 1000).toFixed(1)}s`
+      : needsStock ? 'Buy supplies in the farmhouse shop before doing this work.'
+        : available ? 'Choose the available field action.' : phaseMessage(getGameDate());
   plotActionMenu.setAttribute('aria-label', `Plot ${index + 1} actions`);
-  plotActionMenu.innerHTML = `<div class="plot-action-header"><strong>Plot ${index + 1}</strong><button type="button" class="plot-action-close" aria-label="Close plot actions">×</button></div><p class="plot-action-state">${describePlotState(index)}</p><div class="plot-action-grid">${plotActions.map(([action, label]) => `<button type="button" data-action="${action}" ${action !== available || needsStock ? 'disabled' : ''}>${label}</button>`).join('')}</div><p class="plot-action-note">${note}</p>`;
+  plotActionMenu.innerHTML = `<div class="plot-action-header"><strong>Plot ${index + 1}</strong><button type="button" class="plot-action-close" aria-label="Close plot actions">×</button></div><p class="plot-action-state">${describePlotState(index)}</p><div class="plot-action-grid">${plotActions.map(([action, label]) => `<button type="button" data-action="${action}" ${action !== available || needsStock || work || cooldown ? 'disabled' : ''}>${label}</button>`).join('')}</div>${work ? '<div class="plot-work-track" role="progressbar" aria-label="Field work progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="plot-work-progress"></span></div>' : ''}<p class="plot-action-note">${note}</p>`;
   plotActionMenu.hidden = false;
   positionPlotActionMenu();
   (plotActionMenu.querySelector('button[data-action]:not([disabled])') || plotActionMenu.querySelector('.plot-action-close'))?.focus({ preventScroll: true });
@@ -1686,9 +1653,68 @@ plotActionMenu?.addEventListener('click', (event) => {
   }
   const index = openPlotIndex;
   const action = button.dataset.action;
-  if (index !== null && action) handlePlotAction(index, action);
-  closePlotActionMenu(true);
+  if (index !== null && action) startPlotWork(index, action);
 });
+
+function startPlotWork(index, action) {
+  if (activeWork.has(index) || performance.now() < plotCooldownUntil[index]) return;
+  if (allowedAction(getGameDate(), plotStates[index], plotCare[index]) !== action) return;
+  const supply = actionSupply[action];
+  if (supply && inventory[supply] < 1) return;
+  const { x, z } = plotPositions[index];
+  const effect = new THREE.Group();
+  effect.position.set(x, 0.1, z);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.38, 0.45, 32), new THREE.MeshBasicMaterial({ color: 0xf5d17d, transparent: true, opacity: 0.65, side: THREE.DoubleSide, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2;
+  effect.add(ring);
+  for (let i = 0; i < 5; i += 1) {
+    const mote = new THREE.Mesh(new THREE.SphereGeometry(0.045, 5, 4), new THREE.MeshBasicMaterial({ color: 0xe8cb93, transparent: true, opacity: 0.45, depthWrite: false }));
+    const angle = i * Math.PI * 2 / 5;
+    mote.position.set(Math.cos(angle) * 0.31, 0.12, Math.sin(angle) * 0.31);
+    effect.add(mote);
+  }
+  scene.add(effect);
+  activeWork.set(index, { action, started: performance.now(), duration: actionDurations[action], effect });
+  status.textContent = `Working on plot ${index + 1}: ${plotActions.find(([key]) => key === action)?.[1]}.`;
+  openPlotActionMenu(index);
+}
+
+function updatePlotWork(now) {
+  for (const [index, work] of activeWork) {
+    const progress = THREE.MathUtils.clamp((now - work.started) / work.duration, 0, 1);
+    work.effect.rotation.y = progress * Math.PI * 2;
+    work.effect.children[0].material.opacity = 0.3 + Math.sin(progress * Math.PI * 5) * 0.2;
+    work.effect.children.slice(1).forEach((mote, i) => {
+      mote.position.y = 0.1 + progress * 0.22 + Math.sin(progress * 12 + i) * 0.05;
+      mote.material.opacity = (1 - progress) * 0.55;
+    });
+    if (openPlotIndex === index) {
+      const bar = plotActionMenu.querySelector('.plot-work-progress');
+      if (bar) bar.style.width = `${Math.round(progress * 100)}%`;
+      plotActionMenu.querySelector('[role="progressbar"]')?.setAttribute('aria-valuenow', String(Math.round(progress * 100)));
+      const note = plotActionMenu.querySelector('.plot-action-note');
+      if (note) note.textContent = `${plotActions.find(([key]) => key === work.action)?.[1]} · ${((1 - progress) * work.duration / 1000).toFixed(1)}s left`;
+    }
+    if (progress < 1) continue;
+    scene.remove(work.effect);
+    work.effect.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); });
+    activeWork.delete(index);
+    plotCooldownUntil[index] = now + 800;
+    if (allowedAction(getGameDate(), plotStates[index], plotCare[index]) === work.action) handlePlotAction(index, work.action);
+    else status.textContent = `The season changed before work on plot ${index + 1} finished.`;
+    if (openPlotIndex === index) openPlotActionMenu(index);
+  }
+  if (openPlotIndex !== null && !activeWork.has(openPlotIndex)) {
+    const remaining = plotCooldownUntil[openPlotIndex] - now;
+    if (remaining > 0) {
+      const note = plotActionMenu.querySelector('.plot-action-note');
+      if (note) note.textContent = `Ready for the next task in ${(remaining / 1000).toFixed(1)}s`;
+    } else if (plotCooldownUntil[openPlotIndex] !== 0) {
+      plotCooldownUntil[openPlotIndex] = 0;
+      openPlotActionMenu(openPlotIndex);
+    }
+  }
+}
 
 document.addEventListener('pointerdown', (event) => {
   if (openPlotIndex !== null && !plotActionMenu.contains(event.target)) closePlotActionMenu();
@@ -1706,7 +1732,8 @@ window.addEventListener('farm-hands:menu-open', () => closePlotActionMenu());
 function updateHighlights() {
   for (let index = 0; index < PLOT_COUNT; index += 1) {
     const active = index === hoveredPlotIndex || (keyboardFocus && index === selectedIndex);
-    plotMaterials[index].color.setHex(active ? 0xbd8052 : 0x945f3c);
+    const prepared = plotStates[index] === PLOT_STATE.CULTIVATED || plotStates[index] === PLOT_STATE.PLANTED;
+    plotMaterials[index].color.setHex(active ? (prepared ? 0x9d6943 : 0xbd8052) : (prepared ? 0x774a32 : 0x945f3c));
     plotMaterials[index].emissive.setHex(active ? 0x38220b : 0x000000);
   }
   render();
@@ -1769,6 +1796,7 @@ function applyPlotVisual(index) {
   const state = plotStates[index];
   if (ridgeGroups[index]) ridgeGroups[index].visible = state === PLOT_STATE.CULTIVATED || state === PLOT_STATE.PLANTED;
   if (weedGroups[index]) weedGroups[index].visible = state === PLOT_STATE.WEEDY;
+  if (plotMaterials[index]) plotMaterials[index].color.setHex(state === PLOT_STATE.CULTIVATED || state === PLOT_STATE.PLANTED ? 0x774a32 : 0x945f3c);
 }
 
 function refreshStatus() {
@@ -1860,17 +1888,30 @@ function handlePlotAction(index, requestedAction = null) {
   saveGameProgress();
 }
 
+function itemIcon(key) {
+  const start = '<svg viewBox="0 0 80 80" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">';
+  const end = '</svg>';
+  const art = {
+    seed: '<path d="M18 37h44l-5 29H23z" fill="#b98651" stroke="#6b472b" stroke-width="3"/><path d="M19 37q21 8 42 0" fill="none" stroke="#e5bd79" stroke-width="4"/><path d="M40 47V17m0 20-12-14m12 9 13-13" stroke="#5f7538" stroke-width="3" fill="none"/><path d="M40 16l-4-7m4 7 4-7M28 23l-7-5m7 5-1-8m26 4 6-6m-6 6 2-8" stroke="#dcb45f" stroke-width="4" stroke-linecap="round"/>',
+    fertiliser: '<path d="M21 18h38l4 47H17z" fill="#e6d9ad" stroke="#7d6847" stroke-width="3"/><path d="M21 27h38M24 53h32" stroke="#aa9368" stroke-width="3"/><path d="M41 49q-13-18 5-22 8 15-5 22z" fill="#72924f"/><path d="M40 49q2-15 13-18" stroke="#47683c" stroke-width="2" fill="none"/>',
+    treatment: '<path d="M32 13h16v9H32z" fill="#6d785e" stroke="#455344" stroke-width="3"/><path d="M27 24h26l6 38H21z" fill="#76a08a" stroke="#405f56" stroke-width="3"/><path d="M27 38h26v13H27z" fill="#dfebd4"/><path d="M40 40v9m-5-5h10" stroke="#53715d" stroke-width="3"/>',
+    grain: '<path d="M18 38h44l-6 28H24z" fill="#bd9057" stroke="#6b472b" stroke-width="3"/><path d="M23 45h34" stroke="#e7c386" stroke-width="3"/><path d="M33 34V15m7 19V10m8 24V17" stroke="#78944a" stroke-width="3"/><path d="M30 19l-4-5m8 3 4-6m1 8-5-5m8 1 4-5m1 12 5-5" stroke="#e4bd64" stroke-width="5" stroke-linecap="round"/>',
+    straw: '<rect x="13" y="31" width="54" height="32" rx="5" fill="#d7aa57" stroke="#805c32" stroke-width="3"/><path d="M18 38h43M17 50h46M25 32v30m30-30v30" stroke="#f1d080" stroke-width="3"/><path d="M29 31v32m22-32v32" stroke="#6d4c2e" stroke-width="3"/>',
+  };
+  return `${start}${art[key] || ''}${end}`;
+}
+
 function updateInventory() {
   const container = document.querySelector('#farm-inventory');
   if (!container) return;
   const items = [...shopSupplies, ...sellableGoods].filter(({ key }) => inventory[key] > 0);
   container.innerHTML = items.length
-    ? items.map(({ key, label, unit }) => `<div class="inventory-item"><span>${label}</span><strong>${inventory[key]}</strong><small>${unit}</small></div>`).join('')
+    ? items.map(({ key, label, unit }) => `<div class="inventory-item" tabindex="0" role="img" aria-label="${label}: ${inventory[key]} ${unit}" title="${label}"><span class="inventory-art">${itemIcon(key)}</span><strong class="inventory-quantity">×${inventory[key]}</strong><span class="inventory-tooltip">${label} · ${unit}</span></div>`).join('')
     : '<p class="inventory-empty">Your inventory is empty.</p>';
   const shop = document.querySelector('#farm-shop');
   if (shop) {
-    const buyRows = shopSupplies.map(({ key, label, price }) => `<div class="shop-row"><span>${label}</span><div class="shop-buttons"><button type="button" data-buy="${key}" data-count="1" ${coins < price ? 'disabled' : ''}>Buy 1 · ${price} coins</button><button type="button" data-buy="${key}" data-count="9" ${coins < price * 9 ? 'disabled' : ''}>Buy 9 · ${price * 9} coins</button><button type="button" data-sell="${key}" data-count="1" ${inventory[key] < 1 ? 'disabled' : ''}>Sell 1 · +${price} coins</button><button type="button" data-sell="${key}" data-count="9" ${inventory[key] < 9 ? 'disabled' : ''}>Sell 9 · +${price * 9} coins</button></div></div>`);
-    const sellRows = sellableGoods.map(({ key, label, price }) => `<div class="shop-row"><span>${label}</span><div class="shop-buttons"><button type="button" data-sell="${key}" data-count="1" ${inventory[key] < 1 ? 'disabled' : ''}>Sell 1 · +${price} coins</button><button type="button" data-sell="${key}" data-count="9" ${inventory[key] < 9 ? 'disabled' : ''}>Sell 9 · +${price * 9} coins</button></div></div>`);
+    const buyRows = shopSupplies.map(({ key, label, price }) => `<div class="shop-row"><span class="shop-item-label"><span class="shop-item-art">${itemIcon(key)}</span>${label}</span><div class="shop-buttons"><button type="button" data-buy="${key}" data-count="1" ${coins < price ? 'disabled' : ''}>Buy 1 · ${price} coins</button><button type="button" data-buy="${key}" data-count="9" ${coins < price * 9 ? 'disabled' : ''}>Buy 9 · ${price * 9} coins</button><button type="button" data-sell="${key}" data-count="1" ${inventory[key] < 1 ? 'disabled' : ''}>Sell 1 · +${price} coins</button><button type="button" data-sell="${key}" data-count="9" ${inventory[key] < 9 ? 'disabled' : ''}>Sell 9 · +${price * 9} coins</button></div></div>`);
+    const sellRows = sellableGoods.map(({ key, label, price }) => `<div class="shop-row"><span class="shop-item-label"><span class="shop-item-art">${itemIcon(key)}</span>${label}</span><div class="shop-buttons"><button type="button" data-sell="${key}" data-count="1" ${inventory[key] < 1 ? 'disabled' : ''}>Sell 1 · +${price} coins</button><button type="button" data-sell="${key}" data-count="9" ${inventory[key] < 9 ? 'disabled' : ''}>Sell 9 · +${price * 9} coins</button></div></div>`);
     shop.innerHTML = [...buyRows, ...sellRows].join('');
   }
 }
