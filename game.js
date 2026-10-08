@@ -193,14 +193,36 @@ function box(parent, width, height, depth, meshMaterial, x, y, z) {
   return mesh;
 }
 
+// Terrain feature placements (shared by the 3D scene and the farmhouse map).
+const POND = { x: 8.8, z: 6.8, radius: 2.1 };
+const HILL = { x: 2, z: -9, height: 3.4, spread: 7 };
+const PINE_POSITIONS = [
+  [-11.0, -7.0], [-9.5, -9.0], [-7.8, -7.6], [-10.2, -5.4], [-12.2, -8.2],
+  [-6.8, -8.6], [-8.6, -10.2], [-11.4, -5.8], [-7.0, -5.6],
+];
+const ROCK_POSITIONS = [
+  [-3.4, 3.2], [4.2, 3.6], [3.8, -3.2], [-3.8, -3.4],
+  [7.3, 5.9], [9.6, 5.8], [8.2, 8.3], [10.3, 7.3], [6.9, 7.2], [9.9, 6.9],
+];
+const GARDEN_PATH_STEPS = [
+  [-5.8, -3.9], [-5.2, -3.6], [-4.6, -3.2],
+  [-3.9, -2.9], [-3.2, -2.6], [-2.5, -2.4], [-1.9, -2.2],
+];
+
 function groundHeight(x, z) {
   const distance = Math.hypot(x, z);
   const hills = THREE.MathUtils.smoothstep(distance, 7, 28);
-  return -0.18 + hills * (
+  let height = -0.18 + hills * (
     0.32 * Math.sin(x * 0.09) * Math.cos(z * 0.075) +
     0.19 * Math.sin(x * 0.19 + z * 0.14) +
     0.12 * Math.cos(z * 0.16)
   );
+
+  // Broad, rolling hill rising to the north.
+  const hillDist = Math.hypot(x - HILL.x, z - HILL.z);
+  height += HILL.height * Math.exp(-(hillDist * hillDist) / (2 * HILL.spread * HILL.spread));
+
+  return height;
 }
 
 function grassTexture() {
@@ -292,7 +314,10 @@ for (let index = 0; index < tuftCount; index += 1) {
     const radius = index < 1900 ? 5.5 + randomGrass() * 26 : 26 + Math.sqrt(randomGrass()) * 105;
     x = Math.cos(angle) * radius;
     z = Math.sin(angle) * radius;
-  } while (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2);
+  } while (
+    (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2) || // Farmhouse
+    Math.hypot(x - POND.x, z - POND.z) < POND.radius + 0.7 // Pond
+  );
   const height = 0.65 + randomGrass() * 1.05;
   const width = 0.8 + randomGrass() * 0.7;
   tuftTransform.position.set(x, groundHeight(x, z) + 0.012, z);
@@ -335,7 +360,8 @@ function addWildflowers() {
       z = Math.sin(angle) * radius;
     } while (
       (x > -2.6 && x < 2.6 && z > -2.6 && z < 2.6) || // Avoid wheat plot
-      (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2)   // Avoid house
+      (x > -7.8 && x < -3.8 && z > -7.2 && z < -3.2) || // Avoid house
+      Math.hypot(x - POND.x, z - POND.z) < POND.radius + 0.7 // Avoid pond
     );
 
     const y = groundHeight(x, z) + 0.16 + randomGrass() * 0.12;
@@ -517,12 +543,8 @@ function updateChimneySmoke(deltaSeconds = 0) {
 // 1. Winding Cobblestone Garden Path (Farmhouse -> Wheat Field)
 function addGardenPath() {
   const pathMat = material(0x8a8479, 0.95);
-  const pathSteps = [
-    [-5.8, -3.9], [-5.2, -3.6], [-4.6, -3.2],
-    [-3.9, -2.9], [-3.2, -2.6], [-2.5, -2.4], [-1.9, -2.2]
-  ];
-  for (let i = 0; i < pathSteps.length; i += 1) {
-    const [x, z] = pathSteps[i];
+  for (let i = 0; i < GARDEN_PATH_STEPS.length; i += 1) {
+    const [x, z] = GARDEN_PATH_STEPS[i];
     const stone = new THREE.Mesh(
       new THREE.CylinderGeometry(0.32 + (i % 2) * 0.08, 0.35 + (i % 2) * 0.08, 0.06, 7),
       pathMat
@@ -678,6 +700,75 @@ function addSignpost() {
   scene.add(signpost);
 }
 addSignpost();
+
+// ==========================================================================
+// INTERESTING TERRAIN: POND, PINE FOREST, BOULDERS
+// ==========================================================================
+
+function addPond() {
+  const waterLevel = groundHeight(POND.x, POND.z);
+
+  // Sandy bank
+  const bank = new THREE.Mesh(new THREE.CircleGeometry(POND.radius + 0.5, 30), material(0xc9b285));
+  bank.rotation.x = -Math.PI / 2;
+  bank.position.set(POND.x, waterLevel - 0.02, POND.z);
+  bank.receiveShadow = true;
+  scene.add(bank);
+
+  // Water surface
+  const water = new THREE.Mesh(
+    new THREE.CircleGeometry(POND.radius, 30),
+    new THREE.MeshStandardMaterial({
+      color: 0x4a90c9,
+      roughness: 0.15,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.9,
+    }),
+  );
+  water.rotation.x = -Math.PI / 2;
+  water.position.set(POND.x, waterLevel + 0.01, POND.z);
+  scene.add(water);
+}
+
+function addPine(x, z, scale = 1) {
+  const pine = new THREE.Group();
+  pine.position.set(x, groundHeight(x, z), z);
+  pine.scale.setScalar(scale);
+
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, 1.0, 6), material(0x4a3017));
+  trunk.position.y = 0.5;
+  trunk.castShadow = true;
+  pine.add(trunk);
+
+  const tiers = [
+    [1.1, 1.6, 1.35],
+    [0.8, 1.4, 1.95],
+    [0.5, 1.1, 2.5],
+  ];
+  for (const [radius, height, centerY] of tiers) {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 7), material(0x2f6b34));
+    cone.position.y = centerY;
+    cone.castShadow = true;
+    pine.add(cone);
+  }
+
+  scene.add(pine);
+}
+
+function addBoulder(x, z, scale = 1) {
+  const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34 * scale, 0), material(0x8a8578));
+  rock.position.set(x, groundHeight(x, z) + 0.1 * scale, z);
+  rock.rotation.set(Math.sin(x) * 0.6, z * 0.5, Math.cos(z) * 0.4);
+  rock.scale.y = 0.7;
+  rock.castShadow = true;
+  rock.receiveShadow = true;
+  scene.add(rock);
+}
+
+addPond();
+PINE_POSITIONS.forEach(([x, z], index) => addPine(x, z, 0.85 + (index % 3) * 0.15));
+ROCK_POSITIONS.forEach(([x, z], index) => addBoulder(x, z, 0.75 + (index % 3) * 0.3));
 
 // ==========================================================================
 // SOIL AND PLANTING FIELD
@@ -1243,6 +1334,7 @@ function plantWheat(index) {
     : `Wheat planted in plot ${index + 1}.`;
   updateCanvasLabel();
   updatePlantedCountLedger();
+  updateMapPlots();
   saveGameProgress();
 }
 
@@ -1403,6 +1495,94 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') saveCameraState(true);
 });
 
+// ==========================================================================
+// FARM MAP (top-down map shown in the farmhouse modal)
+// ==========================================================================
+
+const MAP_SCALE = 13;
+const MAP_CX = 190;
+const MAP_CY = 150;
+const mapX = (x) => MAP_CX + x * MAP_SCALE;
+const mapY = (z) => MAP_CY + z * MAP_SCALE;
+
+function pineGlyph(cx, cy) {
+  return `M ${cx} ${cy - 5} L ${cx - 3.5} ${cy + 2} L ${cx + 3.5} ${cy + 2} Z`;
+}
+
+function buildFarmMap() {
+  const container = document.querySelector('#farm-map');
+  if (!container) return;
+
+  const parts = [];
+
+  // Distant hill contours (north)
+  for (const radius of [30, 55, 80]) {
+    parts.push(`<ellipse class="map-hill" cx="${mapX(HILL.x)}" cy="${mapY(HILL.z)}" rx="${radius}" ry="${Math.round(radius * 0.4)}" />`);
+  }
+
+  // Pond (south-east)
+  parts.push(`<ellipse class="map-pond" cx="${mapX(POND.x)}" cy="${mapY(POND.z)}" rx="${Math.round(POND.radius * MAP_SCALE * 1.15)}" ry="${Math.round(POND.radius * MAP_SCALE * 0.85)}" />`);
+  parts.push(`<ellipse class="map-pond-shine" cx="${mapX(POND.x) - 4}" cy="${mapY(POND.z) - 3}" rx="7" ry="4" />`);
+
+  // Pine forest (north-west)
+  for (const [x, z] of PINE_POSITIONS) {
+    parts.push(`<path class="map-pine" d="${pineGlyph(mapX(x), mapY(z))}" />`);
+  }
+
+  // Boulders
+  for (const [x, z] of ROCK_POSITIONS) {
+    parts.push(`<ellipse class="map-rock" cx="${mapX(x)}" cy="${mapY(z)}" rx="3.4" ry="2.6" />`);
+  }
+
+  // Fence around the field
+  parts.push(`<rect class="map-fence" x="${mapX(-2.35)}" y="${mapY(-2.35)}" width="${2.35 * MAP_SCALE * 2}" height="${2.35 * MAP_SCALE * 2}" rx="7" />`);
+
+  // Soil field
+  parts.push(`<rect class="map-field" x="${mapX(-1.9)}" y="${mapY(-1.9)}" width="${1.9 * MAP_SCALE * 2}" height="${1.9 * MAP_SCALE * 2}" rx="5" />`);
+
+  // Nine plantable plots
+  for (let index = 0; index < PLOT_COUNT; index += 1) {
+    const px = ((index % COLUMNS) - 1) * 1.22;
+    const pz = (Math.floor(index / COLUMNS) - 1) * 1.22;
+    parts.push(`<rect class="map-plot" data-index="${index}" x="${mapX(px) - 5.5}" y="${mapY(pz) - 5.5}" width="11" height="11" rx="2" />`);
+  }
+
+  // Garden path
+  parts.push(`<polyline class="map-path" points="${GARDEN_PATH_STEPS.map(([x, z]) => `${mapX(x)},${mapY(z)}`).join(' ')}" />`);
+
+  // Farmhouse
+  const hx = mapX(-5.8);
+  const hy = mapY(-5.1);
+  parts.push(`<rect class="map-house" x="${hx - 7}" y="${hy - 5}" width="14" height="14" rx="2" />`);
+  parts.push(`<path class="map-house-roof" d="M ${hx - 9} ${hy - 5} L ${hx} ${hy - 12} L ${hx + 9} ${hy - 5} Z" />`);
+
+  // Hay bales
+  for (const [x, z] of [[2.6, -1.8], [2.8, -1.2], [2.7, -1.5]]) {
+    parts.push(`<circle class="map-hay" cx="${mapX(x)}" cy="${mapY(z)}" r="3" />`);
+  }
+
+  // Signpost
+  parts.push(`<circle class="map-sign" cx="${mapX(-2.1)}" cy="${mapY(-1.9)}" r="2.5" />`);
+
+  // Orchard trees
+  for (const [x, z] of [[-8.5, -6.6], [3.8, -5.6]]) {
+    parts.push(`<circle class="map-tree" cx="${mapX(x)}" cy="${mapY(z)}" r="5.5" />`);
+  }
+
+  // Compass
+  parts.push(`<g class="map-compass"><path d="M ${MAP_CX + 158} 18 L ${MAP_CX + 162} 30 L ${MAP_CX + 166} 18 Z" /><text x="${MAP_CX + 164}" y="40">N</text></g>`);
+
+  container.innerHTML = `<svg class="farm-map-svg" viewBox="0 0 380 300" role="img" aria-label="Map of the farm">${parts.join('')}</svg>`;
+  updateMapPlots();
+}
+
+function updateMapPlots() {
+  document.querySelectorAll('.map-plot').forEach((cell) => {
+    const index = Number(cell.dataset.index);
+    cell.classList.toggle('is-planted', plantedPlots.has(index));
+  });
+}
+
 updateCanvasLabel();
 updateHelpText();
 resize();
@@ -1411,6 +1591,7 @@ resize();
 const restoredCameraState = readSavedCameraState();
 if (restoredCameraState) applyCameraState(restoredCameraState);
 lastSavedCameraState = JSON.stringify(cameraStateSnapshot());
+buildFarmMap();
 
 // Expose on window for debugging and test verification
 window.FarmGame = {
@@ -1429,4 +1610,6 @@ window.FarmGame = {
   resetCameraToDefault,
   isCameraMemoryEnabled,
   setCameraMemoryEnabled,
+  buildFarmMap,
+  updateMapPlots,
 };
