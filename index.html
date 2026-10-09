@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600;700;800&family=Alegreya+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=interiors-14" />
+    <link rel="stylesheet" href="./styles.css?v=checklist-dialogue-16" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
@@ -26,8 +26,7 @@
 
         <div id="farm-onboarding" class="farm-onboarding" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" hidden>
           <div class="onboarding-card dialogue-card">
-            <div class="dialogue-portrait john-portrait" aria-hidden="true">J</div>
-            <div class="dialogue-copy"><span class="onboarding-kicker">A new beginning at Willow Creek</span><h2 id="onboarding-title">Farmer John</h2><p id="onboarding-line">Hello there. I'm John.</p></div>
+            <div class="dialogue-copy"><h2 id="onboarding-title">Farmer John</h2><p id="onboarding-line">Hello there. I'm John.</p></div>
             <button id="onboarding-start" class="cozy-btn primary-btn" type="button">Continue</button>
           </div>
         </div>
@@ -53,7 +52,7 @@
           </button>
         </aside>
         <aside id="cleanup-hud" class="cleanup-hud" aria-live="polite" hidden><strong>Field condition</strong><span id="cleanup-instruction">Click each stone to have John remove it.</span><div>Cleanliness <b id="ground-cleanliness">100%</b></div><div>Flatness <b id="ground-flatness">90%</b></div><div>Soil quality <b id="ground-quality">?</b></div></aside>
-        <aside id="planting-checklist" class="planting-checklist" aria-label="Before planting checklist" hidden><strong>Before planting</strong><ol id="planting-checklist-items"></ol></aside>
+        <aside id="planting-checklist" class="planting-checklist" aria-label="Before planting checklist" hidden><strong>Before planting</strong><ul id="planting-checklist-items"></ul></aside>
         <button id="stop-john-control" class="john-control-exit" type="button" hidden>Stop walking as John</button>
         <aside id="soil-journey-hud" class="soil-journey-hud" aria-live="polite" hidden><strong id="soil-journey-title">Soil study</strong><span id="soil-journey-status"></span><div id="soil-coverage" class="mission-meter" hidden><span id="soil-coverage-label">0% represented</span><div><i id="soil-coverage-fill"></i></div></div><div id="lab-progress" class="mission-meter" hidden><span id="lab-progress-label">Lab testing · 0%</span><div><i id="lab-progress-fill"></i></div></div><div class="mission-buttons"><button id="soil-journey-action" type="button" hidden></button><button id="soil-plan-undo" type="button" hidden>Undo point</button></div></aside>
         <button id="mail-alert" class="mail-alert" type="button" hidden>✉ New mail</button>

@@ -3267,7 +3267,7 @@ function updatePlantingChecklist() {
     ['Sow in September–October',allPlanted],
   ];
   const next = steps.findIndex(([,done]) => !done);
-  const markup = steps.map(([label,done],index) => `<li class="${done ? 'is-done' : index === next ? 'is-next' : ''}">${label}${index === 9 && !done && month < 8 ? ' · opens 1 September' : ''}</li>`).join('');
+  const markup = steps.map(([label,done],index) => `<li class="${done ? 'is-done' : index === next ? 'is-next' : ''}"><span class="checklist-box" aria-hidden="true">${done ? '✓' : ''}</span><span>${label}${index === 9 && !done && month < 8 ? ' · opens 1 September' : ''}</span>${done ? '<span class="sr-only">Complete</span>' : ''}</li>`).join('');
   if (markup !== lastChecklistMarkup) { document.querySelector('#planting-checklist-items').innerHTML = markup; lastChecklistMarkup = markup; }
 }
 function animateScene(now) {
