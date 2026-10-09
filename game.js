@@ -6,7 +6,7 @@ import { bindingLabel, bindingSummary, eventMatches, onKeybindsChange } from './
 import { soilSampleRoute, soilReportDue, soilReportForField, soilReportStatus, SOIL_LAB_COST, nextSoilSamplePoint, soilCoverageAt, soilCoveragePercent, SOIL_LAB_DAY_MS } from './soil-study.mjs?v=charlie-10';
 import { soilIssues, soilPlanOptions, soilPlanIngredients, soilQualityIndex, correctedSoilReport, grainYieldForPlan, SOIL_PLAN_NAMES, SOIL_MATERIALS } from './soil-plans.mjs?v=interiors-14';
 import { advanceCar, distanceToRoad } from './driving.mjs?v=weather-13';
-import { playSound, soundMuted, setSoundMuted } from './sound.js?v=interiors-14';
+import { playSound, soundMuted, setSoundMuted, setMusicHourProvider } from './sound.js?v=village-music-15';
 import { weatherForDate, groundTooWet } from './weather.mjs?v=weather-13';
 import { createInteriors } from './interiors.mjs?v=interiors-14';
 // Importing the menu wires up the Escape menu (credits + keybind settings).
@@ -20,6 +20,7 @@ let PLOT_COUNT = COLUMNS * ROWS;
 const canvas = document.querySelector('#field');
 const status = document.querySelector('#field-status');
 setGamePaused(true);
+setMusicHourProvider(() => getGameDate().getUTCHours());
 
 // Each soil plot progresses through four states over the winter-wheat year:
 // weedy (overgrown after the previous harvest) → cleared (weeds removed) →
